@@ -45,3 +45,10 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
   type-aliases-package: com.sys.dbmonitor.domains.*.domain
+
+
+
+jmeter:
+  home: /opt/homebrew/opt/jmeter/libexec
+  test:
+    plan: src/test/jmeter/coupon_load_test.jmx

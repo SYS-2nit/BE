@@ -32,13 +32,6 @@ dependencies {
     // MyBatis
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
     
-    // Redis (V2, V3용)
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
-    implementation 'org.redisson:redisson-spring-boot-starter:3.23.4'
-    
-    // Kafka (V3용)
-    implementation 'org.springframework.kafka:spring-kafka'
-    
     // Database
     runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
     
@@ -49,7 +42,6 @@ dependencies {
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
-    testImplementation 'org.springframework.kafka:spring-kafka-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

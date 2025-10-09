@@ -25,6 +25,10 @@ public enum ExceptionMessage {
     COUPON_ISSUE_FAILED("쿠폰 발급 중 오류가 발생했습니다."),
     CouponAlreadyUsedException("이미 사용된 쿠폰입니다."),
     CouponExpiredException("만료된 쿠폰입니다."),
+
+
+    // 테스트 관련
+    TEST_NOT_FOUND("테스트를 찾을 수 없습니다")
     ;
 
 
