@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sys.dbmonitor.domains.coupon.dao.CouponRepository">
+
+    <!-- ResultMap -->
+    <resultMap id="CouponResultMap" type="com.sys.dbmonitor.domains.coupon.domain.Coupon">
+        <id property="couponId" column="ID"/>
+        <result property="userId" column="USER_ID"/>
+        <result property="couponCode" column="COUPON_CODE"/>
+        <result property="status" column="STATUS"/>
+        <result property="orderId" column="ORDER_ID"/>
+        <result property="usedAt" column="USED_AT"/>
+        <result property="createdAt" column="CREATED_AT"/>
+        <result property="updatedAt" column="UPDATED_AT"/>
+    </resultMap>
+
+    <!-- 쿠폰 발급 -->
+    <insert id="insertCoupon" parameterType="com.sys.dbmonitor.domains.coupon.domain.Coupon">
+        <selectKey keyProperty="couponId" resultType="long" order="AFTER">
+            SELECT SEQ_COUPON_ID.CURRVAL FROM DUAL
+        </selectKey>
+        INSERT INTO COUPON (
+        USER_ID, COUPON_CODE, STATUS
+        ) VALUES (
+        #{userId}, #{couponCode}, #{status}
+        )
+    </insert>
+
+    <!-- 쿠폰 ID로 조회 -->
+    <select id="findById" resultMap="CouponResultMap">
+        SELECT * FROM COUPON
+        WHERE ID = #{couponId}
+    </select>
+
+    <!-- 쿠폰 ID와 사용자 ID로 조회 -->
+    <select id="findByIdAndUserId" resultMap="CouponResultMap">
+        SELECT * FROM COUPON
+        WHERE ID = #{couponId}
+          AND USER_ID = #{userId}
+    </select>
+
+    <!-- 발급된 쿠폰 수 조회 -->
+    <select id="countIssuedCoupons" resultType="int">
+        SELECT ISSUED_COUNT FROM COUPON_CONFIG WHERE CONFIG_NAME = 'DEFAULT'
+    </select>
+
+    <!-- 쿠폰 상태 업데이트 -->
+    <update id="updateCouponStatus">
+        UPDATE COUPON
+        SET STATUS = #{status},
+            ORDER_ID = #{orderId},
+            USED_AT = #{usedAt}
+        WHERE ID = #{couponId}
+    </update>
+
+    <!-- V1: 쿠폰 발급 카운트 증가 (프로시저 호출) -->
+    <select id="incrementIssuedCountWithLock" statementType="CALLABLE" parameterType="map">
+        {CALL SP_INCREMENT_COUPON_COUNT(
+                #{updatedRows, mode=OUT, jdbcType=NUMERIC}
+              )}
+    </select>
+
+</mapper>

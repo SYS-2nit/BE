@@ -10,20 +10,38 @@ spring:
     password: ${DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
 
-# mybatis sql ??
+  # Redis 설정 (V2, V3용)
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+  # Kafka 설정 (V3용 - 미사용 시 주석 처리)
+#  kafka:
+#    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+#    consumer:
+#      group-id: coupon-service
+#      auto-offset-reset: earliest
+#      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+#      properties:
+#        spring.json.trusted.packages: "*"
+#    producer:
+#      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+# mybatis sql
 logging:
   level:
     com:
       sys:
-        stm: debug
+        dbmonitor: debug
 
 server:
   port: 8081
-
 
 mybatis:
   mapper-locations: classpath:/mappers/*.xml
   configuration:
     map-underscore-to-camel-case: true
-  plugins:
-    - com.sys.stm.global.common.interceptor.AuditingInterceptor
+  type-aliases-package: com.sys.dbmonitor.domains.*.domain
