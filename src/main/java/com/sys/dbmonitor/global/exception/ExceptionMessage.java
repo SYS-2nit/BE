@@ -16,7 +16,15 @@ public enum ExceptionMessage {
     LOGIN_FAILED("로그인에 실패했습니다."),
     TOKEN_REFRESH_FAILED("토큰 갱신에 실패했습니다."),
 
-
+    // 쿠폰 관련
+    COUPON_NOT_FOUND("쿠폰을 찾을 수 없습니다."),
+    COUPON_SOLD_OUT("쿠폰이 모두 소진되었습니다."),
+    COUPON_ALREADY_USED("이미 사용된 쿠폰입니다."),
+    COUPON_NOT_USED("사용되지 않은 쿠폰입니다."),
+    COUPON_ISSUE_TIMEOUT("쿠폰 발급 요청이 많습니다. 잠시 후 다시 시도해주세요."),
+    COUPON_ISSUE_FAILED("쿠폰 발급 중 오류가 발생했습니다."),
+    CouponAlreadyUsedException("이미 사용된 쿠폰입니다."),
+    CouponExpiredException("만료된 쿠폰입니다."),
     ;
 
 

@@ -6,7 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 @Slf4j
@@ -25,6 +27,29 @@ public class GlobalExceptionHandler {
         problemDetail.setTitle("잘못된 요청입니다");
 
         return problemDetail;
+    }
+
+    /**
+     * 정적 리소스 없음 예외 처리
+     * - favicon.ico, .well-known 등 브라우저 자동 요청은 로그 출력 안 함
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public void handleNoResourceFoundException(NoResourceFoundException e) {
+        String message = e.getMessage();
+
+        // 브라우저 자동 요청 무시 (로그 출력 안 함)
+        if (message != null && (
+                message.contains("favicon.ico") ||
+                        message.contains(".well-known") ||
+                        message.contains("robots.txt") ||
+                        message.contains("sitemap.xml")
+        )) {
+            return; // 조용히 무시
+        }
+
+        // 실제 리소스 에러는 로그 출력
+        log.error("Resource not found - {}", message);
     }
 
     @ExceptionHandler(AuthenticationException.class)
