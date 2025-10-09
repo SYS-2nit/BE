@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # 기본 체크아웃
+    # 기본 체크아웃d
     - name: Checkout
       uses: actions/checkout@v3
     # Gradlew 실행 허용
