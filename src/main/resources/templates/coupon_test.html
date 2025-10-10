@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>쿠폰 부하 테스트</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 900px;
+            margin-top: 50px;
+        }
+        .test-card {
+            margin-bottom: 20px;
+        }
+        .result-box {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            display: none;
+        }
+        .stat-item {
+            padding: 10px;
+            margin: 5px 0;
+            background-color: white;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .success-stat {
+            border-left-color: #28a745;
+        }
+        .failure-stat {
+            border-left-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="mb-4">🧪 쿠폰 부하 테스트</h1>
+    
+    <!-- API 버전 선택 -->
+    <div class="card test-card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">테스트 설정</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="apiVersion" class="form-label">API 버전</label>
+                <select class="form-select" id="apiVersion">
+                    <option value="v1" selected>V1 - DB Lock (프로시저)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- 커스텀 테스트 -->
+    <div class="card test-card">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">커스텀 테스트</h5>
+        </div>
+        <div class="card-body">
+            <form id="customTestForm">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="threads" class="form-label">동시 스레드 수</label>
+                        <input type="number" class="form-control" id="threads" value="50" min="1" max="10000">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="requests" class="form-label">총 요청 수</label>
+                        <input type="number" class="form-control" id="requests" value="100" min="1" max="10000">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">🚀 커스텀 테스트 실행</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 로딩 표시 -->
+    <div id="loadingBox" class="alert alert-info" style="display: none;">
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <strong> 테스트 실행 중...</strong> 잠시만 기다려주세요.
+    </div>
+    
+    <!-- 결과 표시 -->
+    <div id="resultBox" class="result-box">
+        <h4 class="mb-3">📊 테스트 결과</h4>
+        <div id="resultContent"></div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    function showLoading(show) {
+        if (show) {
+            $('#loadingBox').show();
+            $('#resultBox').hide();
+        } else {
+            $('#loadingBox').hide();
+        }
+    }
+    
+    function showResult(data) {
+        const result = data.data;
+        
+        const html = `
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="stat-item">
+                        <strong>API 버전:</strong> ${result.apiVersion.toUpperCase()}
+                    </div>
+                    <div class="stat-item">
+                        <strong>동시 스레드:</strong> ${result.threadCount}명
+                    </div>
+                    <div class="stat-item">
+                        <strong>총 요청:</strong> ${result.totalRequests}건
+                    </div>
+                    <div class="stat-item success-stat">
+                        <strong>성공:</strong> ${result.successCount}건 (${result.successRate.toFixed(2)}%)
+                    </div>
+                    <div class="stat-item failure-stat">
+                        <strong>실패:</strong> ${result.failureCount}건
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="stat-item">
+                        <strong>소요 시간:</strong> ${result.durationSeconds}초
+                    </div>
+                    <div class="stat-item">
+                        <strong>TPS:</strong> ${result.tps.toFixed(2)} req/sec
+                    </div>
+                    <div class="stat-item">
+                        <strong>평균 응답:</strong> ${result.avgResponseMs.toFixed(2)}ms
+                    </div>
+                    <div class="stat-item">
+                        <strong>최소 응답:</strong> ${result.minResponseMs.toFixed(2)}ms
+                    </div>
+                    <div class="stat-item">
+                        <strong>최대 응답:</strong> ${result.maxResponseMs.toFixed(2)}ms
+                    </div>
+                </div>
+            </div>
+            ${result.errorStats && Object.keys(result.errorStats).length > 0 ? `
+                <div class="mt-3">
+                    <h6>에러 통계:</h6>
+                    <ul>
+                        ${Object.entries(result.errorStats).map(([error, count]) => 
+                            `<li>${error}: ${count}건</li>`
+                        ).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+        `;
+        
+        $('#resultContent').html(html);
+        $('#resultBox').show();
+        showLoading(false);
+    }
+    
+    function runTest(endpoint) {
+        const apiVersion = $('#apiVersion').val();
+        showLoading(true);
+        
+        fetch(`/api/test/coupon/${endpoint}?apiVersion=${apiVersion}`, {
+            method: 'POST'
+        })
+            .then(response => response.json())
+            .then(data => {
+                showResult(data);
+            })
+            .catch(error => {
+                showLoading(false);
+                alert('테스트 실행 실패: ' + error.message);
+            });
+    }
+    
+    $(document).ready(function() {
+        // 빠른 테스트
+        $('#quickTest').on('click', function() {
+            if (confirm('10명이 동시에 쿠폰을 발급받는 테스트를 실행하시겠습니까?')) {
+                runTest('quick-test');
+            }
+        });
+        
+        // 중간 테스트
+        $('#mediumTest').on('click', function() {
+            if (confirm('100명이 동시에 쿠폰을 발급받는 테스트를 실행하시겠습니까?\n(약 10-30초 소요)')) {
+                runTest('medium-test');
+            }
+        });
+        
+        // 스트레스 테스트
+        $('#stressTest').on('click', function() {
+            if (confirm('⚠️ 1000명이 동시에 쿠폰을 발급받는 스트레스 테스트를 실행하시겠습니까?\n(1-2분 소요, 서버에 부하가 걸릴 수 있습니다)')) {
+                runTest('stress-test');
+            }
+        });
+        
+        // 커스텀 테스트
+        $('#customTestForm').on('submit', function(e) {
+            e.preventDefault();
+            const threads = $('#threads').val();
+            const requests = $('#requests').val();
+            const apiVersion = $('#apiVersion').val();
+            
+            if (confirm(`${threads}개 스레드로 ${requests}개 요청을 실행하시겠습니까?`)) {
+                showLoading(true);
+                
+                fetch(`/api/test/coupon/load-test?apiVersion=${apiVersion}&threads=${threads}&requests=${requests}`, {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        showResult(data);
+                    })
+                    .catch(error => {
+                        showLoading(false);
+                        alert('테스트 실행 실패: ' + error.message);
+                    });
+            }
+        });
+    });
+</script>
+</body>
+</html>
+
