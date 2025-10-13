@@ -48,7 +48,6 @@ jobs:
         docker push qowl880/sys-2nit:${GITHUB_SHA::7}
 
     # Deploy
-      # Deploy
     - name: Deploy
       uses: appleboy/ssh-action@master
       with:
