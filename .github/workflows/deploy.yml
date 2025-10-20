@@ -1,95 +1,294 @@
-name: Deploy
+name: CD - Deploy to Production
 
+# ✅ dev 브랜치에 push할 때만 (PR 제외!)
 on:
   push:
-    branches: [ "dev" ]
-  pull_request:
     branches: [ "dev" ]
 
 permissions:
   contents: read
 
 jobs:
-  build:
-
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    # 기본 체크아웃
-    - name: Checkout
-      uses: actions/checkout@v3
-    # Gradlew 실행 허용
-    - name: Run chmod to make gradlew executable
-      run: chmod +x ./gradlew
-    # JDK 17 세팅
-    - name: Set up JDK 17
-      uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-    # 환경 변수 설정
-    - name: Set environment values
-      run: |
-        cd ./src/main/resources
-        touch ./env.properties
-        echo "${{ secrets.ENV }}" > ./env.properties
-      shell: bash
-    # Gradle build (Test 제외)
-    - name: Build with Gradle
-      uses: gradle/gradle-build-action@67421db6bd0bf253fb4bd25b31ebb98943c375e1
-      with:
-        arguments: clean build -x test
-    # Docker build
-    - name: Docker build
-      run: |
-        docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_PASSWORD }}
-        docker build -t sys-2nit .
-        docker tag sys-2nit qowl880/sys-2nit:${GITHUB_SHA::7}
-        docker push qowl880/sys-2nit:${GITHUB_SHA::7}
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 1단계: 환경 설정 (CI와 동일)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    # Deploy (수정된 버전)
-    - name: Copy docker-compose.yml to server
-      uses: appleboy/scp-action@master
-      with:
-        host: 35.216.118.15
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
-        source: "docker-compose.yml"
-        target: "/home/${{ secrets.SSH_USERNAME }}/deploy"
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Deploy
-      uses: appleboy/ssh-action@master
-      with:
-        host: 35.216.118.15
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        passphrase: ${{ secrets.SSH_PASSPHRASE }}
-        # ✅ 환경 변수 전달
-        envs: DB_URL,DB_USERNAME,DB_PASSWORD
-        script: |
-          # ✅ GitHub Secrets를 환경 변수로 전달
-          export DB_URL="${{ secrets.DB_URL }}"
-          export DB_USERNAME="${{ secrets.DB_USERNAME }}"
-          export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Set environment values
+        run: |
+          cd ./src/main/resources
+          touch ./env.properties
+          echo "${{ secrets.ENV }}" > ./env.properties
+        shell: bash
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 2단계: 빌드 (테스트 제외 - CI에서 통과했으므로)
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          arguments: clean build -x test  # 배포 시간 단축
+
+      - name: Verify build artifacts
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 빌드 결과 확인"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           
-          DOCKER_USER="qowl880"
-          IMAGE_NAME="sys-2nit"
-          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
+          ls -lh build/libs/
           
-          cd /home/${{ secrets.SSH_USERNAME }}/deploy
+          JAR_FILE=$(find build/libs -name "*.jar" -not -name "*-plain.jar" | head -1)
           
-          echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin
+          if [ -z "$JAR_FILE" ]; then
+            echo "❌ 에러: JAR 파일이 생성되지 않았습니다"
+            exit 1
+          fi
           
-          sudo docker-compose down || true
-          sudo docker pull ${FULL_IMAGE}
-          sudo docker tag ${FULL_IMAGE} 2nit_spring
+          echo "✅ 빌드 성공: $(basename $JAR_FILE)"
+          FILE_SIZE=$(du -h "$JAR_FILE" | cut -f1)
+          echo "📊 파일 크기: ${FILE_SIZE}"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 3단계: Docker 이미지 빌드 & 푸시
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Docker build and push
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
           
-          # ✅ 환경 변수와 함께 실행
-          sudo DB_URL="${DB_URL}" \
-               DB_USERNAME="${DB_USERNAME}" \
-               DB_PASSWORD="${DB_PASSWORD}" \
-               docker-compose up -d
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🐳 Docker 이미지 빌드 및 푸시"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "이미지: ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
+          echo ""
           
-          echo "=== 배포 완료 ==="
+          # ✅ 보안: --password-stdin 사용
+          echo "${DOCKER_PASSWORD}" | docker login -u ${DOCKER_USER} --password-stdin
+          
+          # 이미지 빌드
+          docker build -t ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA} .
+          
+          # latest 태그도 추가
+          docker tag ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA} ${DOCKER_USER}/${IMAGE_NAME}:latest
+          
+          # Docker Hub에 푸시
+          echo "푸시 중: ${SHORT_SHA} 태그..."
+          docker push ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}
+          
+          echo "푸시 중: latest 태그..."
+          docker push ${DOCKER_USER}/${IMAGE_NAME}:latest
+          
+          echo ""
+          echo "✅ 이미지 푸시 완료"
+          echo "  - ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
+          echo "  - ${DOCKER_USER}/${IMAGE_NAME}:latest"
+          
+          # 환경 변수로 저장 (다음 단계에서 사용)
+          echo "DOCKER_USER=${DOCKER_USER}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+          echo "SHORT_SHA=${SHORT_SHA}" >> $GITHUB_ENV
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 4단계: Docker Hub 오래된 이미지 정리
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Cleanup old Docker Hub images
+        env:
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+          IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+          KEEP_LAST: 3  # 최근 3개만 유지
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🧹 Docker Hub 이미지 정리"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "유지할 이미지: 최근 ${KEEP_LAST}개"
+          echo ""
+          
+          # Docker Hub API 토큰 발급
+          TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${DOCKER_USER}\",\"password\":\"${DOCKER_PASSWORD}\"}" \
+            "https://hub.docker.com/v2/users/login/" | jq -r .token)
+          
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "⚠️ Docker Hub 로그인 실패, 정리 건너뜀"
+            exit 0  # 실패해도 배포는 계속
+          fi
+          
+          echo "✅ Docker Hub 로그인 성공"
+          
+          # SHA 형식 태그만 가져오기 (abc1234 형식)
+          TAGS=$(curl -s -H "Authorization: JWT ${TOKEN}" \
+            "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/?page_size=100" \
+            | jq -r '.results[] | select(.name | test("^[a-f0-9]{7}$")) | .name' \
+            | sort -r)
+          
+          if [ -z "$TAGS" ]; then
+            echo "⚠️ SHA 태그를 찾을 수 없습니다"
+            exit 0
+          fi
+          
+          TAG_COUNT=$(echo "$TAGS" | wc -l | tr -d ' ')
+          echo "전체 SHA 태그: ${TAG_COUNT}개"
+          
+          if [ $TAG_COUNT -le $KEEP_LAST ]; then
+            echo "✅ 삭제할 이미지 없음 (${TAG_COUNT}개 ≤ ${KEEP_LAST}개)"
+            exit 0
+          fi
+          
+          # 오래된 태그 삭제
+          DELETE_COUNT=$((TAG_COUNT - KEEP_LAST))
+          echo "삭제할 태그: ${DELETE_COUNT}개"
+          echo ""
+          
+          TAGS_TO_DELETE=$(echo "$TAGS" | tail -n ${DELETE_COUNT})
+          
+          DELETED=0
+          for TAG in $TAGS_TO_DELETE; do
+            echo -n "  삭제 중: ${TAG}... "
+          
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+              -H "Authorization: JWT ${TOKEN}" \
+              "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/${TAG}/")
+          
+            if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
+              echo "✅"
+              ((DELETED++))
+            else
+              echo "❌ (HTTP ${HTTP_CODE})"
+            fi
+          
+            sleep 0.5  # API Rate Limit 방지
+          done
+          
+          echo ""
+          echo "✅ 정리 완료"
+          echo "  - 삭제: ${DELETED}개"
+          echo "  - 유지: ${KEEP_LAST}개 (최신)"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 5단계: docker-compose.yml 서버로 복사
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: "docker-compose.yml"
+          target: "/home/${{ secrets.SSH_USERNAME }}/deploy"
+
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      # 6단계: 서버에 배포
+      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            # ✅ 환경 변수 사용 (하드코딩 제거)
+            DOCKER_USER="${{ secrets.DOCKERHUB_USERNAME }}"
+            IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
+            DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
+            
+            echo "========================================"
+            echo "🚀 배포 시작"
+            echo "========================================"
+            echo "이미지: ${FULL_IMAGE}"
+            echo "배포 디렉토리: ${DEPLOY_DIR}"
+            echo "시간: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo ""
+            
+            cd ${DEPLOY_DIR}
+            
+            # ✅ 보안: --password-stdin 사용
+            echo "--- Docker 로그인 ---"
+            echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin
+            
+            # 기존 컨테이너 중지 및 제거
+            echo ""
+            echo "--- 기존 컨테이너 정리 ---"
+            sudo docker-compose down || true
+            
+            # 새 이미지 pull
+            echo ""
+            echo "--- 새 이미지 다운로드 ---"
+            sudo docker pull ${FULL_IMAGE}
+            
+            # docker-compose에서 사용할 이름으로 태그
+            echo ""
+            echo "--- 이미지 태그 생성 ---"
+            sudo docker tag ${FULL_IMAGE} 2nit_spring
+            
+            # 새 컨테이너 시작
+            echo ""
+            echo "--- 컨테이너 시작 ---"
+            sudo docker-compose up -d
+            
+            # 컨테이너 상태 확인
+            echo ""
+            echo "--- 컨테이너 상태 확인 ---"
+            sleep 5  # 컨테이너 시작 대기
+            
+            if sudo docker ps | grep -q 2nit_spring; then
+              echo "✅ 컨테이너 실행 중"
+              sudo docker ps | grep 2nit_spring
+            else
+              echo "❌ 컨테이너가 실행되지 않았습니다"
+              sudo docker ps -a | grep 2nit_spring
+              exit 1
+            fi
+            
+            # 애플리케이션 로그 확인 (최근 30줄)
+            echo ""
+            echo "--- 애플리케이션 로그 (최근 30줄) ---"
+            sudo docker logs --tail 30 2nit_spring
+            
+            # 로컬 이미지 정리 (3일 이상 된 이미지)
+            echo ""
+            echo "--- 로컬 이미지 정리 ---"
+            BEFORE=$(sudo docker images | wc -l)
+            sudo docker image prune -af --filter "until=72h" || true
+            AFTER=$(sudo docker images | wc -l)
+            CLEANED=$((BEFORE - AFTER))
+            
+            if [ $CLEANED -gt 0 ]; then
+              echo "🧹 ${CLEANED}개 이미지 정리됨"
+            else
+              echo "✅ 정리할 이미지 없음"
+            fi
+            
+            echo ""
+            echo "========================================"
+            echo "✅ 배포 완료"
+            echo "========================================"
+            echo "배포 시간: $(date '+%Y-%m-%d %H:%M:%S')"
