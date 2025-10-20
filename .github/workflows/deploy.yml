@@ -117,6 +117,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
           IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+
           KEEP_LAST: 3
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -134,6 +135,7 @@ jobs:
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "⚠️ Docker Hub 로그인 실패, 정리 건너뜀"
             exit 0
+
           fi
           
           echo "✅ Docker Hub 로그인 성공"
