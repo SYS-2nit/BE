@@ -117,7 +117,8 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
           IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
-          KEEP_LAST: 3  # 최근 3개만 유지
+
+          KEEP_LAST: 3
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🧹 Docker Hub 이미지 정리"
@@ -133,7 +134,8 @@ jobs:
           
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "⚠️ Docker Hub 로그인 실패, 정리 건너뜀"
-            exit 0  # 실패해도 배포는 계속
+            exit 0
+
           fi
           
           echo "✅ Docker Hub 로그인 성공"
@@ -165,6 +167,11 @@ jobs:
           TAGS_TO_DELETE=$(echo "$TAGS" | tail -n ${DELETE_COUNT})
           
           DELETED=0
+          FAILED=0
+          
+          # ✅ 개별 삭제 실패가 전체 스크립트를 중단하지 않도록 함
+          set +e
+          
           for TAG in $TAGS_TO_DELETE; do
             echo -n "  삭제 중: ${TAG}... "
           
@@ -174,17 +181,22 @@ jobs:
           
             if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
               echo "✅"
-              ((DELETED++))
+              DELETED=$((DELETED + 1))
             else
               echo "❌ (HTTP ${HTTP_CODE})"
+              FAILED=$((FAILED + 1))
             fi
           
-            sleep 0.5  # API Rate Limit 방지
+            sleep 0.5
           done
+          
+          # ✅ set -e 다시 활성화
+          set -e
           
           echo ""
           echo "✅ 정리 완료"
-          echo "  - 삭제: ${DELETED}개"
+          echo "  - 성공: ${DELETED}개"
+          echo "  - 실패: ${FAILED}개"
           echo "  - 유지: ${KEEP_LAST}개 (최신)"
 
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
