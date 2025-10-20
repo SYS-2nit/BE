@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  application:
+    image: 2nit_spring
+    environment:
+      SPRING_DATASOURCE_URL: ${DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+    restart: always
+    container_name: 2nit_spring
+    ports:
+      - "8081:8081"
