@@ -46,7 +46,7 @@ jobs:
         docker build -t sys-2nit .
         docker tag sys-2nit qowl880/sys-2nit:${GITHUB_SHA::7}
         docker push qowl880/sys-2nit:${GITHUB_SHA::7}
-        
+
     # Deploy (수정된 버전)
     - name: Copy docker-compose.yml to server
       uses: appleboy/scp-action@master
@@ -103,5 +103,5 @@ jobs:
           # 오래된 이미지 정리
           echo "=== 이미지 정리 ==="
           sudo docker image prune -af --filter "until=48h" || true
-    
+          
           echo "=== 배포 완료 ==="
