@@ -65,43 +65,31 @@ jobs:
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        # ✅ 환경 변수 전달
+        envs: DB_URL,DB_USERNAME,DB_PASSWORD
         script: |
-          # 변수 설정
+          # ✅ GitHub Secrets를 환경 변수로 전달
+          export DB_URL="${{ secrets.DB_URL }}"
+          export DB_USERNAME="${{ secrets.DB_USERNAME }}"
+          export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+          
           DOCKER_USER="qowl880"
           IMAGE_NAME="sys-2nit"
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
-          DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
-    
-          echo "=== 배포 시작: ${FULL_IMAGE} ==="
-    
-          # 작업 디렉토리로 이동
-          cd ${DEPLOY_DIR}
-    
-          # Docker 로그인
+          
+          cd /home/${{ secrets.SSH_USERNAME }}/deploy
+          
           echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin
-    
-          # 기존 컨테이너 중지 및 제거
-          echo "=== 기존 컨테이너 정리 ==="
+          
           sudo docker-compose down || true
-    
-          # 새 이미지 pull
-          echo "=== 새 이미지 다운로드 ==="
           sudo docker pull ${FULL_IMAGE}
-    
-          # 로컬 태그 생성
-          echo "=== 이미지 태그 생성 ==="
           sudo docker tag ${FULL_IMAGE} 2nit_spring
-    
-          # 새 컨테이너 시작
-          echo "=== 컨테이너 시작 ==="
-          sudo docker-compose up -d
-    
-          # 컨테이너 상태 확인
-          sudo docker ps | grep 2nit_spring
-    
-          # 오래된 이미지 정리
-          echo "=== 이미지 정리 ==="
-          sudo docker image prune -af --filter "until=48h" || true
+          
+          # ✅ 환경 변수와 함께 실행
+          sudo DB_URL="${DB_URL}" \
+               DB_USERNAME="${DB_USERNAME}" \
+               DB_PASSWORD="${DB_PASSWORD}" \
+               docker-compose up -d
           
           echo "=== 배포 완료 ==="
