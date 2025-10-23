@@ -1,8 +1,8 @@
 name: CD - Deploy to Production
 
 on:
-  push:
-    branches: [ "dev" ]
+#  push:
+#    branches: [ "dev" ]
   pull_request:
     types: [closed]
     branches: [ "dev" ]
@@ -17,9 +17,9 @@ jobs:
 
     # ✅ Push 또는 Merge된 PR에만 실행
     if: |
-      github.event_name == 'push' || 
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
-
+#      github.event_name == 'push' ||
+#      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+      github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -88,23 +88,62 @@ jobs:
           # ✅ 보안: --password-stdin 사용
           echo "${DOCKER_PASSWORD}" | docker login -u ${DOCKER_USER} --password-stdin
           
+          # ✅ 로그인 확인
+          if [ $? -eq 0 ]; then
+            echo "✅ Docker Hub 로그인 성공"
+          else
+            echo "❌ Docker Hub 로그인 실패"
+            exit 1
+          fi
+          
           # 이미지 빌드
+          echo "🔨 이미지 빌드 중..."
           docker build -t ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA} .
+          
+          # ✅ 빌드 확인
+          if [ $? -eq 0 ]; then
+            echo "✅ 이미지 빌드 성공"
+          else
+            echo "❌ 이미지 빌드 실패"
+            exit 1
+          fi
           
           # latest 태그도 추가
           docker tag ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA} ${DOCKER_USER}/${IMAGE_NAME}:latest
           
-          # Docker Hub에 푸시
-          echo "푸시 중: ${SHORT_SHA} 태그..."
+          # Docker Hub에 푸시 (SHA 태그)
+          echo "📤 SHA 태그 푸시 중: ${SHORT_SHA}..."
           docker push ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}
           
-          echo "푸시 중: latest 태그..."
+          # ✅ SHA 태그 푸시 확인
+          if [ $? -eq 0 ]; then
+            echo "✅ SHA 태그 푸시 성공: ${SHORT_SHA}"
+          else
+            echo "❌ SHA 태그 푸시 실패: ${SHORT_SHA}"
+            exit 1
+          fi
+          
+          # Docker Hub에 푸시 (latest 태그)
+          echo "📤 latest 태그 푸시 중..."
           docker push ${DOCKER_USER}/${IMAGE_NAME}:latest
           
+          # ✅ latest 태그 푸시 확인
+          if [ $? -eq 0 ]; then
+            echo "✅ latest 태그 푸시 성공"
+          else
+            echo "❌ latest 태그 푸시 실패"
+            exit 1
+          fi
+          
           echo ""
-          echo "✅ 이미지 푸시 완료"
+          echo "✅ 모든 이미지 푸시 완료"
           echo "  - ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
           echo "  - ${DOCKER_USER}/${IMAGE_NAME}:latest"
+          
+          # ✅ Docker Hub에서 이미지 확인
+          echo ""
+          echo "--- Docker Hub 이미지 확인 ---"
+          curl -s "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/" | jq -r '.results[].name' | head -5
           
           # 환경 변수로 저장 (다음 단계에서 사용)
           echo "DOCKER_USER=${DOCKER_USER}" >> $GITHUB_ENV
@@ -233,12 +272,14 @@ jobs:
             IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
             FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
+            LATEST_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:latest"
             DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
 
             echo "========================================"
             echo "🚀 배포 시작"
             echo "========================================"
-            echo "이미지: ${FULL_IMAGE}"
+            echo "SHA 이미지: ${FULL_IMAGE}"
+            echo "Latest 이미지: ${LATEST_IMAGE}"
             echo "배포 디렉토리: ${DEPLOY_DIR}"
             echo "시간: $(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
@@ -258,16 +299,32 @@ jobs:
               exit 1
             fi
 
-            # ✅ 이미지 존재 여부 확인
+            # ✅ 이미지 pull 시도 (SHA 태그 먼저)
             echo ""
-            echo "--- 이미지 존재 확인 ---"
-            if sudo docker manifest inspect ${FULL_IMAGE} > /dev/null 2>&1; then
-              echo "✅ 이미지 존재 확인: ${FULL_IMAGE}"
+            echo "--- SHA 태그 이미지 다운로드 시도 ---"
+            PULL_RESULT=$(sudo docker pull ${FULL_IMAGE} 2>&1)
+            echo "SHA Pull 결과: ${PULL_RESULT}"
+
+            if echo "${PULL_RESULT}" | grep -q "Downloaded newer image\|Image is up to date\|Pulling from"; then
+              echo "✅ SHA 태그 이미지 다운로드 성공"
+              SELECTED_IMAGE=${FULL_IMAGE}
             else
-              echo "❌ 이미지가 존재하지 않습니다: ${FULL_IMAGE}"
-              echo "사용 가능한 태그 확인 중..."
-              curl -s "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/" | jq -r '.results[].name' | head -10
-              exit 1
+              echo "⚠️ SHA 태그 이미지 다운로드 실패, latest 태그로 대체"
+
+              # ✅ latest 태그로 대체 시도
+              echo ""
+              echo "--- latest 태그 이미지 다운로드 시도 ---"
+              LATEST_PULL_RESULT=$(sudo docker pull ${LATEST_IMAGE} 2>&1)
+              echo "Latest Pull 결과: ${LATEST_PULL_RESULT}"
+
+              if echo "${LATEST_PULL_RESULT}" | grep -q "Downloaded newer image\|Image is up to date\|Pulling from"; then
+                echo "✅ latest 태그 이미지 다운로드 성공"
+                SELECTED_IMAGE=${LATEST_IMAGE}
+              else
+                echo "❌ latest 태그 이미지도 다운로드 실패"
+                echo "에러: ${LATEST_PULL_RESULT}"
+                exit 1
+              fi
             fi
 
             # 기존 컨테이너 중지 및 제거
@@ -275,26 +332,11 @@ jobs:
             echo "--- 기존 컨테이너 정리 ---"
             sudo docker-compose down || true
 
-            # 새 이미지 pull
-            echo ""
-            echo "--- 새 이미지 다운로드 ---"
-            PULL_RESULT=$(sudo docker pull ${FULL_IMAGE} 2>&1)
-            echo "Pull 결과: ${PULL_RESULT}"
-
-            if echo "${PULL_RESULT}" | grep -q "Downloaded newer image"; then
-              echo "✅ 이미지 다운로드 성공"
-            elif echo "${PULL_RESULT}" | grep -q "Image is up to date"; then
-              echo "✅ 이미지가 이미 최신 상태"
-            else
-              echo "❌ 이미지 다운로드 실패"
-              echo "에러: ${PULL_RESULT}"
-              exit 1
-            fi
-
             # docker-compose에서 사용할 이름으로 태그
             echo ""
             echo "--- 이미지 태그 생성 ---"
-            sudo docker tag ${FULL_IMAGE} 2nit_spring
+            echo "사용할 이미지: ${SELECTED_IMAGE}"
+            sudo docker tag ${SELECTED_IMAGE} 2nit_spring
 
             # 새 컨테이너 시작
             echo ""
@@ -327,3 +369,4 @@ jobs:
             echo "✅ 배포 완료"
             echo "========================================"
             echo "배포 시간: $(date '+%Y-%m-%d %H:%M:%S')"
+            echo "사용된 이미지: ${SELECTED_IMAGE}"
