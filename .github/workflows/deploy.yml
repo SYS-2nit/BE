@@ -228,13 +228,13 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
           script: |
-            # ✅ 환경 변수 사용 (하드코딩 제거)
+            # ✅ 환경 변수 설정
             DOCKER_USER="${{ secrets.DOCKERHUB_USERNAME }}"
             IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
             FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
             DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
-            
+
             echo "========================================"
             echo "🚀 배포 시작"
             echo "========================================"
@@ -242,66 +242,86 @@ jobs:
             echo "배포 디렉토리: ${DEPLOY_DIR}"
             echo "시간: $(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
-            
+
             cd ${DEPLOY_DIR}
-            
-            # ✅ 보안: --password-stdin 사용
-            echo "--- Docker 로그인 ---"
-            echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin
-            
+
+            # ✅ Docker Hub 로그인 검증
+            echo "--- Docker Hub 로그인 ---"
+            LOGIN_RESULT=$(echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin 2>&1)
+            echo "로그인 결과: ${LOGIN_RESULT}"
+
+            if echo "${LOGIN_RESULT}" | grep -q "Login Succeeded"; then
+              echo "✅ Docker Hub 로그인 성공"
+            else
+              echo "❌ Docker Hub 로그인 실패"
+              echo "에러: ${LOGIN_RESULT}"
+              exit 1
+            fi
+
+            # ✅ 이미지 존재 여부 확인
+            echo ""
+            echo "--- 이미지 존재 확인 ---"
+            if sudo docker manifest inspect ${FULL_IMAGE} > /dev/null 2>&1; then
+              echo "✅ 이미지 존재 확인: ${FULL_IMAGE}"
+            else
+              echo "❌ 이미지가 존재하지 않습니다: ${FULL_IMAGE}"
+              echo "사용 가능한 태그 확인 중..."
+              curl -s "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/" | jq -r '.results[].name' | head -10
+              exit 1
+            fi
+
             # 기존 컨테이너 중지 및 제거
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
             sudo docker-compose down || true
-            
+
             # 새 이미지 pull
             echo ""
             echo "--- 새 이미지 다운로드 ---"
-            sudo docker pull ${FULL_IMAGE}
-            
+            PULL_RESULT=$(sudo docker pull ${FULL_IMAGE} 2>&1)
+            echo "Pull 결과: ${PULL_RESULT}"
+
+            if echo "${PULL_RESULT}" | grep -q "Downloaded newer image"; then
+              echo "✅ 이미지 다운로드 성공"
+            elif echo "${PULL_RESULT}" | grep -q "Image is up to date"; then
+              echo "✅ 이미지가 이미 최신 상태"
+            else
+              echo "❌ 이미지 다운로드 실패"
+              echo "에러: ${PULL_RESULT}"
+              exit 1
+            fi
+
             # docker-compose에서 사용할 이름으로 태그
             echo ""
             echo "--- 이미지 태그 생성 ---"
             sudo docker tag ${FULL_IMAGE} 2nit_spring
-            
+
             # 새 컨테이너 시작
             echo ""
             echo "--- 컨테이너 시작 ---"
             sudo docker-compose up -d
-            
+
             # 컨테이너 상태 확인
             echo ""
             echo "--- 컨테이너 상태 확인 ---"
             sleep 5  # 컨테이너 시작 대기
-            
+
             if sudo docker ps | grep -q 2nit_spring; then
               echo "✅ 컨테이너 실행 중"
               sudo docker ps | grep 2nit_spring
             else
               echo "❌ 컨테이너가 실행되지 않았습니다"
               sudo docker ps -a | grep 2nit_spring
+              echo "--- 컨테이너 로그 ---"
+              sudo docker logs 2nit_spring
               exit 1
             fi
-            
+
             # 애플리케이션 로그 확인 (최근 30줄)
             echo ""
             echo "--- 애플리케이션 로그 (최근 30줄) ---"
             sudo docker logs --tail 30 2nit_spring
-            
-            # 로컬 이미지 정리 (3일 이상 된 이미지)
-            echo ""
-            echo "--- 로컬 이미지 정리 ---"
-            BEFORE=$(sudo docker images | wc -l)
-            sudo docker image prune -af --filter "until=72h" || true
-            AFTER=$(sudo docker images | wc -l)
-            CLEANED=$((BEFORE - AFTER))
-            
-            if [ $CLEANED -gt 0 ]; then
-              echo "🧹 ${CLEANED}개 이미지 정리됨"
-            else
-              echo "✅ 정리할 이미지 없음"
-            fi
-            
+
             echo ""
             echo "========================================"
             echo "✅ 배포 완료"

@@ -10,4 +10,4 @@ services:
     restart: always
     container_name: 2nit_spring
     ports:
-      - "8081:8081"
+      - "8080:8080"
