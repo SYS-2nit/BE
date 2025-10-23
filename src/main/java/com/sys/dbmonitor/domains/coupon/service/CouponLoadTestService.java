@@ -61,7 +61,7 @@ public class CouponLoadTestService {
                     
                     long reqStart = System.currentTimeMillis();
                     
-                    String url = "http://localhost:8081/api/" + apiVersion + "/coupons/issue";
+                    String url = "http://localhost:8080/api/" + apiVersion + "/coupons/issue";
                     
                     HttpHeaders headers = new HttpHeaders();
                     headers.set("X-User-ID", String.valueOf(userId));
