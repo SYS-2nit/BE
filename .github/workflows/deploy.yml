@@ -15,15 +15,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # ✅ Push 또는 Merge된 PR에만 실행
+    # ✅ 중복 실행 방지
     if: |
-      github.event_name == 'push' ||
+      (github.event_name == 'push') ||
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          # ✅ PR merge인 경우 해당 커밋으로 체크아웃
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up JDK 17
