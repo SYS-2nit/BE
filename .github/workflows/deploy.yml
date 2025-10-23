@@ -273,7 +273,7 @@ jobs:
             FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
             LATEST_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:latest"
             DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
-
+            
             echo "========================================"
             echo "🚀 배포 시작"
             echo "========================================"
@@ -282,14 +282,19 @@ jobs:
             echo "배포 디렉토리: ${DEPLOY_DIR}"
             echo "시간: $(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
-
+            
+            # ✅ 배포 디렉토리 생성
+            echo "--- 배포 디렉토리 생성 ---"
+            sudo mkdir -p ${DEPLOY_DIR}
+            sudo chown ${{ secrets.SSH_USERNAME }}:${{ secrets.SSH_USERNAME }} ${DEPLOY_DIR}
+            
             cd ${DEPLOY_DIR}
-
+            
             # ✅ Docker Hub 로그인 검증
             echo "--- Docker Hub 로그인 ---"
             LOGIN_RESULT=$(echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin 2>&1)
             echo "로그인 결과: ${LOGIN_RESULT}"
-
+            
             if echo "${LOGIN_RESULT}" | grep -q "Login Succeeded"; then
               echo "✅ Docker Hub 로그인 성공"
             else
@@ -297,25 +302,25 @@ jobs:
               echo "에러: ${LOGIN_RESULT}"
               exit 1
             fi
-
+            
             # ✅ 이미지 pull 시도 (SHA 태그 먼저)
             echo ""
             echo "--- SHA 태그 이미지 다운로드 시도 ---"
             PULL_RESULT=$(sudo docker pull ${FULL_IMAGE} 2>&1)
             echo "SHA Pull 결과: ${PULL_RESULT}"
-
+            
             if echo "${PULL_RESULT}" | grep -q "Downloaded newer image\|Image is up to date\|Pulling from"; then
               echo "✅ SHA 태그 이미지 다운로드 성공"
               SELECTED_IMAGE=${FULL_IMAGE}
             else
               echo "⚠️ SHA 태그 이미지 다운로드 실패, latest 태그로 대체"
-
+            
               # ✅ latest 태그로 대체 시도
               echo ""
               echo "--- latest 태그 이미지 다운로드 시도 ---"
               LATEST_PULL_RESULT=$(sudo docker pull ${LATEST_IMAGE} 2>&1)
               echo "Latest Pull 결과: ${LATEST_PULL_RESULT}"
-
+            
               if echo "${LATEST_PULL_RESULT}" | grep -q "Downloaded newer image\|Image is up to date\|Pulling from"; then
                 echo "✅ latest 태그 이미지 다운로드 성공"
                 SELECTED_IMAGE=${LATEST_IMAGE}
@@ -325,31 +330,39 @@ jobs:
                 exit 1
               fi
             fi
-
+            
             # 기존 컨테이너 중지 및 제거
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
             sudo docker-compose down || true
-
+            sudo docker stop 2nit_spring || true
+            sudo docker rm 2nit_spring || true
+            
             # docker-compose에서 사용할 이름으로 태그
             echo ""
             echo "--- 이미지 태그 생성 ---"
             echo "사용할 이미지: ${SELECTED_IMAGE}"
             sudo docker tag ${SELECTED_IMAGE} 2nit_spring
-
+            
             # 새 컨테이너 시작
             echo ""
             echo "--- 컨테이너 시작 ---"
             sudo docker-compose up -d
-
+            
             # 컨테이너 상태 확인
             echo ""
             echo "--- 컨테이너 상태 확인 ---"
-            sleep 5  # 컨테이너 시작 대기
-
+            sleep 10  # 컨테이너 시작 대기
+            
             if sudo docker ps | grep -q 2nit_spring; then
               echo "✅ 컨테이너 실행 중"
               sudo docker ps | grep 2nit_spring
+            
+              # 포트 상태 확인
+              echo ""
+              echo "--- 포트 상태 확인 ---"
+              sudo ss -tlnp | grep 808 || echo "⚠️ 8080 포트가 열려있지 않습니다"
+            
             else
               echo "❌ 컨테이너가 실행되지 않았습니다"
               sudo docker ps -a | grep 2nit_spring
@@ -357,12 +370,12 @@ jobs:
               sudo docker logs 2nit_spring
               exit 1
             fi
-
+            
             # 애플리케이션 로그 확인 (최근 30줄)
             echo ""
             echo "--- 애플리케이션 로그 (최근 30줄) ---"
             sudo docker logs --tail 30 2nit_spring
-
+            
             echo ""
             echo "========================================"
             echo "✅ 배포 완료"
