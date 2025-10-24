@@ -102,7 +102,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",  // React 개발 서버
                 "http://localhost:3001",
-                "https://yourdomain.com"  // 프로덕션 도메인
+                "https://www.ccdb.site"  // 프로덕션 도메인
         ));
 
         // 허용할 HTTP 메서드
