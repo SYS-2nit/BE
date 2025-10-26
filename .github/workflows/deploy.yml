@@ -322,11 +322,11 @@ jobs:
               fi
             fi
             
-            # 기존 컨테이너 중지 및 제거
+            # 기존 컨테이너 중지 및 제거 (강제)
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
             sudo docker stop 2nit_spring || true
-            sudo docker rm 2nit_spring || true
+            sudo docker rm -f 2nit_spring || true
             
             # 새 컨테이너 시작
             echo ""
@@ -339,8 +339,8 @@ jobs:
               -e SPRING_DATASOURCE_URL="${{ secrets.DB_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-              -e SPRING_PROFILES_ACTIVE=prod \
-              -e SSL_PASSWORD=changeit \
+              -e SPRING_PROFILES_ACTIVE="${{ secrets.SPRING_PROFILES_ACTIVE }}"  \
+              -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}"  \
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
               ${SELECTED_IMAGE}
