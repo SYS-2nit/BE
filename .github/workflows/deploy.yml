@@ -246,21 +246,7 @@ jobs:
           echo "  - 유지: ${KEEP_LAST}개 (최신)"
 
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 5단계: docker-compose.yml 서버로 복사
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-      - name: Copy docker-compose.yml to server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          source: "docker-compose.yml"
-          target: "/home/${{ secrets.SSH_USERNAME }}/deploy"
-
-      # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 6단계: 서버에 배포
+      # 5단계: 서버에 배포
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
       - name: Deploy to server
@@ -339,20 +325,25 @@ jobs:
             # 기존 컨테이너 중지 및 제거
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
-            sudo docker-compose down || true
             sudo docker stop 2nit_spring || true
             sudo docker rm 2nit_spring || true
-            
-            # docker-compose에서 사용할 이름으로 태그
-            echo ""
-            echo "--- 이미지 태그 생성 ---"
-            echo "사용할 이미지: ${SELECTED_IMAGE}"
-            sudo docker tag ${SELECTED_IMAGE} 2nit_spring
             
             # 새 컨테이너 시작
             echo ""
             echo "--- 컨테이너 시작 ---"
-            sudo docker-compose up -d
+            
+            # Docker 명령어로 직접 실행
+            sudo docker run -d \
+              --name 2nit_spring \
+              -p 8080:8080 \
+              -e SPRING_DATASOURCE_URL="${{ secrets.DB_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e SPRING_PROFILES_ACTIVE=prod \
+              -e SSL_PASSWORD=changeit \
+              -v /home/qowhx12/ssl:/app/ssl:ro \
+              --restart unless-stopped \
+              ${SELECTED_IMAGE}
             
             # 컨테이너 상태 확인
             echo ""
