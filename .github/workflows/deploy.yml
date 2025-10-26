@@ -40,7 +40,9 @@ jobs:
           cd ./src/main/resources
           touch ./env.properties
           echo "${{ secrets.ENV }}" > ./env.properties
+          echo "SSL_PASSWORD=${{ secrets.SSL_PASSWORD }}" >> ./env.properties
         shell: bash
+
 
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v2

@@ -210,3 +210,4 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,macos,windows,visualstudiocode
 /src/main/resources/keystore.p12
+/.cursor/
