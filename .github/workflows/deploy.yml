@@ -40,6 +40,9 @@ jobs:
           cd ./src/main/resources
           touch ./env.properties
           echo "${{ secrets.ENV }}" > ./env.properties
+          echo "DB_URL=${{ secrets.DB_URL }}" >> ./env.properties
+          echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> ./env.properties
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> ./env.properties
           echo "SSL_PASSWORD=${{ secrets.SSL_PASSWORD }}" >> ./env.properties
         shell: bash
 
