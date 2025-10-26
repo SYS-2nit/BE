@@ -5,15 +5,19 @@ services:
     image: 2nit_spring:latest
     container_name: 2nit_spring
     environment:
-      SPRING_DATASOURCE_URL: ${DB_URL:-jdbc:oracle:thin:@localhost:1521:XE}
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-system}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-password}
+      SPRING_DATASOURCE_URL: ${DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SSL_PASSWORD: ${SSL_PASSWORD}  # .env 파일에서 읽어옴
     restart: unless-stopped
     ports:
       - "8080:8080"
+    volumes:
+      # SSL 인증서를 컨테이너에 마운트
+      - /home/qowhx12/ssl:/app/ssl:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]  # context-path 추가
       interval: 30s
       timeout: 10s
       retries: 3
