@@ -60,7 +60,7 @@ server:
   servlet:
     context-path: /api
   ssl:
-    enabled: false
+    enabled: true
     key-store: /app/ssl/keystore.p12  # Docker 컨테이너 내부 경로로 변경
     key-store-type: PKCS12
     key-store-password: ${SSL_PASSWORD}  # 기본값 추가
