@@ -28,7 +28,10 @@ public enum ExceptionMessage {
 
 
     // 테스트 관련
-    TEST_NOT_FOUND("테스트를 찾을 수 없습니다")
+    TEST_NOT_FOUND("테스트를 찾을 수 없습니다"),
+    
+    // SwingBench 관련
+    SCENARIO_NOT_FOUND("시나리오를 찾을 수 없습니다.");
     ;
 
 
