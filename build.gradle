@@ -38,9 +38,15 @@ dependencies {
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     testImplementation 'org.springframework.security:spring-security-test'
 
-    // Database
-    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
+    // Oracle JDBC Driver
+    implementation 'com.oracle.database.jdbc:ojdbc11:21.9.0.0'
     
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // Lettuce 클라이언트 (Spring Boot 3 기본)
+    implementation 'io.lettuce:lettuce-core'
+
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
