@@ -1,6 +1,16 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: 2nit_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
   application:
     image: 2nit_spring:latest
     container_name: 2nit_spring
@@ -27,3 +37,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:
