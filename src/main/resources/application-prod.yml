@@ -1,0 +1,24 @@
+# 프로덕션 환경 설정
+server:
+  ssl:
+    enabled: true
+    key-store: /app/ssl/keystore.p12  # Docker 컨테이너 내부 경로
+    key-store-type: PKCS12
+    key-store-password: ${SSL_PASSWORD}
+    key-alias: tomcat
+
+
+
+spring:
+  security:
+    require-ssl: true
+
+
+  # DataBase
+
+  datasource:
+    driver-class-name: oracle.jdbc.driver.OracleDriver
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    type: com.zaxxer.hikari.HikariDataSource
