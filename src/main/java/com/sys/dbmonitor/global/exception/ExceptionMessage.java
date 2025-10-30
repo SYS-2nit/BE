@@ -31,7 +31,13 @@ public enum ExceptionMessage {
     TEST_NOT_FOUND("테스트를 찾을 수 없습니다"),
     
     // SwingBench 관련
-    SCENARIO_NOT_FOUND("시나리오를 찾을 수 없습니다.");
+    SCENARIO_NOT_FOUND("시나리오를 찾을 수 없습니다."),
+
+    // Diagnosis 공통
+    INVALID_REQUEST("잘못된 요청입니다."),
+    INVALID_DURATION("유효하지 않은 지속 시간입니다."),
+    INVALID_SCENARIO_IDS("유효한 시나리오가 없습니다."),
+    DIAGNOSIS_ALREADY_RUNNING("이미 진단이 실행 중입니다. 먼저 정지하세요.");
     ;
 
 
