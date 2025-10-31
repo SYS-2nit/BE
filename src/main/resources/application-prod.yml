@@ -22,3 +22,16 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
+
+  # Redis 설정
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+# SwingBench 설정
+swingbench:
+  jar:
+    path: /app/swingbench/jar/swingbench.jar  # 컨테이너 내부 경로
+  ojdbc:
+    path: /app/swingbench/jar/ojdbc8.jar
