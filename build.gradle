@@ -58,6 +58,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // H2 Database (테스트용)
+    testRuntimeOnly 'com.h2database:h2'
 
     // === API Documentation ===
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'
