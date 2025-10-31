@@ -4,12 +4,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -24,25 +20,6 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public UserDetailsService userDetailsService() {
-        // 고정된 사용자 정보 생성
-        UserDetails user = User.builder()
-                .username("developer")
-                .password(passwordEncoder().encode("test1234"))
-                .roles("USER")
-                .build();
-
-        UserDetails user2 = User.builder()
-                .username("admin")
-                .password(passwordEncoder().encode("test1234"))
-                .roles("ADMIN")
-                .build();
-
-
-        return new InMemoryUserDetailsManager(user, user2);
     }
 
     @Bean
@@ -62,11 +39,8 @@ public class SecurityConfig {
 
                 // 인증 설정
                 .authorizeHttpRequests(authz -> authz
-                        // 공개 엔드포인트
-                        .requestMatchers("/api/public/**", "/actuator/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-
-                        // 인증이 필요한 엔드포인트
-                        .requestMatchers("/api/**").authenticated()
+                        // 공개 엔드포인트 (모든 경로 공개 - 개발 환경용)
+                        .requestMatchers("/**").permitAll()
 
                         // 나머지 모든 요청은 인증 필요
                         .anyRequest().authenticated()
@@ -102,6 +76,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "http://localhost:3000",  // React 개발 서버
                 "http://localhost:3001",
+                "http://localhost:5173",  // Vite 개발 서버
                 "https://www.ccdb.site"  // 프로덕션 도메인
         ));
 

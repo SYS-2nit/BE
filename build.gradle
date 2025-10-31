@@ -32,15 +32,24 @@ dependencies {
     // MyBatis
     implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.5'
 
+    // JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
 
     // security
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     testImplementation 'org.springframework.security:spring-security-test'
 
-    // Database
-    runtimeOnly 'com.oracle.database.jdbc:ojdbc11'
+    // Oracle JDBC Driver
+    implementation 'com.oracle.database.jdbc:ojdbc11:21.9.0.0'
     
+    // Redis
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // Lettuce 클라이언트 (Spring Boot 3 기본)
+    implementation 'io.lettuce:lettuce-core'
+
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -49,6 +58,8 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter-test:3.0.5'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // H2 Database (테스트용)
+    testRuntimeOnly 'com.h2database:h2'
 
     // === API Documentation ===
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.8'

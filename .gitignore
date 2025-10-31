@@ -211,3 +211,20 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/intellij+all,macos,windows,visualstudiocode
 /src/main/resources/keystore.p12
 /.cursor/
+/swingbench/README.md
+/swingbench/SWINGBENCH_USAGE.md
+/swingbench/test-swingbench.md
+
+
+
+# SwingBench
+swingbench/jar/
+swingbench/results/
+swingbench/scenarios/*.xml
+!swingbench/scenarios/.gitkeep
+/src/main/resources/templates/swingbench.html
+
+
+# Spring Boot 빌드 산출물
+BOOT-INF/
+BOOT-INF/**

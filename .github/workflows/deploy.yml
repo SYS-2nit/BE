@@ -44,6 +44,8 @@ jobs:
           echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> ./env.properties
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> ./env.properties
           echo "SSL_PASSWORD=${{ secrets.SSL_PASSWORD }}" >> ./env.properties
+          echo "REDIS_HOST=redis" >> ./env.properties
+          echo "REDIS_PORT=6379" >> ./env.properties
         shell: bash
 
 
@@ -341,6 +343,12 @@ jobs:
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e SPRING_PROFILES_ACTIVE="${{ secrets.SPRING_PROFILES_ACTIVE }}"  \
               -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}"  \
+              -e REDIS_HOST="redis" \
+              -e REDIS_PORT="6379" \
+              -v /home/qowhx12/ssl:/app/ssl:ro \
+              --restart unless-stopped \
+              --network bridge \
+              ${SELECTED_IMAGE}
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
               ${SELECTED_IMAGE}

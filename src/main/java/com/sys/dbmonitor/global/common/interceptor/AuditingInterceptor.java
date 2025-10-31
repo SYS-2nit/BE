@@ -1,7 +1,7 @@
 package com.sys.dbmonitor.global.common.interceptor;
 
 
-import com.sys.dbmonitor.global.common.entity.BaseEntity;
+import com.sys.dbmonitor.global.common.entity.MybatisBaseEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -27,8 +27,8 @@ public class AuditingInterceptor implements Interceptor {
 
         SqlCommandType sqlCommandType = mappedStatement.getSqlCommandType();
 
-        if (parameter instanceof BaseEntity) {
-            BaseEntity entity = (BaseEntity) parameter;
+        if (parameter instanceof MybatisBaseEntity) {
+            MybatisBaseEntity entity = (MybatisBaseEntity) parameter;
 
             switch (sqlCommandType) {
                 case INSERT:
