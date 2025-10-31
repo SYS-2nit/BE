@@ -7,7 +7,9 @@ import com.sys.dbmonitor.domains.diagnosis.dto.response.ScenarioDto;
 import com.sys.dbmonitor.domains.diagnosis.runners.DiagnosisRunner;
 import com.sys.dbmonitor.global.exception.BadRequestException;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,7 +20,17 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DiagnosisService {
+
+    @Value("${spring.datasource.url}")
+    private String dbUrl;
+
+    @Value("${spring.datasource.username}")
+    private String dbUsername;
+
+    @Value("${spring.datasource.password}")
+    private String dbPassword;
 
     private final Map<Long, ScenarioType> idToScenario = Arrays.stream(ScenarioType.values())
             .collect(Collectors.toMap(ScenarioType::getId, s -> s));
@@ -44,7 +56,8 @@ public class DiagnosisService {
         if (list.isEmpty()) {
             throw new BadRequestException(ExceptionMessage.INVALID_SCENARIO_IDS);
         }
-        runner = new DiagnosisRunner(list, req.getDurationSec());
+        // DB 연결 정보를 환경 변수로 전달
+        runner = new DiagnosisRunner(list, req.getDurationSec(), dbUrl, dbUsername, dbPassword);
         runnerThread = new Thread(runner, "diagnosis-runner");
         selectedScenarioIds = new ArrayList<>(req.getScenarioIds());
         runnerThread.start();
