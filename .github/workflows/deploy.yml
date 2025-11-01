@@ -428,13 +428,21 @@ EOF
             echo "--- docker-compose로 컨테이너 시작 ---"
             sudo docker-compose up -d
             
-            if [ $? -eq 0 ]; then
-              echo "✅ docker-compose 시작 성공"
-            else
-              echo "❌ docker-compose 시작 실패"
-              sudo docker-compose logs
-              exit 1
-            fi
+            # Docker 명령어로 직접 실행
+            sudo docker run -d \
+              --name 2nit_spring \
+              -p 8080:8080 \
+              -e SPRING_DATASOURCE_URL="${{ secrets.DB_URL }}" \
+              -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
+              -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e SPRING_PROFILES_ACTIVE="${{ secrets.SPRING_PROFILES_ACTIVE }}" \
+              -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}" \
+              -e REDIS_HOST="redis" \
+              -e REDIS_PORT="6379" \
+              -v /home/qowhx12/ssl:/app/ssl:ro \
+              --restart unless-stopped \
+              --network bridge \
+              ${SELECTED_IMAGE}
             
             # 컨테이너 상태 확인
             echo ""
