@@ -344,8 +344,24 @@ jobs:
             # 기존 컨테이너 중지 및 제거 (강제)
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
-            sudo docker stop 2nit_spring || true
-            sudo docker rm -f 2nit_spring || true
+            # 실행 중인 컨테이너 확인
+            if sudo docker ps -a | grep -q "2nit_spring"; then
+              echo "기존 컨테이너 발견, 강제 제거 중..."
+              sudo docker stop 2nit_spring 2>/dev/null || true
+              sudo docker rm -f 2nit_spring 2>/dev/null || true
+              sleep 2  # 제거 완료 대기
+              echo "✅ 기존 컨테이너 제거 완료"
+            else
+              echo "기존 컨테이너 없음"
+            fi
+            
+            # 컨테이너가 완전히 제거되었는지 재확인
+            if sudo docker ps -a | grep -q "2nit_spring"; then
+              echo "⚠️  컨테이너가 아직 존재합니다. 강제 제거 재시도..."
+              sudo docker kill 2nit_spring 2>/dev/null || true
+              sudo docker rm -f 2nit_spring 2>/dev/null || true
+              sleep 2
+            fi
             
             # 새 컨테이너 시작
             echo ""
