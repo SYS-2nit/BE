@@ -12,7 +12,7 @@ services:
       - redis_data:/data
 
   application:
-    image: ${DOCKER_IMAGE:-2nit_spring:latest}
+    image: ${2nit_spring:latest}
     container_name: 2nit_spring
     environment:
       SPRING_DATASOURCE_URL: ${DB_URL}
