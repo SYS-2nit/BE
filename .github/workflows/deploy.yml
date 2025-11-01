@@ -300,59 +300,6 @@ jobs:
             
             cd ${DEPLOY_DIR}
             
-            # ✅ docker-compose.yml 파일 생성
-            echo ""
-            echo "--- docker-compose.yml 생성 ---"
-            cat > docker-compose.yml << 'COMPOSE_EOF'
-version: '3.8'
-
-services:
-  redis:
-    image: redis:7-alpine
-    container_name: 2nit_redis
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-
-  application:
-    image: ${DOCKER_IMAGE:-2nit_spring:latest}
-    container_name: 2nit_spring
-    environment:
-      SPRING_DATASOURCE_URL: ${DB_URL}
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      SSL_PASSWORD: ${SSL_PASSWORD}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - /home/qowhx12/ssl:/app/ssl:ro
-      - /home/qowhx12/swingbench:/app/swingbench:ro
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    depends_on:
-      - redis
-
-volumes:
-  redis_data:
-COMPOSE_EOF
-            echo "✅ docker-compose.yml 생성 완료"
-            
             # ✅ Docker Hub 로그인 검증
             echo "--- Docker Hub 로그인 ---"
             LOGIN_RESULT=$(echo "${{ secrets.DOCKERHUB_PASSWORD }}" | sudo docker login -u ${DOCKER_USER} --password-stdin 2>&1)
@@ -394,39 +341,15 @@ COMPOSE_EOF
               fi
             fi
             
-            # ✅ docker-compose.yml 파일 확인
-            echo ""
-            echo "--- docker-compose.yml 확인 ---"
-            if [ ! -f "docker-compose.yml" ]; then
-              echo "❌ docker-compose.yml 파일이 없습니다"
-              exit 1
-            fi
-            echo "✅ docker-compose.yml 파일 확인됨"
-            
-            # ✅ 환경 변수 파일 생성 (.env)
-            echo ""
-            echo "--- 환경 변수 파일 생성 ---"
-            cat > .env << EOF
-DB_URL=${{ secrets.DB_URL }}
-DB_USERNAME=${{ secrets.DB_USERNAME }}
-DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-SPRING_PROFILES_ACTIVE=${{ secrets.SPRING_PROFILES_ACTIVE }}
-SSL_PASSWORD=${{ secrets.SSL_PASSWORD }}
-DOCKER_IMAGE=${SELECTED_IMAGE}
-EOF
-            echo "✅ .env 파일 생성 완료"
-            
-            # 기존 컨테이너 중지 및 제거 (docker-compose로 정리)
+            # 기존 컨테이너 중지 및 제거 (강제)
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
-            sudo docker-compose down || true
-            sudo docker stop 2nit_spring 2nit_redis || true
-            sudo docker rm -f 2nit_spring 2nit_redis || true
+            sudo docker stop 2nit_spring || true
+            sudo docker rm -f 2nit_spring || true
             
-            # 새 컨테이너 시작 (docker-compose 사용)
+            # 새 컨테이너 시작
             echo ""
-            echo "--- docker-compose로 컨테이너 시작 ---"
-            sudo docker-compose up -d
+            echo "--- 컨테이너 시작 ---"
             
             # Docker 명령어로 직접 실행
             sudo docker run -d \
@@ -449,34 +372,27 @@ EOF
             echo "--- 컨테이너 상태 확인 ---"
             sleep 10  # 컨테이너 시작 대기
             
-            # docker-compose 상태 확인
-            sudo docker-compose ps
-            
             if sudo docker ps | grep -q 2nit_spring; then
-              echo "✅ application 컨테이너 실행 중"
+              echo "✅ 컨테이너 실행 중"
+              sudo docker ps | grep 2nit_spring
+            
+              # 포트 상태 확인
+              echo ""
+              echo "--- 포트 상태 확인 ---"
+              sudo ss -tlnp | grep 808 || echo "⚠️ 8080 포트가 열려있지 않습니다"
+            
             else
-              echo "❌ application 컨테이너가 실행되지 않았습니다"
-              echo "--- docker-compose 로그 ---"
-              sudo docker-compose logs
+              echo "❌ 컨테이너가 실행되지 않았습니다"
+              sudo docker ps -a | grep 2nit_spring
+              echo "--- 컨테이너 로그 ---"
+              sudo docker logs 2nit_spring
               exit 1
             fi
-            
-            if sudo docker ps | grep -q 2nit_redis; then
-              echo "✅ redis 컨테이너 실행 중"
-            else
-              echo "⚠️  redis 컨테이너가 실행되지 않았습니다"
-            fi
-            
-            # 포트 상태 확인
-            echo ""
-            echo "--- 포트 상태 확인 ---"
-            sudo ss -tlnp | grep 808 || echo "⚠️  8080 포트가 열려있지 않습니다"
-            sudo ss -tlnp | grep 6379 || echo "⚠️  6379 포트가 열려있지 않습니다"
             
             # 애플리케이션 로그 확인 (최근 30줄)
             echo ""
             echo "--- 애플리케이션 로그 (최근 30줄) ---"
-            sudo docker-compose logs --tail 30 application
+            sudo docker logs --tail 30 2nit_spring
             
             echo ""
             echo "========================================"
