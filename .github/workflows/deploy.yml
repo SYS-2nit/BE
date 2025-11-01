@@ -364,7 +364,7 @@ jobs:
               
               # 4. 이름으로도 시도
               sudo docker rm -f 2nit_spring 2>/dev/null || true
-              
+             
               echo "✅ 기존 컨테이너 제거 완료"
             else
               echo "기존 컨테이너 없음"
