@@ -7,9 +7,9 @@ spring:
   # DataBase
   datasource:
     driver-class-name: oracle.jdbc.OracleDriver  # 최신 방식
-    url: ${WHA_DB_URL}
-    username: ${WHA_DB_USERNAME}
-    password: ${WHA_DB_PASSWORD}
+    url: ${LOCAL_DB_URL}
+    username: ${LOCAL_DB_USERNAME}
+    password: ${LOCAL_DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
 
 
