@@ -1,11 +1,22 @@
 package com.sys.dbmonitor;
 
+import com.sys.dbmonitor.domains.dashboard.dto.response.CollectorRaw;
+import com.sys.dbmonitor.domains.dashboard.service.CollectorService;
 import org.mybatis.spring.annotation.MapperScan;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Map;
 
 @SpringBootApplication
 @EnableJpaRepositories(basePackages = "com.sys.dbmonitor")
@@ -18,4 +29,41 @@ public class DbMonitorApplication {
         SpringApplication.run(DbMonitorApplication.class, args);
     }
 
+    @Bean
+    @Profile("dev")
+    CommandLineRunner collectOnce(@Qualifier("collectorServiceImpl") CollectorService svc) {
+        return args -> {
+            for (int i = 1; i <= 7; i++) {
+                Instant start = Instant.now();
+                System.out.println("COLLECT START [" + i + "/20] " + OffsetDateTime.now());
+
+                // (선택) 1회차에만 원시 키 5개 샘플 확인
+                if (i == 1) {
+                    CollectorRaw raw = svc.collectRaw();
+                    raw.getBundle().forEach((inst, m) -> m.entrySet().stream().limit(5).forEach(e ->
+                            System.out.println("RAW@" + inst + " " + e.getKey() + "=" + e.getValue())
+                    ));
+                }
+
+                // ★ 최종 계산 실행(Δ/Σ/window_sec 포함)
+                Map<String, Double> finals = svc.runOnce();
+
+                System.out.println("FINAL metrics size=" + finals.size());
+                finals.entrySet().stream().limit(10).forEach(e ->
+                        System.out.println(e.getKey() + "=" + e.getValue())
+                );
+
+                Instant end = Instant.now();
+                System.out.println("COLLECT END   [" + i + "/20] " + OffsetDateTime.now());
+                System.out.println("COLLECT TIME  [" + i + "/20] " + Duration.between(start, end).toMillis() + " ms");
+                System.out.println();
+
+                if (i < 7) {
+                    Instant nextStart = start.plusSeconds(5);
+                    long sleepMs = Duration.between(Instant.now(), nextStart).toMillis();
+                    if (sleepMs > 0) Thread.sleep(sleepMs);
+                }
+            }
+        };
+    }
 }
