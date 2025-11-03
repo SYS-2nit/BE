@@ -1,6 +1,7 @@
 package com.sys.dbmonitor.domains.dashboard.service;
 
-import com.sys.dbmonitor.domains.dashboard.dto.response.CollectorRaw;
+import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
+
 import java.util.Map;
 
 public interface CollectorService {
@@ -9,5 +10,5 @@ public interface CollectorService {
     Map<String, Double> runOnce();
 
     /** 원시 수집만 수행(계산 생략) */
-    CollectorRaw collectRaw();
+    CollectorRawDTO collectRaw();
 }

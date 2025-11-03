@@ -1,6 +1,6 @@
-package com.sys.dbmonitor.domains.dashboard.dto.response; // DTO 패키지 경로
+package com.sys.dbmonitor.domains.dashboard.dto; // DTO 패키지 경로
 
-import java.util.*; // List/Map/Collections 유틸 사용
+import java.util.*;
 
 /**
  * PL/SQL(RETURN_RESULT) 수집 결과 컨테이너.
@@ -11,7 +11,7 @@ import java.util.*; // List/Map/Collections 유틸 사용
  *  - 매니페스트(#0) 제거됨. 결과셋 순서는 리포지토리에서 고정 상수로 매핑함.
  *  - 본 컨테이너는 번들/테이블 적재와 조회만 담당.
  */
-public class CollectorRaw {
+public class CollectorRawDTO {
 
     /* ===== graph bundle (#1): instId → (metricName → value) ===== */
     private final Map<Integer, Map<String, Double>> bundle = new LinkedHashMap<>();

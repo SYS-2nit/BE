@@ -225,11 +225,17 @@ OPEN rc_bundle FOR
       s.inst_id,
       SUM(CASE WHEN s.type='USER' AND s.status='ACTIVE' AND s.status<>'KILLED' THEN 1 ELSE 0 END) AS active_user_sessions,
       SUM(CASE WHEN s.type='USER' AND s.status<>'KILLED'                                          THEN 1 ELSE 0 END) AS total_user_sessions,
-      SUM(CASE WHEN COALESCE(s.final_blocking_session, s.blocking_session) IS NOT NULL            THEN 1 ELSE 0 END) AS blocked_now,
-      COUNT(DISTINCT COALESCE(
-        TO_CHAR(s.final_blocking_instance)||':'||TO_CHAR(s.final_blocking_session),
-        TO_CHAR(s.blocking_instance)      ||':'||TO_CHAR(s.blocking_session)
-      )) AS blockers_now,
+      SUM(CASE
+            WHEN COALESCE(s.final_blocking_session, s.blocking_session) IS NOT NULL
+            THEN 1 ELSE 0
+          END) AS blocked_now,
+      COUNT(DISTINCT CASE
+        WHEN COALESCE(s.final_blocking_session, s.blocking_session) IS NOT NULL THEN
+          COALESCE(
+            TO_CHAR(s.final_blocking_instance) || ':' || TO_CHAR(s.final_blocking_session),
+            TO_CHAR(s.blocking_instance)       || ':' || TO_CHAR(s.blocking_session)
+          )
+      END) AS blockers_now,
       SUM(CASE WHEN s.state='WAITING' AND s.event LIKE 'enq: TX%' THEN 1 ELSE 0 END) AS lock_wait_tx,
       SUM(CASE WHEN s.state='WAITING' AND s.event LIKE 'enq: TM%' THEN 1 ELSE 0 END) AS lock_wait_tm,
       SUM(CASE WHEN s.state='WAITING' AND s.event LIKE 'enq: T%'  THEN 1 ELSE 0 END) AS lock_wait_total
@@ -405,6 +411,13 @@ OPEN rc_bundle FOR
     LEFT JOIN gv$transaction t
       ON t.inst_id = i.inst_id
     GROUP BY i.inst_id
+  ),
+  db AS (  -- DB_ID를 인스턴스별로 복제
+    SELECT i.inst_id,
+           'DB_ID' AS metric_name,
+           CAST(d.dbid AS NUMBER) AS value_num
+    FROM   inst i
+    CROSS  JOIN v$database d
   )
 
 /* -------- Emit unified (INST_ID, METRIC_NAME, VALUE_NUM) -------- */
@@ -435,8 +448,8 @@ SELECT * FROM (
                   /* ---- Session activity and locks ---- */
                   UNION ALL SELECT i.inst_id, 'active_user_sessions',             NVL(sess.active_user_sessions,0)        FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'total_user_sessions',              NVL(sess.total_user_sessions,0)         FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
-                  UNION ALL SELECT i.inst_id, 'blocked_now',                      NVL(sess.blocked_now,0)                 FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
-                  UNION ALL SELECT i.inst_id, 'blockers_now',                     NVL(sess.blockers_now,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
+                  UNION ALL SELECT -1, 'blocked_now',                            SUM(NVL(sess.blocked_now,0))        FROM sess
+                  UNION ALL SELECT i.inst_id, 'blockers_now',                     NVL(sess.blockers_now,0)             FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tx',                     NVL(sess.lock_wait_tx,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tm',                     NVL(sess.lock_wait_tm,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_total',                  NVL(sess.lock_wait_total,0)             FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
@@ -567,6 +580,7 @@ SELECT * FROM (
 
                   UNION ALL SELECT i.inst_id,'long_tx_count_30m'       ,NVL(t.long_tx_count_30m,0)         FROM inst i LEFT JOIN tx t ON t.inst_id=i.inst_id
                   UNION ALL SELECT i.inst_id,'long_tx_used_ublk_sum'   ,NVL(t.long_tx_used_ublk_sum,0)     FROM inst i LEFT JOIN tx t ON t.inst_id=i.inst_id
+                  UNION ALL SELECT * FROM db
               )
 ORDER BY INST_ID, METRIC_NAME;
 
