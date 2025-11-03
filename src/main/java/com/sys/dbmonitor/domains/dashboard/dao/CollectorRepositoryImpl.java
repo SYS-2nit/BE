@@ -1,6 +1,6 @@
 package com.sys.dbmonitor.domains.dashboard.dao;
 
-import com.sys.dbmonitor.domains.dashboard.dto.response.CollectorRaw;
+import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
 
@@ -41,9 +41,9 @@ public class CollectorRepositoryImpl implements CollectorRepository {
     );
 
     @Override
-    public CollectorRaw collectSnapshot() {
+    public CollectorRawDTO collectSnapshot() {
         final String plsql = loadClasspathSql(PL_SQL_PATH);
-        final CollectorRaw out = new CollectorRaw();
+        final CollectorRawDTO out = new CollectorRawDTO();
 
         try (Connection con = DataSourceUtils.getConnection(dataSource);
              CallableStatement cs = con.prepareCall(plsql)) {
@@ -93,7 +93,7 @@ public class CollectorRepositoryImpl implements CollectorRepository {
        헬퍼: #1 GRAPH_BUNDLE 읽기
        (INST_ID, METRIC_NAME, VALUE_NUM)
        =========================== */
-    private void readGraphBundle(ResultSet rs, CollectorRaw out) throws SQLException {
+    private void readGraphBundle(ResultSet rs, CollectorRawDTO out) throws SQLException {
         while (rs.next()) {
             int instId = rs.getInt("INST_ID");
             String metric = rs.getString("METRIC_NAME");
@@ -108,7 +108,7 @@ public class CollectorRepositoryImpl implements CollectorRepository {
        헬퍼: #2~ 표형 결과 읽기(제네릭)
        datasetName 기준으로 rows 적재
        =========================== */
-    private void readTable(ResultSet rs, CollectorRaw out, String datasetName) throws SQLException {
+    private void readTable(ResultSet rs, CollectorRawDTO out, String datasetName) throws SQLException {
         ResultSetMetaData md = rs.getMetaData();
         int cols = md.getColumnCount();
         while (rs.next()) {

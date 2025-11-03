@@ -1,6 +1,6 @@
 package com.sys.dbmonitor;
 
-import com.sys.dbmonitor.domains.dashboard.dto.response.CollectorRaw;
+import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 import com.sys.dbmonitor.domains.dashboard.service.CollectorService;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -32,34 +32,41 @@ public class DbMonitorApplication {
     @Bean
     @Profile("dev")
     CommandLineRunner collectOnce(@Qualifier("collectorServiceImpl") CollectorService svc) {
-        return args -> {
-            for (int i = 1; i <= 7; i++) {
-                Instant start = Instant.now();
-                System.out.println("COLLECT START [" + i + "/20] " + OffsetDateTime.now());
+        final int runs = 7;     // 총 실행 횟수
+        final int intervalSec = 5; // 수집 간격(초)
 
-                // (선택) 1회차에만 원시 키 5개 샘플 확인
+        return args -> {
+            for (int i = 1; i <= runs; i++) {
+                Instant start = Instant.now();
+                System.out.println("COLLECT START [" + i + "/" + runs + "] " + OffsetDateTime.now());
+
+                // 1회차에만 원시 키 5개 샘플 확인(디버그용)
                 if (i == 1) {
-                    CollectorRaw raw = svc.collectRaw();
-                    raw.getBundle().forEach((inst, m) -> m.entrySet().stream().limit(5).forEach(e ->
-                            System.out.println("RAW@" + inst + " " + e.getKey() + "=" + e.getValue())
-                    ));
+                    CollectorRawDTO raw = svc.collectRaw();
+                    raw.getBundle().forEach((inst, m) ->
+                            m.entrySet().stream().limit(5).forEach(e ->
+                                    System.out.println("RAW@" + inst + " " + e.getKey() + "=" + e.getValue())
+                            )
+                    );
+                    System.out.println("--- RAW sample above (first run only) ---");
                 }
 
-                // ★ 최종 계산 실행(Δ/Σ/window_sec 포함)
+                // 최종 계산 실행(Δ/Σ/window_sec 포함) — 이제 클러스터 합계만 반환(접미사 없음)
                 Map<String, Double> finals = svc.runOnce();
 
                 System.out.println("FINAL metrics size=" + finals.size());
-                finals.entrySet().stream().limit(10).forEach(e ->
+                finals.entrySet().stream().limit(100).forEach(e ->
                         System.out.println(e.getKey() + "=" + e.getValue())
                 );
 
                 Instant end = Instant.now();
-                System.out.println("COLLECT END   [" + i + "/20] " + OffsetDateTime.now());
-                System.out.println("COLLECT TIME  [" + i + "/20] " + Duration.between(start, end).toMillis() + " ms");
+                System.out.println("COLLECT END   [" + i + "/" + runs + "] " + OffsetDateTime.now());
+                System.out.println("COLLECT TIME  [" + i + "/" + runs + "] " + Duration.between(start, end).toMillis() + " ms");
                 System.out.println();
 
-                if (i < 7) {
-                    Instant nextStart = start.plusSeconds(5);
+                // 고정 간격 유지
+                if (i < runs) {
+                    Instant nextStart = start.plusSeconds(intervalSec);
                     long sleepMs = Duration.between(Instant.now(), nextStart).toMillis();
                     if (sleepMs > 0) Thread.sleep(sleepMs);
                 }
