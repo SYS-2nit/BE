@@ -21,6 +21,7 @@ import javax.sql.DataSource;
 @EnableTransactionManagement            // @Transactional 어노테이션을 사용 가능하게 함
 @MapperScan(                            // 	지정된 패키지에서 @Mapper 인터페이스를 자동으로 찾아 등록
         basePackages = "com.sys.dbmonitor.domains.*.dao",
+        annotationClass = org.apache.ibatis.annotations.Mapper.class,   // Mapper 어노테이션이 달려 있는 클래스만 인식
         sqlSessionFactoryRef = "sqlSessionFactory"
 )
 public class MyBatisConfig {
