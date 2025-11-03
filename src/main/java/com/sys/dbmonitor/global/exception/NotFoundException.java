@@ -10,4 +10,9 @@ public class NotFoundException extends RuntimeException {
         super(exceptionMessage.getMessage());
         this.exceptionMessage = exceptionMessage;
     }
+
+    public NotFoundException(ExceptionMessage exceptionMessage, String customMessage) {
+        super(customMessage);
+        this.exceptionMessage = exceptionMessage;
+    }
 }
