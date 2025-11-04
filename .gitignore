@@ -228,3 +228,4 @@ swingbench/scenarios/*.xml
 # Spring Boot 빌드 산출물
 BOOT-INF/
 BOOT-INF/**
+/docs/
