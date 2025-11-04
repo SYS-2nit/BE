@@ -1,6 +1,6 @@
 package com.sys.dbmonitor.global.config;
 
-import com.sys.dbmonitor.domains.instance.dao.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.global.common.util.PasswordEncryptionUtil;
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ public class DataSourceInitializer {
     public void initializeDataSources() {
         log.info("[DataSourceInitializer] 타겟 DB 데이터소스 초기화 시작");
 
-        // PostgreSQL에서 활성화된 타겟 DB 목록 조회
+        // Oracle에서 활성화된 타겟 DB 목록 조회
         List<Instance> activeTargetDatabases = targetDatabaseRepository.findByIsActiveTrue();
 
         if (activeTargetDatabases.isEmpty()) {

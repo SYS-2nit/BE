@@ -14,20 +14,13 @@ spring:
     require-ssl: true
 
 
-  # DataBase
+  # DataBase (Oracle - 기본 데이터 저장)
   datasource:
-    driver-class-name: oracle.jdbc.driver.OracleDriver  # 기존 Oracle DB (MyBatis용)
+    driver-class-name: oracle.jdbc.OracleDriver
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
-
-  # PostgreSQL 설정 (TargetDatabase 엔티티 저장용)
-  postgres:
-    datasource:
-      url: ${POSTGRES_URL}
-      username: ${POSTGRES_USERNAME}
-      password: ${POSTGRES_PASSWORD}
 
   # Redis 설정
   data:

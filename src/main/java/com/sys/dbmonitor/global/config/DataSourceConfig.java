@@ -18,48 +18,48 @@ import javax.sql.DataSource;
 import java.util.Properties;
 
 /**
-   PostgreSQL 기본 값 설정하는 곳
-   JPA 설정
+ * Oracle 기본 값 설정하는 곳
+ * JPA 설정
  */
 /**
  * 다중 데이터소스 설정
- * - PostgreSQL (Primary): TargetDatabase 엔티티 저장용
+ * - Oracle (Primary): 기본 데이터 저장용 (Instance, Member 등 엔티티 저장)
  * - Oracle (동적): 타겟 DB 데이터 수집용 (DynamicDataSourceFactory에서 관리)
  */
 @Configuration
 @EnableTransactionManagement
 @EnableJpaRepositories(
         basePackages = {
-                "com.sys.dbmonitor.domains.instance.dao",
-                "com.sys.dbmonitor.domains.member.dao"
+                "com.sys.dbmonitor.domains.instance.repository",
+                "com.sys.dbmonitor.domains.member.repository"
         },
-        entityManagerFactoryRef = "postgresEntityManagerFactory",
-        transactionManagerRef = "postgresTransactionManager"
+        entityManagerFactoryRef = "oracleEntityManagerFactory",
+        transactionManagerRef = "oracleTransactionManager"
 )
 public class DataSourceConfig {
 
-    @Value("${spring.postgres.datasource.url}")
-    private String postgresUrl;
+    @Value("${spring.datasource.url}")
+    private String oracleUrl;
 
-    @Value("${spring.postgres.datasource.username}")
-    private String postgresUsername;
+    @Value("${spring.datasource.username}")
+    private String oracleUsername;
 
-    @Value("${spring.postgres.datasource.password}")
-    private String postgresPassword;
+    @Value("${spring.datasource.password}")
+    private String oraclePassword;
 
     /**
-     * PostgreSQL 데이터소스 (Primary)
-     * TargetDatabase 엔티티 저장용
+     * Oracle 데이터소스 (Primary)
+     * 기본 데이터 저장용 (Instance, Member 등 엔티티 저장)
      */
     @Primary
-    @Bean(name = "postgresDataSource")
-    public DataSource postgresDataSource() {
+    @Bean(name = "oracleDataSource")
+    public DataSource oracleDataSource() {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(postgresUrl);
-        config.setUsername(postgresUsername);
-        config.setPassword(postgresPassword);
-        config.setDriverClassName("org.postgresql.Driver");
-        config.setPoolName("PostgresHikariPool");
+        config.setJdbcUrl(oracleUrl);
+        config.setUsername(oracleUsername);
+        config.setPassword(oraclePassword);
+        config.setDriverClassName("oracle.jdbc.OracleDriver");
+        config.setPoolName("OracleHikariPool");
         config.setMaximumPoolSize(10);
         config.setMinimumIdle(5);
         config.setConnectionTimeout(30000);
@@ -70,12 +70,12 @@ public class DataSourceConfig {
     }
 
     /**
-     * PostgreSQL용 EntityManagerFactory
+     * Oracle용 EntityManagerFactory
      */
     @Primary
-    @Bean(name = "postgresEntityManagerFactory")
-    public LocalContainerEntityManagerFactoryBean postgresEntityManagerFactory(
-            @Qualifier("postgresDataSource") DataSource dataSource) {
+    @Bean(name = "oracleEntityManagerFactory")
+    public LocalContainerEntityManagerFactoryBean oracleEntityManagerFactory(
+            @Qualifier("oracleDataSource") DataSource dataSource) {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
         em.setPackagesToScan("com.sys.dbmonitor.domains");
@@ -85,7 +85,7 @@ public class DataSourceConfig {
 
         Properties properties = new Properties();
         properties.setProperty("hibernate.hbm2ddl.auto", "update");
-        properties.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        properties.setProperty("hibernate.dialect", "org.hibernate.dialect.OracleDialect");
         properties.setProperty("hibernate.show_sql", "false");
         properties.setProperty("hibernate.format_sql", "true");
         properties.setProperty("hibernate.use_sql_comments", "true");
@@ -96,12 +96,12 @@ public class DataSourceConfig {
     }
 
     /**
-     * PostgreSQL용 TransactionManager
+     * Oracle용 TransactionManager
      */
     @Primary
-    @Bean(name = "postgresTransactionManager")
-    public PlatformTransactionManager postgresTransactionManager(
-            @Qualifier("postgresEntityManagerFactory") LocalContainerEntityManagerFactoryBean emf) {
+    @Bean(name = "oracleTransactionManager")
+    public PlatformTransactionManager oracleTransactionManager(
+            @Qualifier("oracleEntityManagerFactory") LocalContainerEntityManagerFactoryBean emf) {
         return new JpaTransactionManager(emf.getObject());
     }
 }
