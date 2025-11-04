@@ -197,7 +197,10 @@ OPEN rc_bundle FOR
             WHEN (LOWER(ss.name) LIKE 'dictionary cache%' OR LOWER(ss.name) LIKE 'row cache%')
           THEN ss.bytes ELSE 0 END) AS dictionary_cache_bytes,
       SUM(CASE WHEN ss.pool='shared pool' THEN ss.bytes ELSE 0 END) AS shared_pool_total,
-      SUM(CASE WHEN ss.pool='shared pool' AND LOWER(ss.name)='free memory' THEN ss.bytes ELSE 0 END) AS shared_pool_free
+      SUM(CASE WHEN ss.pool='shared pool' AND LOWER(ss.name)='free memory' THEN ss.bytes ELSE 0 END) AS shared_pool_free,
+    -- SGA 할당률->실사용률 변경 때문에 추가
+      SUM(ss.bytes) AS sgastat_total_bytes,
+      SUM(CASE WHEN LOWER(ss.name)='free memory' THEN ss.bytes ELSE 0 END) AS sgastat_free_bytes
     FROM gv$sgastat ss
     GROUP BY ss.inst_id
   ),
@@ -503,7 +506,7 @@ SELECT * FROM (
                   UNION ALL SELECT i.inst_id, 'j_slaves_cnt',                     NVL(process_jslave.j_slaves_cnt,0)      FROM inst i LEFT JOIN process_jslave ON process_jslave.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'cjq0_cnt',                         NVL(bg_cjq0.cjq0_cnt,0)                 FROM inst i LEFT JOIN bg_cjq0 ON bg_cjq0.inst_id = i.inst_id
                   -- 수동 추가 메인 그래프 - PGA/SGA 압박률
-                  UNION ALL SELECT i.inst_id, 'wait_class_time_us::'||wt.wait_class_key AS METRIC_NAME, NVL(wt.time_waited_us,0) AS VALUE_NUM FROM inst i LEFT JOIN wc_time wt ON wt.inst_id = i.inst_id WHERE wt.wait_class_key IS NOT NULL
+                  UNION ALL SELECT i.inst_id, 'wait_class_time_us_'||wt.wait_class_key AS METRIC_NAME, NVL(wt.time_waited_us,0) AS VALUE_NUM FROM inst i LEFT JOIN wc_time wt ON wt.inst_id = i.inst_id WHERE wt.wait_class_key IS NOT NULL
                   UNION ALL SELECT i.inst_id, 'temp_read_blocks', NVL(sysstat.temp_read_blocks,0) FROM inst i LEFT JOIN sysstat ON sysstat.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'temp_write_blocks', NVL(sysstat.temp_write_blocks,0) FROM inst i LEFT JOIN sysstat ON sysstat.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'parse_hard', NVL(sysstat.parse_hard,0) FROM inst i LEFT JOIN sysstat ON sysstat.inst_id = i.inst_id
@@ -581,6 +584,10 @@ SELECT * FROM (
                   UNION ALL SELECT i.inst_id,'long_tx_count_30m'       ,NVL(t.long_tx_count_30m,0)         FROM inst i LEFT JOIN tx t ON t.inst_id=i.inst_id
                   UNION ALL SELECT i.inst_id,'long_tx_used_ublk_sum'   ,NVL(t.long_tx_used_ublk_sum,0)     FROM inst i LEFT JOIN tx t ON t.inst_id=i.inst_id
                   UNION ALL SELECT * FROM db
+                  -- SGA 실사용률 변경으로 추가
+                  UNION ALL SELECT i.inst_id, 'sgastat_total_bytes', NVL(sgastat_agg.sgastat_total_bytes,0) FROM inst i LEFT JOIN sgastat_agg ON sgastat_agg.inst_id=i.inst_id
+                  UNION ALL SELECT i.inst_id, 'sgastat_free_bytes',  NVL(sgastat_agg.sgastat_free_bytes,0)  FROM inst i LEFT JOIN sgastat_agg ON sgastat_agg.inst_id=i.inst_id
+
               )
 ORDER BY INST_ID, METRIC_NAME;
 

@@ -32,7 +32,7 @@ public class DbMonitorApplication {
     @Bean
     @Profile("dev")
     CommandLineRunner collectOnce(@Qualifier("collectorServiceImpl") CollectorService svc) {
-        final int runs = 7;     // 총 실행 횟수
+        final int runs = 5;     // 총 실행 횟수
         final int intervalSec = 5; // 수집 간격(초)
 
         return args -> {
@@ -52,10 +52,10 @@ public class DbMonitorApplication {
                 }
 
                 // 최종 계산 실행(Δ/Σ/window_sec 포함) — 이제 클러스터 합계만 반환(접미사 없음)
-                Map<String, Double> finals = svc.runOnce();
+                Map<String, Object> finals = svc.runOnce();
 
                 System.out.println("FINAL metrics size=" + finals.size());
-                finals.entrySet().stream().limit(100).forEach(e ->
+                finals.entrySet().stream().limit(200).forEach(e ->
                         System.out.println(e.getKey() + "=" + e.getValue())
                 );
 

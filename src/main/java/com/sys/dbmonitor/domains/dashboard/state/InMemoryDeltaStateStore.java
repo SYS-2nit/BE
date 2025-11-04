@@ -15,13 +15,24 @@ import java.util.concurrent.atomic.AtomicReference;
 @Primary
 public class InMemoryDeltaStateStore implements DeltaStateStore {
 
+    /** (instId|METRIC_NAME) → State */
     private final ConcurrentHashMap<String, State> map = new ConcurrentHashMap<>();
+    /** (family|itemKey) → State  e.g. TOPSQL_CPU|9u1m1r2zj9k1a */
+    private final ConcurrentHashMap<String, State> varMap = new ConcurrentHashMap<>();
+
     private final AtomicReference<Instant> lastTs = new AtomicReference<>(null);
 
+    /* ===================== Helpers ===================== */
     private static String key(int instId, String metricUpper) {
-        return instId + "|" + metricUpper.toUpperCase();
+        return instId + "|" + (metricUpper == null ? "" : metricUpper.toUpperCase());
+    }
+    private static String vkey(String family, String itemKey) {
+        String f = family == null ? "" : family.toUpperCase();
+        String i = itemKey == null ? "" : itemKey;
+        return f + "|" + i;
     }
 
+    /* ===================== Bundle (inst, METRIC) ===================== */
     @Override
     public Optional<State> get(int instId, String metricUpper) {
         return Optional.ofNullable(map.get(key(instId, metricUpper)));
@@ -46,6 +57,25 @@ public class InMemoryDeltaStateStore implements DeltaStateStore {
         lastTs.set(ts);
     }
 
+    /* ===================== Variable Keys (family, itemKey) ===================== */
+    @Override
+    public Optional<State> getVar(String family, String itemKey) {
+        return Optional.ofNullable(varMap.get(vkey(family, itemKey)));
+    }
+
+    @Override
+    public void putVar(String family, String itemKey, double value, Instant ts) {
+        varMap.put(vkey(family, itemKey), new State(value, ts));
+    }
+
+    @Override
+    public void clearFamily(String family) {
+        if (family == null) return;
+        String prefix = (family.toUpperCase() + "|");
+        varMap.keySet().removeIf(k -> k.startsWith(prefix));
+    }
+
+    /* ===================== Window / Maintenance ===================== */
     @Override
     public Instant getLastTs() {
         return lastTs.get();
@@ -59,6 +89,7 @@ public class InMemoryDeltaStateStore implements DeltaStateStore {
     @Override
     public void clear() {
         map.clear();
+        varMap.clear();
         lastTs.set(null);
     }
 }
