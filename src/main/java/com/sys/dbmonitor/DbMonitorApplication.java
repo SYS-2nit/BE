@@ -19,13 +19,14 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 개발(dev) 프로파일에서만 실행되는 수집 테스트 앱.
  * - runOnce()로 계산된 finals(Map<String,Object>)를 출력
- * - GraphRegistry의 모든 그래프를 MetricData 한 행으로 매핑하고
- *   "그래프 필요 컬럼 기준 충족도(present/required)"를 요약 출력
+ * - 그래프별 "필요 컬럼 충족도" + 어떤 컬럼이 채워졌는지/비었는지까지 함께 출력
  */
 @SpringBootApplication
 @EnableJpaRepositories(basePackages = "com.sys.dbmonitor")
@@ -70,18 +71,22 @@ public class DbMonitorApplication {
                     System.out.println(e.getKey() + "=" + e.getValue())
                 );
 
-                // ===== 그래프별 "필요 컬럼 충족도" 요약 출력 (INSERT 전 검증용) =====
+                // ===== 그래프별 "필요 컬럼 충족도 + 컬럼 목록" 요약 출력 =====
                 for (GraphRule rule : GraphRegistry.all()) {
+                    // 매핑 자체는 동일 (행을 만들어 collectedAt만 활용)
                     MetricData row = GraphRegistry.mapRow(rule.graphId(), testDbId, finals);
 
-                    int required = rule.columns().size();
-                    int present  = countFilledRequiredColumns(rule, finals);
+                    ColSummary sum = summarizeColumns(rule, finals);
+                    int required = sum.present.size() + sum.missing.size();
 
                     System.out.println("[G" + rule.graphId() + " / C" + rule.categoryId() + "] "
-                        + rule.name() + " -> columns " + present + "/" + required
-                        + " filled, at=" + row.getCollectedAt());
+                        + rule.name()
+                        + " -> columns " + sum.present.size() + "/" + required + " filled"
+                        + ", present=" + sum.present
+                        + ", missing=" + sum.missing
+                        + ", at=" + row.getCollectedAt());
                 }
-                // =================================================================
+                // ==========================================================
 
                 Instant end = Instant.now();
                 System.out.println("COLLECT END   [" + i + "/" + runs + "] " + OffsetDateTime.now());
@@ -100,17 +105,16 @@ public class DbMonitorApplication {
         };
     }
 
-    /**
-     * 그래프가 요구하는 컬럼들 중 finals에 실제 값이 존재하는 컬럼 개수 계산
-     * - Storage/IO처럼 아직 수집되지 않은 그래프는 columns 0/N 형태로 표시됨
-     */
-    private static int countFilledRequiredColumns(GraphRule rule, Map<String, Object> finals) {
-        int ok = 0;
+    /** 그래프가 요구하는 컬럼들에 대해 finals에 값이 있는지/없는지 분류 */
+    private static ColSummary summarizeColumns(GraphRule rule, Map<String, Object> finals) {
+        List<String> present = new ArrayList<>();
+        List<String> missing = new ArrayList<>();
         for (String col : rule.columns()) {
             Object v = getFromFinals(finals, col);
-            if (v != null) ok++;
+            if (v != null) present.add(col);
+            else missing.add(col);
         }
-        return ok;
+        return new ColSummary(present, missing);
     }
 
     /** finals에서 대소문자 섞임을 허용하여 안전하게 값 조회 */
@@ -121,5 +125,18 @@ public class DbMonitorApplication {
         String l = key.toLowerCase();
         if (finals.containsKey(l)) return finals.get(l);
         return null;
+    }
+
+    /** present/missing 리스트 보관용 단순 DTO */
+    private static class ColSummary {
+        private final List<String> present;
+        private final List<String> missing;
+        private ColSummary(List<String> present, List<String> missing) {
+            this.present = present;
+            this.missing = missing;
+        }
+        public List<String> present() { return present; }
+        public List<String> missing() { return missing; }
+        @Override public String toString() { return "present=" + present + ", missing=" + missing; }
     }
 }
