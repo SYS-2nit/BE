@@ -8,17 +8,66 @@ import java.util.Map;
 public final class MetricsEngine {
     private MetricsEngine() {}
 
+    /* ===== 상수 ===== */
+    public static final double BYTES_PER_MB = 1_048_576.0;
+    /** 블록 크기 미제공 시 사용할 안전 기본값(바이트) */
+    public static final double DEFAULT_DB_BLOCK_SIZE_BYTES = 8192.0;
+
     /* ===== 기본 변환/연산 ===== */
     public static double safeDiv(double a, double b) {
         if (Double.isNaN(a) || Double.isNaN(b) || b == 0d) return 0d;
         return a / b;
     }
     public static double pct(double num, double den) { return 100.0 * safeDiv(num, den); }
+    /** 퍼센트를 0~100로 클램프하여 반환 */
+    public static double pctClamp(double num, double den) { return clampPct(pct(num, den)); }
+
     public static double perSec(double delta, int windowSec) { return delta / Math.max(1, windowSec); }
+    public static double perMin(double delta, int windowSec) { return (60.0 * delta) / Math.max(1, windowSec); }
+
     public static double usToSeconds(double us) { return us / 1_000_000.0; }
+    public static double usToMillis(double us) { return us / 1_000.0; }
+
+    /** Δμs → AAS = (Δμs/1e6)/window_sec */
     public static double aasFromUsDelta(double deltaUs, int windowSec) { return perSec(usToSeconds(deltaUs), windowSec); }
+
     public static double max0(double v) { return Math.max(0d, v); }
     public static double nz(double v, double def) { return Double.isNaN(v) ? def : v; }
+
+    /* ===== 메모리/캐시 계산 보조 ===== */
+    /** bytes → MB */
+    public static double bytesToMB(double bytes) { return bytes / BYTES_PER_MB; }
+
+    /** 100 * (1 - misses/gets) 형태의 히트율(%, 0~100 클램프) */
+    public static double hitPctFromMisses(double misses, double gets) { return clampPct(100.0 - pct(misses, gets)); }
+
+    /** 100 * (1 - num/den) 형태의 보조 퍼센트(%, 0~100 클램프) */
+    public static double oneMinusPct(double num, double den) { return clampPct(100.0 - pct(num, den)); }
+
+    /** 퍼센트 0~100 범위 클램프 */
+    public static double clampPct(double v) {
+        if (Double.isNaN(v)) return 0d;
+        if (v < 0d) return 0d;
+        if (v > 100d) return 100d;
+        return v;
+    }
+
+    /* ===== MAIN(성능) 보조 유틸 ===== */
+    /** 블록Δ → MB/분 (blockSizeBytes 미제공 시 기본값 사용) */
+    public static double spillMbPerMin(double blocksDelta, double blockSizeBytes, int windowSec) {
+        double bs = (Double.isNaN(blockSizeBytes) || blockSizeBytes <= 0) ? DEFAULT_DB_BLOCK_SIZE_BYTES : blockSizeBytes;
+        return (blocksDelta * bs / 1_000_000.0) * (60.0 / Math.max(1, windowSec));
+    }
+
+    /** 바이트Δ → MB/s */
+    public static double mbPerSecFromBytes(double bytesDelta, int windowSec) {
+        return bytesDelta / (BYTES_PER_MB * Math.max(1, windowSec));
+    }
+
+    /** Δμs/Δ횟수 → 지연시간(ms) */
+    public static double latencyMs(double deltaTimeUs, double deltaWaits) {
+        return safeDiv(usToMillis(deltaTimeUs), deltaWaits);
+    }
 
     /* ===== 키 조회(대/소문자/공백↔언더스코어 혼용 대응) — metrics bundle(Map<String,Double>)용 ===== */
     public static double any(Map<String, Double> m, String... keys) {

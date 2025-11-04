@@ -48,19 +48,19 @@ public class CollectorRepositoryImpl implements CollectorRepository {
         try (Connection con = DataSourceUtils.getConnection(dataSource);
              CallableStatement cs = con.prepareCall(plsql)) {
 
-            // 바인드 사용 시: cs.setObject(1, lookbackMin) 등 - 현재 PL/SQL에 기본값 NVL 처리 가정
-            cs.execute(); // 반드시 execute()
+            // 바인드가 필요하면 여기서 cs.setObject(...) 추가 (현재 PL/SQL은 NVL 기본값 사용)
+            cs.execute(); // 실행만 하고, 결과는 getMoreResults()로 순차 탐색
 
             int rsIdx = 0;
             boolean sawAnyResultSet = false;
 
             while (true) {
-                boolean hasResult = cs.getMoreResults(); // 가져올 다음 결과셋이 있는지 체크
-                int updateCount = cs.getUpdateCount(); // -1이면 더 이상 결과 없음
+                boolean hasResult = cs.getMoreResults();   // Oracle implicit result set은 여기서 진입
+                int updateCount = cs.getUpdateCount();
 
                 if (!hasResult) {
-                    if (updateCount == -1) break; // 종료
-                    continue; // update count면 스킵
+                    if (updateCount == -1) break;          // 더 이상 결과 없음
+                    continue;                               // DML 카운트는 스킵
                 }
 
                 rsIdx++;
@@ -88,6 +88,7 @@ public class CollectorRepositoryImpl implements CollectorRepository {
             throw new IllegalStateException("Collector execution failed", e);
         }
     }
+
 
     /* ===========================
        헬퍼: #1 GRAPH_BUNDLE 읽기
