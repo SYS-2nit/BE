@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.instance.dao;
+package com.sys.dbmonitor.domains.instance.repository;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
 import org.springframework.data.jpa.repository.JpaRepository;

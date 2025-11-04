@@ -1,5 +1,7 @@
 package com.sys.dbmonitor.domains.instance.dto.request;
 
+import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.global.common.util.PasswordEncryptionUtil;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
@@ -24,4 +26,15 @@ public record InstanceCreateRequest(
         @Schema(description = "활성화 여부", example = "true")
         Boolean isActive
 ) {
+
+        public Instance toEntity(String encryptionKey){
+                return Instance.builder()
+                        .name(this.name)
+                        .url(this.url)
+                        .username(this.username)
+                        .password(PasswordEncryptionUtil.encrypt(this.password, encryptionKey))  // AES 암호화로 저장
+                        .isActive(this.isActive != null ? this.isActive : true)
+                        .build();
+        }
+
 }

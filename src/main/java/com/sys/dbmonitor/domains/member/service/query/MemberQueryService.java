@@ -1,7 +1,7 @@
 package com.sys.dbmonitor.domains.member.service.query;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
-import com.sys.dbmonitor.domains.member.dao.MemberRepository;
+import com.sys.dbmonitor.domains.member.repository.MemberRepository;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import lombok.RequiredArgsConstructor;

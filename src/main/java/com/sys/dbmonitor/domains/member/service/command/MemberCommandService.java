@@ -1,7 +1,7 @@
 package com.sys.dbmonitor.domains.member.service.command;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
-import com.sys.dbmonitor.domains.member.dao.MemberRepository;
+import com.sys.dbmonitor.domains.member.repository.MemberRepository;
 import com.sys.dbmonitor.domains.member.dto.request.MemberAddressUpdateRequest;
 import com.sys.dbmonitor.domains.member.dto.request.MemberCreateRequest;
 import com.sys.dbmonitor.domains.member.dto.request.MemberUpdateRequest;

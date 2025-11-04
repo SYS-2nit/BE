@@ -1,7 +1,7 @@
 package com.sys.dbmonitor.domains.instance.service.query;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
-import com.sys.dbmonitor.domains.instance.dao.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceResponse;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;

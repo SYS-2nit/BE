@@ -7,58 +7,56 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
-import java.time.LocalDateTime;
 
 
 @Entity
-@Table(name = "instance")
+@Table(name = "INSTANCE")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
 public class Instance extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "instance_seq")
+    @SequenceGenerator(name = "instance_seq", sequenceName = "SEQ_INSTANCE_ID", allocationSize = 1)
+    @Column(name = "ID")
     private Long id;
 
     /**
      * 타겟 DB 이름 (사용자가 지정)
      */
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "NAME", nullable = false, unique = true, length = 100)
     private String name;
 
     /**
      * 타겟 DB 연결 URL
      */
-    @Column(nullable = false, length = 500)
+    @Column(name = "URL", nullable = false, length = 500)
     private String url;
 
     /**
      * 타겟 DB 사용자명
      */
-    @Column(nullable = false, length = 100)
+    @Column(name = "USERNAME", nullable = false, length = 100)
     private String username;
 
     /**
      * 타겟 DB 비밀번호
      */
-    @Column(nullable = false, length = 500)
+    @Column(name = "PASSWORD", nullable = false, length = 500)
     private String password;
 
     /**
      * 활성화 여부 (true: 사용 가능, false: 비활성화)
      */
-    @Column(nullable = false)
+    @Column(name = "IS_ACTIVE", nullable = false)
     private Boolean isActive;
 
     // TODO :: 유저 데이터 연동하기
-//    @ManyToOne(fetch = FetchType.LAZY)
-//    @JoinColumn(name = "member_id", nullable = false)
-//    private Member member;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id", nullable = false)
+    private Member member;
 
     @Builder
     public Instance(String name, String url, String username, String password, Boolean isActive) {

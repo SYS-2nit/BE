@@ -1,7 +1,7 @@
 package com.sys.dbmonitor.domains.instance.service.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
-import com.sys.dbmonitor.domains.instance.dao.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.dto.request.InstanceCreateRequest;
 import com.sys.dbmonitor.domains.instance.dto.request.InstanceUpdateRequest;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceTestResponse;
@@ -23,7 +23,7 @@ public class InstanceCommandService {
 
     private static final Logger log = LoggerFactory.getLogger(InstanceCommandService.class);
 
-    private final InstanceRepository targetDatabaseRepository;
+    private final InstanceRepository instanceRepository;
     private final DynamicDataSourceFactory dynamicDataSourceFactory;
 
     @Value("${app.encryption.key}")
@@ -141,21 +141,15 @@ public class InstanceCommandService {
     @Transactional
     public Instance createTargetDatabase(InstanceCreateRequest request) {
         // 이름 중복 확인
-        if (targetDatabaseRepository.existsByName(request.name())) {
+        if (instanceRepository.existsByName(request.name())) {
             throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE, "이미 존재하는 타겟 DB 이름입니다.");
         }
 
         // 엔티티 생성 (비밀번호 암호화하여 저장)
-        Instance targetDatabase = Instance.builder()
-                .name(request.name())
-                .url(request.url())
-                .username(request.username())
-                .password(PasswordEncryptionUtil.encrypt(request.password(), encryptionKey))  // AES 암호화로 저장
-                .isActive(request.isActive() != null ? request.isActive() : true)
-                .build();
+        Instance instance = request.toEntity(encryptionKey);
 
-        // PostgreSQL에 저장
-        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        // Oracle에 저장
+        Instance saved = instanceRepository.save(instance);
         log.info("[TargetDatabase] 타겟 DB 등록 완료: id={}, name={}", saved.getId(), saved.getName());
 
         // 활성화된 경우 동적 데이터소스 생성 (복호화된 비밀번호 사용)
@@ -185,12 +179,12 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance updateTargetDatabase(Long id, InstanceUpdateRequest request) {
-        Instance targetDatabase = targetDatabaseRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         // 이름 중복 확인 (자신 제외)
         if (request.name() != null && !request.name().equals(targetDatabase.getName())) {
-            if (targetDatabaseRepository.existsByNameAndIdNot(request.name(), id)) {
+            if (instanceRepository.existsByNameAndIdNot(request.name(), id)) {
                 throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE, "이미 존재하는 타겟 DB 이름입니다.");
             }
         }
@@ -209,7 +203,7 @@ public class InstanceCommandService {
                 request.isActive()
         );
 
-        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        Instance saved = instanceRepository.save(targetDatabase);
         log.info("[TargetDatabase] 타겟 DB 수정 완료: id={}, name={}", saved.getId(), saved.getName());
 
         // 기존 데이터소스 제거
@@ -241,14 +235,14 @@ public class InstanceCommandService {
      */
     @Transactional
     public void deleteTargetDatabase(Long id) {
-        Instance targetDatabase = targetDatabaseRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         // 동적 데이터소스 제거
         dynamicDataSourceFactory.removeDataSource(id);
 
         // 엔티티 삭제
-        targetDatabaseRepository.delete(targetDatabase);
+        instanceRepository.delete(targetDatabase);
         log.info("[TargetDatabase] 타겟 DB 삭제 완료: id={}, name={}", id, targetDatabase.getName());
     }
 
@@ -257,11 +251,11 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance activateTargetDatabase(Long id) {
-        Instance targetDatabase = targetDatabaseRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         targetDatabase.activate();
-        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        Instance saved = instanceRepository.save(targetDatabase);
 
         // 암호화된 비밀번호 복호화하여 자동 연결
         try {
@@ -307,7 +301,7 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance connectTargetDatabase(Long id, String password) {
-        Instance targetDatabase = targetDatabaseRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         String storedPassword = targetDatabase.getPassword();
@@ -362,7 +356,7 @@ public class InstanceCommandService {
                 true   // 활성화
         );
 
-        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        Instance saved = instanceRepository.save(targetDatabase);
         log.info("[TargetDatabase] 타겟 DB 비밀번호를 AES 암호화로 저장 완료: id={}, name={}", 
                 saved.getId(), saved.getName());
 
@@ -374,11 +368,11 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance deactivateTargetDatabase(Long id) {
-        Instance targetDatabase = targetDatabaseRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         targetDatabase.deactivate();
-        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        Instance saved = instanceRepository.save(targetDatabase);
 
         // 동적 데이터소스 제거
         dynamicDataSourceFactory.removeDataSource(id);
