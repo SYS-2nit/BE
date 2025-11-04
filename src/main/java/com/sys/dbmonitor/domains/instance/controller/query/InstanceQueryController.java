@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/databases")
@@ -45,5 +46,18 @@ public class InstanceQueryController {
         InstanceResponse targetDatabase = targetDatabaseQueryService.getTargetDatabaseByName(name);
         return ApiResponse.ok(200, targetDatabase, "타겟 DB를 조회했습니다.");
     }
+
+
+    @Operation(summary = "타겟 DB 데이터 조회", description = "타겟 DB에서 데이터를 조회합니다.")
+    @GetMapping("/{id}/data")
+    public ApiResponse<List<Map<String, Object>>> getTargetDatabaseData(@PathVariable Long id) {
+        // TODO :: Test 후 삭제
+        Long instanceId = 1L;
+        List<Map<String, Object>>  targetDatabase = targetDatabaseQueryService.queryTargetDatabase(instanceId);
+        return ApiResponse.ok(200, targetDatabase, "타겟 DB 데이터를 조회했습니다.");
+    }
+
+
+
 }
 

@@ -39,7 +39,11 @@ public class InstanceCommandController {
     @PostMapping
     public ApiResponse<InstanceResponse> createTargetDatabase(
             @Valid @RequestBody InstanceCreateRequest request) {
-        Instance created = targetDatabaseCommandService.createTargetDatabase(request);
+
+        // TODO :: MemberID 변경
+        Long memberId = 1L;
+
+        Instance created = targetDatabaseCommandService.createTargetDatabase(request,memberId);
         return ApiResponse.ok(200, InstanceResponse.from(created), "타겟 DB가 등록되었습니다.");
     }
 
