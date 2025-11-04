@@ -59,12 +59,13 @@ public class Instance extends BaseEntity {
     private Member member;
 
     @Builder
-    public Instance(String name, String url, String username, String password, Boolean isActive) {
+    public Instance(String name, String url, String username, String password, Boolean isActive,  Member member) {
         this.name = name;
         this.url = url;
         this.username = username;
         this.password = password;
         this.isActive = isActive != null ? isActive : true;
+        this.member = member;
     }
 
     /**

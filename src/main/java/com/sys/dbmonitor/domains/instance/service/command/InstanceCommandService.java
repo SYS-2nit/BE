@@ -5,6 +5,8 @@ import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.dto.request.InstanceCreateRequest;
 import com.sys.dbmonitor.domains.instance.dto.request.InstanceUpdateRequest;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceTestResponse;
+import com.sys.dbmonitor.domains.member.domain.Member;
+import com.sys.dbmonitor.domains.member.service.query.MemberQueryService;
 import com.sys.dbmonitor.global.common.util.PasswordEncryptionUtil;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
 import com.sys.dbmonitor.global.exception.BadRequestException;
@@ -23,8 +25,9 @@ public class InstanceCommandService {
 
     private static final Logger log = LoggerFactory.getLogger(InstanceCommandService.class);
 
-    private final InstanceRepository instanceRepository;
+    private final InstanceRepository targetDatabaseRepository;
     private final DynamicDataSourceFactory dynamicDataSourceFactory;
+    private final MemberQueryService memberQueryService;
 
     @Value("${app.encryption.key}")
     private String encryptionKey;
@@ -114,7 +117,7 @@ public class InstanceCommandService {
             log.info("[TargetDatabase] DB 연결 테스트 성공: url={}, username={}", url, username);
             // 테스트 후 즉시 제거
             dynamicDataSourceFactory.removeDataSource(testId);
-            
+
             return new InstanceTestResponse(
                     true,
                     "DB 연결에 성공했습니다.",
@@ -123,9 +126,9 @@ public class InstanceCommandService {
         } catch (Exception e) {
             // 상세한 에러 메시지 추출
             String errorMsg = extractErrorMessage(e);
-            log.error("[TargetDatabase] DB 연결 테스트 실패: url={}, username={}, error={}", 
+            log.error("[TargetDatabase] DB 연결 테스트 실패: url={}, username={}, error={}",
                     url, username, errorMsg, e);  // 전체 예외 스택도 로깅
-            
+
             return new InstanceTestResponse(
                     false,
                     "DB 연결에 실패했습니다.",
@@ -139,17 +142,20 @@ public class InstanceCommandService {
      * 테스트는 프론트에서 이미 완료된 상태로 가정
      */
     @Transactional
-    public Instance createTargetDatabase(InstanceCreateRequest request) {
+    public Instance createTargetDatabase(InstanceCreateRequest request, Long memberId) {
         // 이름 중복 확인
-        if (instanceRepository.existsByName(request.name())) {
+        if (targetDatabaseRepository.existsByName(request.name())) {
             throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE, "이미 존재하는 타겟 DB 이름입니다.");
         }
 
+        // Member 엔티티 생성
+        Member member = memberQueryService.getMemberById(memberId);
+
         // 엔티티 생성 (비밀번호 암호화하여 저장)
-        Instance instance = request.toEntity(encryptionKey);
+        Instance instance = request.toEntity(encryptionKey, member);
 
         // Oracle에 저장
-        Instance saved = instanceRepository.save(instance);
+        Instance saved = targetDatabaseRepository.save(instance);
         log.info("[TargetDatabase] 타겟 DB 등록 완료: id={}, name={}", saved.getId(), saved.getName());
 
         // 활성화된 경우 동적 데이터소스 생성 (복호화된 비밀번호 사용)
@@ -178,13 +184,13 @@ public class InstanceCommandService {
      * 타겟 DB 수정
      */
     @Transactional
-    public Instance updateTargetDatabase(Long id, InstanceUpdateRequest request) {
-        Instance targetDatabase = instanceRepository.findById(id)
+    public Instance updateTargetDatabase(Long instanceId, InstanceUpdateRequest request) {
+        Instance targetDatabase = targetDatabaseRepository.findById(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         // 이름 중복 확인 (자신 제외)
         if (request.name() != null && !request.name().equals(targetDatabase.getName())) {
-            if (instanceRepository.existsByNameAndIdNot(request.name(), id)) {
+            if (targetDatabaseRepository.existsByNameAndIdNot(request.name(), instanceId)) {
                 throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE, "이미 존재하는 타겟 DB 이름입니다.");
             }
         }
@@ -203,11 +209,12 @@ public class InstanceCommandService {
                 request.isActive()
         );
 
-        Instance saved = instanceRepository.save(targetDatabase);
+
+        Instance saved = targetDatabaseRepository.save(targetDatabase);
         log.info("[TargetDatabase] 타겟 DB 수정 완료: id={}, name={}", saved.getId(), saved.getName());
 
         // 기존 데이터소스 제거
-        dynamicDataSourceFactory.removeDataSource(id);
+        dynamicDataSourceFactory.removeDataSource(instanceId);
 
         // 활성화된 경우 새로운 데이터소스 생성 (복호화된 비밀번호 사용)
         if (saved.getIsActive()) {
@@ -235,14 +242,14 @@ public class InstanceCommandService {
      */
     @Transactional
     public void deleteTargetDatabase(Long id) {
-        Instance targetDatabase = instanceRepository.findById(id)
+        Instance targetDatabase = targetDatabaseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         // 동적 데이터소스 제거
         dynamicDataSourceFactory.removeDataSource(id);
 
         // 엔티티 삭제
-        instanceRepository.delete(targetDatabase);
+        targetDatabaseRepository.delete(targetDatabase);
         log.info("[TargetDatabase] 타겟 DB 삭제 완료: id={}, name={}", id, targetDatabase.getName());
     }
 
@@ -251,16 +258,16 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance activateTargetDatabase(Long id) {
-        Instance targetDatabase = instanceRepository.findById(id)
+        Instance targetDatabase = targetDatabaseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         targetDatabase.activate();
-        Instance saved = instanceRepository.save(targetDatabase);
+        Instance saved = targetDatabaseRepository.save(targetDatabase);
 
         // 암호화된 비밀번호 복호화하여 자동 연결
         try {
             String storedPassword = saved.getPassword();
-            
+
             // BCrypt 해시인 경우 복호화 불가능
             if (PasswordEncryptionUtil.isBcryptHash(storedPassword)) {
                 log.warn("[TargetDatabase] 타겟 DB 비밀번호가 BCrypt 해시 형식입니다. " +
@@ -279,7 +286,7 @@ public class InstanceCommandService {
                     saved.getUsername(),
                     decryptedPassword
             );
-            log.info("[TargetDatabase] 타겟 DB 활성화 및 자동 연결 완료: id={}, name={}", 
+            log.info("[TargetDatabase] 타겟 DB 활성화 및 자동 연결 완료: id={}, name={}",
                     saved.getId(), saved.getName());
         } catch (IllegalArgumentException e) {
             // BCrypt 해시 에러
@@ -301,7 +308,7 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance connectTargetDatabase(Long id, String password) {
-        Instance targetDatabase = instanceRepository.findById(id)
+        Instance targetDatabase = targetDatabaseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         String storedPassword = targetDatabase.getPassword();
@@ -312,16 +319,16 @@ public class InstanceCommandService {
             try {
                 String decryptedPassword = PasswordEncryptionUtil.decrypt(storedPassword, encryptionKey);
                 if (!password.equals(decryptedPassword)) {
-                    throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+                    throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                             "비밀번호가 일치하지 않습니다.");
                 }
             } catch (IllegalArgumentException e) {
                 // 복호화 불가능한 경우 (BCrypt가 아닌 다른 형식)
-                log.warn("[TargetDatabase] 비밀번호 검증 스킵: 복호화 불가능한 형식. id={}, name={}", 
+                log.warn("[TargetDatabase] 비밀번호 검증 스킵: 복호화 불가능한 형식. id={}, name={}",
                         targetDatabase.getId(), targetDatabase.getName());
             }
         } else {
-            log.info("[TargetDatabase] BCrypt 해시 형식 감지. 비밀번호를 AES 암호화로 마이그레이션합니다. id={}, name={}", 
+            log.info("[TargetDatabase] BCrypt 해시 형식 감지. 비밀번호를 AES 암호화로 마이그레이션합니다. id={}, name={}",
                     targetDatabase.getId(), targetDatabase.getName());
         }
 
@@ -337,12 +344,12 @@ public class InstanceCommandService {
                     targetDatabase.getUsername(),
                     password  // 입력한 원본 비밀번호 사용
             );
-            log.info("[TargetDatabase] 타겟 DB 연결 및 데이터소스 생성 완료: id={}, name={}", 
+            log.info("[TargetDatabase] 타겟 DB 연결 및 데이터소스 생성 완료: id={}, name={}",
                     targetDatabase.getId(), targetDatabase.getName());
         } catch (Exception e) {
             log.error("[TargetDatabase] 타겟 DB 연결 실패: id={}, name={}, error={}",
                     targetDatabase.getId(), targetDatabase.getName(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                     "DB 연결에 실패했습니다: " + e.getMessage());
         }
 
@@ -356,8 +363,8 @@ public class InstanceCommandService {
                 true   // 활성화
         );
 
-        Instance saved = instanceRepository.save(targetDatabase);
-        log.info("[TargetDatabase] 타겟 DB 비밀번호를 AES 암호화로 저장 완료: id={}, name={}", 
+        Instance saved = targetDatabaseRepository.save(targetDatabase);
+        log.info("[TargetDatabase] 타겟 DB 비밀번호를 AES 암호화로 저장 완료: id={}, name={}",
                 saved.getId(), saved.getName());
 
         return saved;
@@ -368,11 +375,11 @@ public class InstanceCommandService {
      */
     @Transactional
     public Instance deactivateTargetDatabase(Long id) {
-        Instance targetDatabase = instanceRepository.findById(id)
+        Instance targetDatabase = targetDatabaseRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
 
         targetDatabase.deactivate();
-        Instance saved = instanceRepository.save(targetDatabase);
+        Instance saved = targetDatabaseRepository.save(targetDatabase);
 
         // 동적 데이터소스 제거
         dynamicDataSourceFactory.removeDataSource(id);
