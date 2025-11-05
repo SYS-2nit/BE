@@ -44,15 +44,26 @@ OPEN rc_bundle FOR
   ),
   /* -------- GV$SYS_TIME_MODEL: DB time/CPU and background CPU -------- */
   tm AS (
-    SELECT
-      m.inst_id,
-      SUM(CASE WHEN m.stat_name='DB time'             THEN m.value ELSE 0 END) AS db_time_us,
-      SUM(CASE WHEN m.stat_name='DB CPU'              THEN m.value ELSE 0 END) AS db_cpu_us,
-      SUM(CASE WHEN m.stat_name='background cpu time' THEN m.value ELSE 0 END) AS bg_cpu_us
-    FROM gv$sys_time_model m
-    WHERE m.stat_name IN ('DB time','DB CPU','background cpu time')
-    GROUP BY m.inst_id
-  ),
+      SELECT
+        s.inst_id,
+        SUM(CASE WHEN stm.stat_name='DB time' THEN stm.value ELSE 0 END) AS db_time_us,
+        SUM(CASE WHEN stm.stat_name='DB CPU'  THEN stm.value ELSE 0 END) AS db_cpu_us,
+        MAX(bg.bg_cpu_us) AS bg_cpu_us
+      FROM gv$session s
+      JOIN gv$sess_time_model stm
+        ON stm.inst_id=s.inst_id AND stm.sid=s.sid
+      LEFT JOIN (
+        SELECT m.inst_id,
+               SUM(CASE WHEN m.stat_name='background cpu time' THEN m.value ELSE 0 END) AS bg_cpu_us
+        FROM gv$sys_time_model m
+        WHERE m.stat_name='background cpu time'
+        GROUP BY m.inst_id
+      ) bg ON bg.inst_id=s.inst_id
+      WHERE s.username IS NOT NULL
+        AND s.status <> 'KILLED'
+        AND stm.stat_name IN ('DB time','DB CPU')
+      GROUP BY s.inst_id
+    ),
   /* -------- GV$PARAMETER: cpu_count -------- */
   prm AS (
     SELECT
@@ -305,14 +316,22 @@ OPEN rc_bundle FOR
     GROUP BY se.inst_id
   ),
   wc_time AS (
-  SELECT
-    w.inst_id,
-    REPLACE(REPLACE(UPPER(w.wait_class),' ','_'),'/','_') AS wait_class_key,
-    SUM(w.time_waited_micro) AS time_waited_us
-  FROM gv$system_wait_class w
-  WHERE w.wait_class <> 'Idle'
-  GROUP BY w.inst_id, REPLACE(REPLACE(UPPER(w.wait_class),' ','_'),'/','_')
-  ),
+      SELECT
+        s.inst_id,
+        REPLACE(REPLACE(UPPER(n.wait_class),' ','_'),'/','_') AS wait_class_key,
+        SUM(se.time_waited_micro) AS time_waited_us
+      FROM gv$session_event se
+      JOIN gv$session s
+        ON s.inst_id = se.inst_id
+       AND s.sid     = se.sid
+      JOIN v$event_name n
+        ON n.name    = se.event
+      WHERE s.username IS NOT NULL
+        AND s.status  <> 'KILLED'
+        AND n.wait_class <> 'Idle'
+        AND n.wait_class NOT IN ('Network','Cluster')   -- 기획 반영(제외)
+      GROUP BY s.inst_id, REPLACE(REPLACE(UPPER(n.wait_class),' ','_'),'/','_')
+    ),
   system_event AS (
   SELECT
       e.inst_id,
