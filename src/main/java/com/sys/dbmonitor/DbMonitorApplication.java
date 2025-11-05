@@ -33,7 +33,7 @@ public class DbMonitorApplication {
     @Profile("dev")
     CommandLineRunner collectOnce(@Qualifier("collectorServiceImpl") CollectorService svc) {
         final int runs = 5;     // 총 실행 횟수
-        final int intervalSec = 5; // 수집 간격(초)
+        final int intervalSec = 10; // 수집 간격(초)
 
         return args -> {
             for (int i = 1; i <= runs; i++) {
