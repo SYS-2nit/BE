@@ -1,8 +1,8 @@
 package com.sys.dbmonitor.domains.diagnosis.controller;
 
-import com.sys.dbmonitor.domains.diagnosis.dto.response.ScenarioDto;
-import com.sys.dbmonitor.domains.diagnosis.dto.request.DiagnosisStartRequest;
-import com.sys.dbmonitor.domains.diagnosis.dto.response.DiagnosisStatusDto;
+import com.sys.dbmonitor.domains.diagnosis.repository.response.ScenarioDto;
+import com.sys.dbmonitor.domains.diagnosis.repository.request.DiagnosisStartRequest;
+import com.sys.dbmonitor.domains.diagnosis.repository.response.DiagnosisStatusDto;
 import com.sys.dbmonitor.domains.diagnosis.service.DiagnosisService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/diagnosis")
+@RequestMapping("/api/diagnosis")
 @RequiredArgsConstructor
 public class DiagnosisController {
     private final DiagnosisService diagnosisService;

@@ -2,13 +2,11 @@ spring:
   application:
     name: DBMonitor
 
-
-
   jpa:
     open-in-view: false
     show-sql: false
     hibernate:
-      ddl-auto: none
+      ddl-auto: create
     database-platform: org.hibernate.dialect.OracleDialect
 
 
@@ -62,7 +60,7 @@ logging:
 server:
   port: 8080
   servlet:
-    context-path: /api
+    context-path:
   ssl:
     enabled: true
     key-store: /app/ssl/keystore.p12  # Docker 컨테이너 내부 경로로 변경
@@ -70,12 +68,6 @@ server:
     key-store-password: ${SSL_PASSWORD}  # 기본값 추가
     key-alias: tomcat
   address: 0.0.0.0
-
-mybatis:
-  mapper-locations: classpath:/mappers/*.xml
-  configuration:
-    map-underscore-to-camel-case: true
-  type-aliases-package: com.sys.dbmonitor.domains.*.domain
 
 jmeter:
   home: /opt/homebrew/opt/jmeter/libexec
@@ -87,3 +79,8 @@ swingbench:
     path: ${user.dir}/swingbench/jar/swingbench.jar
   ojdbc:
     path: ${user.dir}/swingbench/jar/ojdbc8.jar
+
+# 암호화 키 설정
+app:
+  encryption:
+    key: ${ENCRYPTION_KEY:defaultEncryptionKey1234567890123456}  # 최소 16자 (AES-128)

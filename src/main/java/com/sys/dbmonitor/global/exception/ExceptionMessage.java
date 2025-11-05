@@ -37,9 +37,17 @@ public enum ExceptionMessage {
     INVALID_REQUEST("잘못된 요청입니다."),
     INVALID_DURATION("유효하지 않은 지속 시간입니다."),
     INVALID_SCENARIO_IDS("유효한 시나리오가 없습니다."),
-    DIAGNOSIS_ALREADY_RUNNING("이미 진단이 실행 중입니다. 먼저 정지하세요.");
+    DIAGNOSIS_ALREADY_RUNNING("이미 진단이 실행 중입니다. 먼저 정지하세요."),
+
+    // 공통
+    NOT_FOUND("요청한 리소스를 찾을 수 없습니다."),
+    DUPLICATE_VALUE("중복된 값입니다."),
+
+    // DB 데이터 정보
+    DB_NOT_ACTIVE("활성화 된 DB가 없습니다"),
+
+
+
     ;
-
-
     private final String message;
 }
