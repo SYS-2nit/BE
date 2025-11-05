@@ -61,11 +61,11 @@ public class DataSourceConfig {
         config.setJdbcUrl(oracleUrl);
         config.setUsername(oracleUsername);
         config.setPassword(oraclePassword);
-        
+
         // JDBC URL에 따라 드라이버 클래스 자동 선택
         String driverClassName = determineDriverClassName(oracleUrl);
         config.setDriverClassName(driverClassName);
-        
+
         String poolName = oracleUrl.contains("postgresql") ? "PostgreSQLHikariPool" : "OracleHikariPool";
         config.setPoolName(poolName);
         config.setMaximumPoolSize(10);
@@ -76,7 +76,7 @@ public class DataSourceConfig {
         config.setLeakDetectionThreshold(60000);
         return new HikariDataSource(config);
     }
-    
+
     /**
      * JDBC URL에 따라 드라이버 클래스명 결정
      */
@@ -84,7 +84,7 @@ public class DataSourceConfig {
         if (jdbcUrl == null) {
             throw new IllegalArgumentException("JDBC URL이 null입니다.");
         }
-        
+
         if (jdbcUrl.startsWith("jdbc:oracle:")) {
             return "oracle.jdbc.OracleDriver";
         } else if (jdbcUrl.startsWith("jdbc:postgresql:")) {
@@ -95,7 +95,7 @@ public class DataSourceConfig {
             throw new IllegalArgumentException("지원하지 않는 JDBC URL입니다: " + jdbcUrl);
         }
     }
-    
+
     /**
      * JDBC URL에 따라 Hibernate Dialect 결정
      */
@@ -103,7 +103,7 @@ public class DataSourceConfig {
         if (jdbcUrl == null) {
             throw new IllegalArgumentException("JDBC URL이 null입니다.");
         }
-        
+
         if (jdbcUrl.startsWith("jdbc:oracle:")) {
             return "org.hibernate.dialect.OracleDialect";
         } else if (jdbcUrl.startsWith("jdbc:postgresql:")) {
@@ -131,11 +131,11 @@ public class DataSourceConfig {
 
         Properties properties = new Properties();
         properties.setProperty("hibernate.hbm2ddl.auto", "update");
-        
+
         // JDBC URL에 따라 Hibernate Dialect 자동 선택
         String dialect = determineHibernateDialect(oracleUrl);
         properties.setProperty("hibernate.dialect", dialect);
-        
+
         properties.setProperty("hibernate.show_sql", "false");
         properties.setProperty("hibernate.format_sql", "true");
         properties.setProperty("hibernate.use_sql_comments", "true");
