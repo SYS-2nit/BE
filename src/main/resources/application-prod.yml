@@ -14,10 +14,9 @@ spring:
     require-ssl: true
 
 
-  # DataBase
-
+  # DataBase (Oracle - 기본 데이터 저장)
   datasource:
-    driver-class-name: oracle.jdbc.driver.OracleDriver
+    driver-class-name: oracle.jdbc.OracleDriver
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}

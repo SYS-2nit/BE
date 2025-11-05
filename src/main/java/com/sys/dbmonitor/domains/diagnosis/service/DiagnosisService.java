@@ -1,9 +1,9 @@
 package com.sys.dbmonitor.domains.diagnosis.service;
 
 import com.sys.dbmonitor.domains.diagnosis.domain.ScenarioType;
-import com.sys.dbmonitor.domains.diagnosis.dto.request.DiagnosisStartRequest;
-import com.sys.dbmonitor.domains.diagnosis.dto.response.DiagnosisStatusDto;
-import com.sys.dbmonitor.domains.diagnosis.dto.response.ScenarioDto;
+import com.sys.dbmonitor.domains.diagnosis.repository.request.DiagnosisStartRequest;
+import com.sys.dbmonitor.domains.diagnosis.repository.response.DiagnosisStatusDto;
+import com.sys.dbmonitor.domains.diagnosis.repository.response.ScenarioDto;
 import com.sys.dbmonitor.domains.diagnosis.runners.DiagnosisRunner;
 import com.sys.dbmonitor.global.exception.BadRequestException;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
@@ -40,16 +40,16 @@ public class DiagnosisService {
     private volatile List<Long> selectedScenarioIds = new ArrayList<>();
 
     public synchronized void startDiagnosis(DiagnosisStartRequest req) {
-        if (req == null || req.getScenarioIds() == null || req.getScenarioIds().isEmpty()) {
+        if (req == null || req.scenarioIds() == null || req.scenarioIds().isEmpty()) {
             throw new BadRequestException(ExceptionMessage.INVALID_REQUEST);
         }
-        if (req.getDurationSec() <= 0) {
+        if (req.durationSec() <= 0) {
             throw new BadRequestException(ExceptionMessage.INVALID_DURATION);
         }
         if (runnerThread != null && runnerThread.isAlive()) {
             throw new BadRequestException(ExceptionMessage.DIAGNOSIS_ALREADY_RUNNING);
         }
-        List<ScenarioType> list = req.getScenarioIds().stream()
+        List<ScenarioType> list = req.scenarioIds().stream()
                 .map(idToScenario::get)
                 .filter(s -> s != null)
                 .collect(Collectors.toList());
@@ -57,11 +57,11 @@ public class DiagnosisService {
             throw new BadRequestException(ExceptionMessage.INVALID_SCENARIO_IDS);
         }
         // DB 연결 정보를 환경 변수로 전달
-        runner = new DiagnosisRunner(list, req.getDurationSec(), dbUrl, dbUsername, dbPassword);
+        runner = new DiagnosisRunner(list, req.durationSec(), dbUrl, dbUsername, dbPassword);
         runnerThread = new Thread(runner, "diagnosis-runner");
-        selectedScenarioIds = new ArrayList<>(req.getScenarioIds());
+        selectedScenarioIds = new ArrayList<>(req.scenarioIds());
         runnerThread.start();
-        log.info("[Diagnosis] 시작 - scenarios: {}, durationSec: {}", selectedScenarioIds, req.getDurationSec());
+        log.info("[Diagnosis] 시작 - scenarios: {}, durationSec: {}", selectedScenarioIds, req.durationSec());
     }
 
     public synchronized void stopDiagnosis() {
