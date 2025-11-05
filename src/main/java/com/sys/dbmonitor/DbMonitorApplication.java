@@ -55,7 +55,7 @@ public class DbMonitorApplication {
                 Map<String, Object> finals = svc.runOnce();
 
                 System.out.println("FINAL metrics size=" + finals.size());
-                finals.entrySet().stream().limit(200).forEach(e ->
+                finals.entrySet().stream().limit(210).forEach(e ->
                         System.out.println(e.getKey() + "=" + e.getValue())
                 );
 
