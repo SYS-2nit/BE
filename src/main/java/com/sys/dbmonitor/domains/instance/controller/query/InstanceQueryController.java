@@ -50,9 +50,7 @@ public class InstanceQueryController {
 
     @Operation(summary = "타겟 DB 데이터 조회", description = "타겟 DB에서 데이터를 조회합니다.")
     @GetMapping("/{id}/data")
-    public ApiResponse<List<Map<String, Object>>> getTargetDatabaseData(@PathVariable Long id) {
-        // TODO :: Test 후 삭제
-        Long instanceId = 1L;
+    public ApiResponse<List<Map<String, Object>>> getTargetDatabaseData(@PathVariable(name = "id") Long instanceId) {
         List<Map<String, Object>>  targetDatabase = targetDatabaseQueryService.queryTargetDatabase(instanceId);
         return ApiResponse.ok(200, targetDatabase, "타겟 DB 데이터를 조회했습니다.");
     }
