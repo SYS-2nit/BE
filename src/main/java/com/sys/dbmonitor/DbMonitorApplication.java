@@ -84,7 +84,9 @@ public class DbMonitorApplication {
                         + " -> columns " + sum.present.size() + "/" + required + " filled"
                         + ", present=" + sum.present
                         + ", missing=" + sum.missing
-                        + ", at=" + row.getCollectedAt());
+                        + ", at=" + row.getCollectedAt()
+                        + " test:"+row.getAasTotal()
+                    );
                 }
                 // ==========================================================
 
