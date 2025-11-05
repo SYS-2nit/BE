@@ -102,13 +102,10 @@ public class InstanceCommandService {
      * @param password 비밀번호
      * @return 테스트 결과 (성공 여부, 메시지, 에러 메시지)
      */
-    public InstanceTestResponse testDatabaseConnection(String url, String username, String password) {
-        // 테스트용 임시 ID 생성 (음수 사용하여 실제 ID와 구분)
-        Long testId = -1L;
-        
+    public InstanceTestResponse testDatabaseConnection(Long instanceId, String url, String username, String password) {
         try {
             dynamicDataSourceFactory.createDataSource(
-                    testId,  // 임시 테스트용 ID 사용
+                    instanceId,
                     "test-connection",
                     url,
                     username,
@@ -116,7 +113,7 @@ public class InstanceCommandService {
             );
             log.info("[TargetDatabase] DB 연결 테스트 성공: url={}, username={}", url, username);
             // 테스트 후 즉시 제거
-            dynamicDataSourceFactory.removeDataSource(testId);
+            dynamicDataSourceFactory.removeDataSource(instanceId);
 
             return new InstanceTestResponse(
                     true,

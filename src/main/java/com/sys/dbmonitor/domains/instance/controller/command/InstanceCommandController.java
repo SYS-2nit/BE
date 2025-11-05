@@ -24,10 +24,11 @@ public class InstanceCommandController {
     private final InstanceCommandService targetDatabaseCommandService;
 
     @Operation(summary = "DB 연결 테스트", description = "입력한 DB 정보로 연결 테스트를 수행합니다. (저장하지 않음)")
-    @PostMapping("/test")
+    @PostMapping("/{id}/test")
     public ApiResponse<InstanceTestResponse> testDatabaseConnection(
-            @Valid @RequestBody InstanceTestRequest request) {
+            @Valid @RequestBody InstanceTestRequest request, @PathVariable(name = "id") Long instanceId) {
         InstanceTestResponse result = targetDatabaseCommandService.testDatabaseConnection(
+                instanceId,
                 request.url(),
                 request.username(),
                 request.password()
