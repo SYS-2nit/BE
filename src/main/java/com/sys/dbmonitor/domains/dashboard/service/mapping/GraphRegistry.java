@@ -99,7 +99,7 @@ public final class GraphRegistry {
             "LOGONS_PER_SEC","DISCONNECTS_PER_SEC");
         put(35, SESSION, "Session Activity & Resource Summary",
             "ACTIVE_USER_SESSIONS_NOW","TOTAL_USER_SESSIONS_NOW","ACTIVE_USER_RATIO_PCT",
-            "SESSIONS_CURRENT","SESSIONS_LIMIT","SESSIONS_LIMIT_UTIL_PCT",
+            "SESSIONS_USED_CURRENT","SESSIONS_LIMIT","SESSIONS_LIMIT_UTIL_PCT",
             "PROCESSES_CURRENT","PROCESSES_LIMIT","PROCESSES_LIMIT_UTIL_PCT",
             "BLOCKERS_NOW","BLOCKED_NOW","USER_CALLS_PER_SEC");
         put(36, SESSION, "Top Blocker Sessions — Snapshot Top 5",
