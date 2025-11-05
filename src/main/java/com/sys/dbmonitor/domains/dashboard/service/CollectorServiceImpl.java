@@ -141,10 +141,10 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("CPU_SATURATION_PCT", MetricsEngine.pct(aasOnCpuSum, cpuCntSum)); // 006
 
         // 007 DB_OF_HOST_SHARE_PCT
-        out.put("DB_OF_HOST_SHARE_PCT", (hostBusyCores == 0) ? 0d : (100.0 * (aasOnCpuSum / hostBusyCores))); // 007
+        out.put("DB_OF_HOST_SHARE_PCT", (hostBusyCores == 0) ? 0 : (100.0 * (aasOnCpuSum / hostBusyCores))); // 007
 
         // 008 RunQ_per_Core_LOAD_PROXY
-        out.put("RunQ_per_Core_LOAD_PROXY", (ncpuCoresSum == 0) ? 0d : (loadSum / ncpuCoresSum)); // 008
+        out.put("RunQ_per_Core_LOAD_PROXY", (ncpuCoresSum == 0) ? 0 : (loadSum / ncpuCoresSum)); // 008
 
         // 009,010,011
         out.put("TPS_PER_SEC",        tpsSum);   // 009
@@ -203,6 +203,9 @@ public class CollectorServiceImpl implements CollectorService {
 
         out.put("LOGONS_PER_SEC",      logonsPerSecSum);
         out.put("DISCONNECTS_PER_SEC", disconnectsPerSecSum);
+
+        // 073 AAS_WAIT_SESSIONS = (ΣΔDB_TIME_μs − ΣΔDB_CPU_μs) / 1e6 / window_sec
+        out.put("AAS_WAIT_SESSIONS",   aasWaitSum);
 
         /* ========= Top Blocker Sessions (089~098) ========= */
         double[] sidArr = new double[] {0,0,0,0,0};
@@ -286,6 +289,20 @@ public class CollectorServiceImpl implements CollectorService {
         // physical bytes throughput
         double dReadTotalBytes = 0d, dWriteTotalBytes = 0d;
 
+        /* ========= I/O 확장용(151~194 재료) ========= */
+        double dSessLogicalReads = 0d;         // Δ session logical reads
+        double dPhysReadsDirect  = 0d;         // Δ physical reads direct
+        double dPhysWritesDirect = 0d;         // Δ physical writes direct
+        double dPhysWrites       = 0d;         // Δ physical writes
+        double dRedoBytes        = 0d;         // Δ redo size bytes
+        double dDbwrCheckpoints  = 0d;         // Δ dbwr checkpoints
+        double dLogSeqDeltaSum   = 0d;         // Δ log current sequence
+
+        // 절대치 합(152번 계산용)
+        double absSeqTimeUs = 0d, absSeqWaits = 0d;
+        double absDprTimeUs = 0d, absDprWaits = 0d;
+        double absDpwTimeUs = 0d, absDpwWaits = 0d;
+
         for (Map.Entry<Integer, Map<String, Double>> entry : bundle.entrySet()) {
             int instId = entry.getKey();
             Map<String, Double> m = entry.getValue();
@@ -364,28 +381,49 @@ public class CollectorServiceImpl implements CollectorService {
             wcClusAas   += rateUsToAas(instId, "TIME_WAITED_US_CLUSTER",
                     any(m, "TIME_WAITED_μS_CLUSTER","TIME_WAITED_US_CLUSTER","WAIT_CLASS_TIME_US_CLUSTER"), windowSec);
 
-
             // Latency numerators/denominators
-            dSeqTimeUs += delta(instId, "SEQ_TIME_WAITED_US",
-                    any(m, "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_US"));
-            dSeqWaits  += delta(instId, "SEQ_TOTAL_WAITS",
-                    any(m, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS"));
+            double curSeqUs = any(m, "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_US");
+            double curSeqWt = any(m, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS");
+            dSeqTimeUs += delta(instId, "SEQ_TIME_WAITED_US", curSeqUs);
+            dSeqWaits  += delta(instId, "SEQ_TOTAL_WAITS",    curSeqWt);
+            absSeqTimeUs += Double.isNaN(curSeqUs) ? 0d : curSeqUs;
+            absSeqWaits  += Double.isNaN(curSeqWt) ? 0d : curSeqWt;
 
-            dDprTimeUs += delta(instId, "DPR_TIME_WAITED_US",
-                    any(m, "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DIRECT_PATH_READ_TIME_US"));
-            dDprWaits  += delta(instId, "DPR_TOTAL_WAITS",
-                    any(m, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS"));
+            double curDprUs = any(m, "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DIRECT_PATH_READ_TIME_US");
+            double curDprWt = any(m, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS");
+            dDprTimeUs += delta(instId, "DPR_TIME_WAITED_US", curDprUs);
+            dDprWaits  += delta(instId, "DPR_TOTAL_WAITS",    curDprWt);
+            absDprTimeUs += Double.isNaN(curDprUs) ? 0d : curDprUs;
+            absDprWaits  += Double.isNaN(curDprWt) ? 0d : curDprWt;
 
-            dDpwTimeUs += delta(instId, "DPW_TIME_WAITED_US",
-                    any(m, "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DIRECT_PATH_WRITE_TIME_US"));
-            dDpwWaits  += delta(instId, "DPW_TOTAL_WAITS",
-                    any(m, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS"));
+            double curDpwUs = any(m, "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DIRECT_PATH_WRITE_TIME_US");
+            double curDpwWt = any(m, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS");
+            dDpwTimeUs += delta(instId, "DPW_TIME_WAITED_US", curDpwUs);
+            dDpwWaits  += delta(instId, "DPW_TOTAL_WAITS",    curDpwWt);
+            absDpwTimeUs += Double.isNaN(curDpwUs) ? 0d : curDpwUs;
+            absDpwWaits  += Double.isNaN(curDpwWt) ? 0d : curDpwWt;
 
             // Physical bytes
             dReadTotalBytes  += delta(instId, "PHYSICAL_READ_TOTAL_BYTES",
                     any(m, "PHYSICAL_READ_TOTAL_BYTES","physical_read_total_bytes"));
             dWriteTotalBytes += delta(instId, "PHYSICAL_WRITE_TOTAL_BYTES",
                     any(m, "PHYSICAL_WRITE_TOTAL_BYTES","physical_write_total_bytes"));
+
+            /* ===== I/O(151~) 재료 수집 ===== */
+            dSessLogicalReads += delta(instId, "SESSION_LOGICAL_READS",
+                    any(m, "SESSION_LOGICAL_READS","session_logical_reads","session logical reads"));
+            dPhysReadsDirect  += delta(instId, "PHYSICAL_READS_DIRECT",
+                    any(m, "PHYSICAL_READS_DIRECT","physical_reads_direct"));
+            dPhysWritesDirect += delta(instId, "PHYSICAL_WRITES_DIRECT",
+                    any(m, "PHYSICAL_WRITES_DIRECT","physical_writes_direct"));
+            dPhysWrites       += delta(instId, "PHYSICAL_WRITES",
+                    any(m, "PHYSICAL_WRITES","physical_writes"));
+            dRedoBytes        += delta(instId, "REDO_SIZE_BYTES",
+                    any(m, "REDO_SIZE_BYTES","redo_size_bytes","REDO_SIZE","redo size"));
+            dDbwrCheckpoints  += delta(instId, "DBWR_CHECKPOINTS",
+                    any(m, "DBWR_CHECKPOINTS","dbwr_checkpoints"));
+            dLogSeqDeltaSum   += delta(instId, "LOG_CURRENT_SEQUENCE",
+                    any(m, "LOG_CURRENT_SEQUENCE","log_current_sequence"));
         }
 
         // 030 MEMORY_SORT_PCT
@@ -455,7 +493,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("SHARED_POOL_FREE_PCT",   MetricsEngine.pct(spFree, spTotal)); // 058
 
         // 059 LIBCACHE_RELOAD_PER_SEC
-        out.put("LIBCACHE_RELOAD_PER_SEC", libReloadRateSum); // 059
+        out.put("LIBRARY_CACHE_RELOADS_PER_SEC", libReloadRateSum); // 059
 
         // 060 BUFFER_MISS_PCT
         out.put("BUFFER_MISS_PCT", MetricsEngine.pct(dPhysReadsCache, (dDbBlockGets + dConsGets))); // 060
@@ -535,6 +573,339 @@ public class CollectorServiceImpl implements CollectorService {
         // 114 HARD_PARSE_RATIO_PCT
         out.put("HARD_PARSE_RATIO_PCT", 100.0 * MetricsEngine.safeDiv(dParseHard, dParseTotal)); // 114
 
+        /* ========= MAIN (장애예방) — 115~150 ========= */
+        // --- 세션 한도/급증 (115~118)
+        double sessCurUtilSum = 0d;           // sessions_current_utilization (RAC 합)
+        double sessLimitValueNumSum = 0d;     // sessions_limit_value_num (RAC 합)
+        double sessLimitSumForHeadroom = 0d;  // sessions_limit (RAC 합, headroom용)
+
+        for (Map<String, Double> m : bundle.values()) {
+            double curUtil = any(m, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
+            if (!Double.isNaN(curUtil)) sessCurUtilSum += curUtil;
+            double limVal  = any(m, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
+            if (!Double.isNaN(limVal)) sessLimitValueNumSum += limVal;
+            double lim     = any(m, "SESSIONS_LIMIT","sessions_limit");
+            if (!Double.isNaN(lim)) sessLimitSumForHeadroom += lim;
+        }
+        // 115
+        out.put("session_usage_pct", MetricsEngine.pct(sessCurUtilSum, sessLimitValueNumSum));
+        // 116
+        double sessionHeadroom = Math.max(0d, sessLimitSumForHeadroom - sessCurUtilSum);
+        out.put("session_headroom", sessionHeadroom);
+        // 117 growth(개/분) — "sessions_current_utilization" 기반(주의: sessions_used_current와 구분)
+        double growthPerMin = gaugeSlopePerMin("GAUGE_CLUSTER|SESSIONS_CURRENT_UTILIZATION",
+                sessCurUtilSum, windowSec);
+        out.put("session_growth_rate_per_min", growthPerMin);
+        // 118 ETA (분) — 증가율 ≤0이면 0으로 표기
+        double sessionBreachEta = (growthPerMin > 0d) ? (sessionHeadroom / growthPerMin) : 0d;
+        out.put("session_breach_eta_min", sessionBreachEta);
+
+        // --- FRA 사용률 (119)
+        double fraUsed = MetricsEngine.sumInst(bundle, "FRA_SPACE_USED_BYTES","fra_space_used_bytes","SPACE_USED","space_used");
+        double fraLimit = MetricsEngine.sumInst(bundle, "FRA_SPACE_LIMIT_BYTES","fra_space_limit_bytes","SPACE_LIMIT","space_limit");
+        out.put("fra_usage_pct", MetricsEngine.pct(fraUsed, fraLimit));
+
+        // --- 테이블스페이스 용량 표 (RS#5 tablespace_capacity_all) (120~134)
+        List<Map<String, Object>> tsRows = firstNonNullTable(raw,
+                "tablespace_capacity_all","TABLESPACE_CAPACITY_ALL","tablespace_capacity","TS_CAPACITY");
+        // util 함수: 특정 TS 행 가져오기
+        Map<String, Object> rowSYSTEM = findTsByName(tsRows, "SYSTEM");
+        Map<String, Object> rowSYSAUX = findTsByName(tsRows, "SYSAUX");
+        Map<String, Object> rowUSERS  = findTsByName(tsRows, "USERS");
+
+        // UNDO: contents='UNDO' 전체 합
+        long[] undoAgg = aggTsByContents(tsRows, "UNDO");
+        double UNDO_TOTAL_BYTES = undoAgg[0];
+        double UNDO_MAX_BYTES   = undoAgg[1];
+        double UNDO_FREE_BYTES  = undoAgg[2];
+
+        // TEMP: contents='TEMPORARY' 전체 합
+        long[] tempAgg = aggTsByContents(tsRows, "TEMPORARY");
+        double TEMP_TOTAL_BYTES_RS5 = tempAgg[0];
+        double TEMP_MAX_BYTES_RS5   = tempAgg[1];
+        double TEMP_FREE_BYTES_RS5  = tempAgg[2]; // RS#5에서는 free=total-used
+
+        // RS#1 TEMP 합계(대안 경로)
+        double TEMP_USED_BYTES_RS1    = MetricsEngine.sumInst(bundle,
+                "TEMP_SUM_BYTES_USED","temp_sum_bytes_used","TEMP_USED_BYTES","temp_used_bytes");
+        double TEMP_CURRENT_BYTES_RS1 = MetricsEngine.sumInst(bundle,
+                "TEMP_SUM_CURRENT_BYTES","temp_sum_current_bytes","TEMP_CURRENT_BYTES","temp_current_bytes");
+        double TEMP_MAX_BYTES_RS1     = MetricsEngine.sumInst(bundle,
+                "TEMP_SUM_MAX_BYTES","temp_sum_max_bytes","TEMP_MAX_BYTES","temp_max_bytes");
+
+        // 공통 추출 함수
+        Ts trioSYSTEM = Ts.fromRow(rowSYSTEM);
+        Ts trioSYSAUX = Ts.fromRow(rowSYSAUX);
+        Ts trioUSERS  = Ts.fromRow(rowUSERS);
+        Ts trioUNDO   = new Ts(UNDO_TOTAL_BYTES, UNDO_MAX_BYTES, UNDO_FREE_BYTES);
+
+        // 120~124 사용률(%)
+        out.put("system_ts_usage_pct", pctBytes(trioSYSTEM.used(), trioSYSTEM.max));
+        out.put("sysaux_ts_usage_pct", pctBytes(trioSYSAUX.used(), trioSYSAUX.max));
+        out.put("users_ts_usage_pct",  pctBytes(trioUSERS.used(),  trioUSERS.max));
+        out.put("undo_ts_usage_pct",   pctBytes(trioUNDO.used(),   trioUNDO.max));
+
+        // TEMP 사용률 — 우선순위: RS#1(used/current) → RS#5((total-free)/max)
+        double tempUsagePct;
+        if (TEMP_CURRENT_BYTES_RS1 > 0) {
+            tempUsagePct = MetricsEngine.pct(TEMP_USED_BYTES_RS1, TEMP_CURRENT_BYTES_RS1);
+        } else {
+            double tempUsedRs5 = Math.max(0d, TEMP_TOTAL_BYTES_RS5 - TEMP_FREE_BYTES_RS5);
+            tempUsagePct = pctBytes(tempUsedRs5, TEMP_MAX_BYTES_RS5);
+        }
+        out.put("temp_ts_usage_pct", tempUsagePct);
+
+        // 125~129 사용량(MB)
+        out.put("system_ts_used_mb", trioSYSTEM.used() / 1_048_576.0);
+        out.put("sysaux_ts_used_mb", trioSYSAUX.used() / 1_048_576.0);
+        out.put("users_ts_used_mb",  trioUSERS.used()  / 1_048_576.0);
+        out.put("undo_ts_used_mb",   trioUNDO.used()   / 1_048_576.0);
+        out.put("temp_ts_used_mb",   TEMP_USED_BYTES_RS1 / 1_048_576.0);
+
+        // 130~134 여유(MB)
+        out.put("system_ts_free_mb", (trioSYSTEM.max - trioSYSTEM.used()) / 1_048_576.0);
+        out.put("sysaux_ts_free_mb", (trioSYSAUX.max - trioSYSAUX.used()) / 1_048_576.0);
+        out.put("users_ts_free_mb",  (trioUSERS.max  - trioUSERS.used())  / 1_048_576.0);
+        out.put("undo_ts_free_mb",   (trioUNDO.max   - trioUNDO.used())   / 1_048_576.0);
+        double tempMaxForFree = (TEMP_MAX_BYTES_RS1 > 0) ? TEMP_MAX_BYTES_RS1 : TEMP_MAX_BYTES_RS5;
+        out.put("temp_ts_free_mb",   (tempMaxForFree - TEMP_USED_BYTES_RS1) / 1_048_576.0);
+
+        // --- 백그라운드 프로세스 상태 (135~146)
+        List<Map<String, Object>> bgRows = firstNonNullTable(raw,
+                "bgprocess_status","BGPORCESS_STATUS","BGPROCESS_STATUS","bgprocess","BG");
+        // 단일 프로세스
+        int lgwrPid = pidOf(bgRows, "LGWR");
+        int pmonPid = pidOf(bgRows, "PMON");
+        int smonPid = pidOf(bgRows, "SMON");
+        int ckptPid = pidOf(bgRows, "CKPT");
+        int lgwrActive = activeOf(bgRows, "LGWR");
+        int pmonActive = activeOf(bgRows, "PMON");
+        int smonActive = activeOf(bgRows, "SMON");
+        int ckptActive = activeOf(bgRows, "CKPT");
+        // 그룹 프로세스(DBW%, ARC%)
+        int dbwrPid = minPidLike(bgRows, "DBW");
+        int dbwrActive = anyActiveLike(bgRows, "DBW");
+        int arcnPid = minPidLike(bgRows, "ARC");
+        int arcnActive = anyActiveLike(bgRows, "ARC");
+
+        out.put("lgwr_pid", (double) lgwrPid);
+        out.put("lgwr_active", (double) lgwrActive);
+        out.put("dbwr_pid", (double) dbwrPid);
+        out.put("dbwr_active", (double) dbwrActive);
+        out.put("pmon_pid", (double) pmonPid);
+        out.put("pmon_active", (double) pmonActive);
+        out.put("smon_pid", (double) smonPid);
+        out.put("smon_active", (double) smonActive);
+        out.put("ckpt_pid", (double) ckptPid);
+        out.put("ckpt_active", (double) ckptActive);
+        out.put("arcn_pid", (double) arcnPid);
+        out.put("arcn_active", (double) arcnActive);
+
+        // --- 제한 근접 파라미터 (147~150)
+        // processes/sessions: current_utilization & limit_value_num 사용
+        double procCurUtilSum = 0d, procLimitValNumSum = 0d;
+        double sessCurUtilSum2 = 0d, sessLimitValNumSum2 = 0d;
+        for (Map<String, Double> m : bundle.values()) {
+            double a = any(m, "PROCESSES_CURRENT_UTILIZATION","processes_current_utilization","PROCESSES_CURRENT","processes_current");
+            if (!Double.isNaN(a)) procCurUtilSum += a;
+            double b = any(m, "PROCESSES_LIMIT_VALUE_NUM","processes_limit_value_num");
+            if (!Double.isNaN(b)) procLimitValNumSum += b;
+
+            double c = any(m, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
+            if (!Double.isNaN(c)) sessCurUtilSum2 += c;
+            double d = any(m, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
+            if (!Double.isNaN(d)) sessLimitValNumSum2 += d;
+        }
+        out.put("processes_usage_pct", MetricsEngine.pct(procCurUtilSum, procLimitValNumSum));
+        out.put("sessions_usage_pct",  MetricsEngine.pct(sessCurUtilSum2, sessLimitValNumSum2));
+
+        // open_cursors_max_session_pct = 100 * max(session별 오픈커서 수) / open_cursors_param_value
+        double openCurMaxSession = Double.NaN;
+        double openCurParamVal = Double.NaN;
+        for (Map<String, Double> m : bundle.values()) {
+            double mx = any(m, "OPEN_CURSORS_MAX_SESSION_COUNT","open_cursors_max_session_count");
+            if (!Double.isNaN(mx)) {
+                if (Double.isNaN(openCurMaxSession) || mx > openCurMaxSession) openCurMaxSession = mx;
+            }
+            double pv = any(m, "OPEN_CURSORS_PARAM_VALUE","open_cursors_param_value","OPEN_CURSORS","open_cursors");
+            if (!Double.isNaN(pv)) {
+                // 파라미터는 인스턴스별 동일하므로 최대값 사용
+                if (Double.isNaN(openCurParamVal) || pv > openCurParamVal) openCurParamVal = pv;
+            }
+        }
+        out.put("open_cursors_max_session_pct", MetricsEngine.pct(openCurMaxSession, openCurParamVal));
+
+        // db_files_usage_pct = 100 * datafile_count / db_files_param_value
+        double datafileCount = Double.NaN;
+        double dbFilesParam  = Double.NaN;
+        for (Map<String, Double> m : bundle.values()) {
+            double c = any(m, "DATAFILE_COUNT","datafile_count");
+            if (!Double.isNaN(c)) {
+                if (Double.isNaN(datafileCount) || c > datafileCount) datafileCount = c; // 중복 방지용 max
+            }
+            double p = any(m, "DB_FILES_PARAM_VALUE","db_files_param_value","DB_FILES","db_files");
+            if (!Double.isNaN(p)) {
+                if (Double.isNaN(dbFilesParam) || p > dbFilesParam) dbFilesParam = p;
+            }
+        }
+        out.put("db_files_usage_pct", MetricsEngine.pct(datafileCount, dbFilesParam));
+
+        /* ========= I/O 성능 지표 — 151~194 ========= */
+        // 기본 rate들
+        double physReadsPerSec      = dPhysReads / Math.max(1, windowSec);
+        double logicalReadsPerSec   = dSessLogicalReads / Math.max(1, windowSec);
+        double physReadsDirectPerSec= dPhysReadsDirect / Math.max(1, windowSec);
+        double physWritesDirectPerSec = dPhysWritesDirect / Math.max(1, windowSec);
+        double directPathIoPerSec   = physReadsDirectPerSec + physWritesDirectPerSec;
+        double totalPhysIoPerSec    = (dPhysReads + dPhysWrites) / Math.max(1, windowSec);
+        double redoMBps             = dRedoBytes / (1_048_576.0 * Math.max(1, windowSec));
+
+        // 151 cache_hit_ratio_pct
+        double cacheHitRatioPct = (1.0 - MetricsEngine.safeDiv(physReadsPerSec, logicalReadsPerSec)) * 100.0;
+        out.put("cache_hit_ratio_pct", cacheHitRatioPct);
+
+        // 152 avg_io_wait_time_ms (절대 누적 기반)
+        double absIoTimeUs  = absSeqTimeUs + absDprTimeUs + absDpwTimeUs;
+        double absIoWaits   = absSeqWaits  + absDprWaits  + absDpwWaits;
+        double avgIoWaitMs  = MetricsEngine.safeDiv(absIoTimeUs / 1000.0, absIoWaits);
+        out.put("avg_io_wait_time_ms", avgIoWaitMs);
+
+        // 153 physical_reads_per_sec
+        out.put("physical_reads_per_sec", physReadsPerSec);
+
+        // 154 redo_size_mb_per_sec
+        out.put("redo_size_mb_per_sec", redoMBps);
+
+        // 155 parse_execute_ratio
+        double parserReqPerSec = dParseTotal / Math.max(1, windowSec);
+        double parseExecRatio  = MetricsEngine.safeDiv(execsSum, parserReqPerSec);
+        out.put("parse_execute_ratio", parseExecRatio);
+
+        // 156 direct_path_io_per_sec
+        out.put("direct_path_io_per_sec", directPathIoPerSec);
+
+        // 157/158
+        out.put("physical_reads_direct_per_sec", physReadsDirectPerSec);
+        out.put("physical_writes_direct_per_sec", physWritesDirectPerSec);
+
+        // 159 direct_io_ratio_pct
+        double directIoRatioPct = 100.0 * MetricsEngine.safeDiv(directPathIoPerSec, totalPhysIoPerSec);
+        out.put("direct_io_ratio_pct", directIoRatioPct);
+
+        // 160/161/162
+        out.put("parser_request_per_sec", parserReqPerSec);
+        out.put("sql_execute_per_sec",    execsSum);
+        out.put("sql_parse_execute_ratio", parseExecRatio);
+
+        // 163/164/165/166
+        out.put("physical_reads_per_diff_sec", physReadsPerSec);
+        out.put("logical_reads_per_sec",       logicalReadsPerSec);
+        out.put("cache_hit_ratio_diff_pct",    (1.0 - MetricsEngine.safeDiv(physReadsPerSec, logicalReadsPerSec)) * 100.0);
+        out.put("total_reads_per_sec",         logicalReadsPerSec + physReadsPerSec);
+
+        // 167 Δ기반 평균대기(ms)
+        double dIoTimeUs = dSeqTimeUs + dDprTimeUs + dDpwTimeUs;
+        double dIoWaits  = dSeqWaits  + dDprWaits  + dDpwWaits;
+        out.put("avg_wait_time_ms", MetricsEngine.safeDiv(dIoTimeUs / 1000.0, dIoWaits));
+
+        // 168 p95_wait_time_ms — 히스토리 필요 → 일단 null
+        out.put("p95_wait_time_ms", null);
+
+        // 169/170
+        out.put("io_waits_per_sec",    dIoWaits / Math.max(1, windowSec));
+        out.put("io_time_per_sec_ms",  (dIoTimeUs / 1000.0) / Math.max(1, windowSec));
+
+        // 171/172/173
+        out.put("redo_generation_mbps",       redoMBps);
+        out.put("redo_generation_mbps_total", redoMBps); // 클러스터 합산 결과이므로 동일
+        out.put("redo_generation_24h_avg",    null);     // 롤링 평균(24h) 필요 → null
+
+        // 174/175 로그 스위치
+        out.put("log_switch_count_1min", dLogSeqDeltaSum * (60.0 / Math.max(1, windowSec)));
+        out.put("log_switch_count_5min", null); // 최근 5샘플 합 필요 → null
+
+        // 176/177/178 DBWR
+        out.put("dbwr_write_count_per_min", dDbwrCheckpoints * (60.0 / Math.max(1, windowSec)));
+        double nonDirectWritesBlocks = Math.max(0d, dPhysWrites - dPhysWritesDirect);
+        double dbwrWriteMBPerMin = (nonDirectWritesBlocks * dbBlockSizeBytes / 1_048_576.0) * (60.0 / Math.max(1, windowSec));
+        out.put("dbwr_write_volume_mb_per_min",       dbwrWriteMBPerMin);
+        out.put("dbwr_write_volume_mb_per_min_total", dbwrWriteMBPerMin); // 클러스터 합산 결과
+
+        // 179 체크포인트 경고 카운트 — 알럿로그 파서 필요 → null
+        out.put("checkpoint_not_complete_count", null);
+
+        // 180~194 데이터파일 Top 5
+        List<Map<String, Object>> dfRows = firstNonNullTable(raw,
+                "datafile_io_candidates","DATAFILE_IO_CANDIDATES","datafile_io","DATAFILE_IO");
+        if (dfRows == null) dfRows = List.of();
+        dfRows = new ArrayList<>(dfRows);
+        dfRows.sort((a, b) -> {
+            double va = nz(num(anyObj(a, "IO_PCT","io_pct","IO_PERCENT")));
+            double vb = nz(num(anyObj(b, "IO_PCT","io_pct","IO_PERCENT")));
+            return Double.compare(vb, va);
+        });
+        for (int i = 0; i < 5; i++) {
+            String fKey = (i+1) + "_data_file_name";
+            String tKey = (i+1) + "_data_tablespace_name";
+            String pKey = (i+1) + "_data_io_share_pct";
+            if (i < dfRows.size()) {
+                Map<String, Object> r = dfRows.get(i);
+                String fileName = str(anyObj(r, "FILE_NAME","file_name","NAME","name"));
+                String tsName   = str(anyObj(r, "TABLESPACE_NAME","tablespace_name"));
+                Double ioPct    = num(anyObj(r, "IO_PCT","io_pct","IO_PERCENT"));
+                out.put(fKey, fileName == null ? "" : fileName);
+                out.put(tKey, tsName   == null ? "" : tsName);
+                out.put(pKey, Double.isNaN(ioPct) ? 0.0 : ioPct);
+            } else {
+                out.put(fKey, "");
+                out.put(tKey, "");
+                out.put(pKey, 0.0);
+            }
+        }
+
+        /* ========= STORAGE — 195~201 ========= */
+        // RS#1(그래프 번들)에서 "클러스터 게이지"를 우선: 인스턴스별 동일값일 수 있으므로 첫 유효값을 채택
+        double fraUsedB   = firstGauge(bundle, "FRA_SPACE_USED_BYTES","fra_space_used_bytes","SPACE_USED","space_used");
+        double fraLimitB  = firstGauge(bundle, "FRA_SPACE_LIMIT_BYTES","fra_space_limit_bytes","SPACE_LIMIT","space_limit");
+        Double fraPct195  = round1OrNull(pctOrNull(fraUsedB, fraLimitB));
+        Double fraFreeGb196 = (Double.isNaN(fraUsedB) || Double.isNaN(fraLimitB))
+                ? null : round1OrNull((fraLimitB - fraUsedB) / 1_073_741_824.0);
+
+        double undoUsedPctRaw = firstGauge(bundle, "UNDO_USED_PERCENT","undo_used_percent");
+        Double undoPct197 = Double.isNaN(undoUsedPctRaw) ? null : round1OrNull(undoUsedPctRaw);
+
+        double tempUsedRS1   = firstGauge(bundle, "TEMP_SUM_BYTES_USED","temp_sum_bytes_used","TEMP_USED_BYTES","temp_used_bytes");
+        double tempCurRS1    = firstGauge(bundle, "TEMP_SUM_CURRENT_BYTES","temp_sum_current_bytes","TEMP_CURRENT_BYTES","temp_current_bytes");
+        Double tempPct198    = round1OrNull(pctOrNull(tempUsedRS1, tempCurRS1));
+
+        double tsSystemPct = firstGauge(bundle, "TS_SYSTEM_USED_PERCENT","ts_SYSTEM_used_percent","TS_SYSTEM_PCT","system_ts_usage_pct");
+        double tsSysauxPct = firstGauge(bundle, "TS_SYSAUX_USED_PERCENT","ts_SYSAUX_used_percent","TS_SYSAUX_PCT","sysaux_ts_usage_pct");
+        double tsUsersPct  = firstGauge(bundle, "TS_USERS_USED_PERCENT","ts_USERS_used_percent","TS_USERS_PCT","users_ts_usage_pct");
+        String maxTsName = null;
+        Double maxTsPct = null;
+        if (!Double.isNaN(tsSystemPct) || !Double.isNaN(tsSysauxPct) || !Double.isNaN(tsUsersPct)) {
+            double max = -Double.MAX_VALUE;
+            String name = null;
+            if (!Double.isNaN(tsSystemPct) && tsSystemPct >= max) { max = tsSystemPct; name = "SYSTEM"; }
+            if (!Double.isNaN(tsSysauxPct) && tsSysauxPct >= max) { max = tsSysauxPct; name = "SYSAUX"; }
+            if (!Double.isNaN(tsUsersPct)  && tsUsersPct  >= max) { max = tsUsersPct;  name = "USERS"; }
+            maxTsName = name;
+            maxTsPct  = round1OrNull(max);
+        }
+
+        double ddfBytes    = firstGauge(bundle, "DDF_SUM_BYTES","ddf_sum_bytes");
+        double ddfMaxBytes = firstGauge(bundle, "DDF_SUM_MAXBYTES","ddf_sum_maxbytes");
+        Double totalDbUsage201 = round1OrNull(pctOrNull(ddfBytes, ddfMaxBytes));
+
+        // 출력(195~201)
+        out.put("FRA_USAGE_PERCENT",        fraPct195);        // 195 (x.x %)
+        out.put("FRA_FREE_GB",              fraFreeGb196);     // 196 (x.x GB)
+        out.put("UNDO_USAGE_PERCENT",       undoPct197);       // 197 (x.x %)
+        out.put("TEMP_USAGE_PERCENT",       tempPct198);       // 198 (x.x %)
+        out.put("MAX_TS_USAGE_PERCENT",     maxTsPct);         // 199 (x.x %)
+        out.put("MAX_TS_NAME",              maxTsName == null ? "" : maxTsName); // 200
+        out.put("TOTAL_DB_USAGE_PERCENT",   totalDbUsage201);  // 201 (x.x %)
+
         /* ========= DB_ID & 수집시각 ========= */
         double dbid = 0d;
         for (var m : bundle.values()) {
@@ -572,6 +943,16 @@ public class CollectorServiceImpl implements CollectorService {
         return Double.NaN;
     }
 
+    // 번들에서 "첫 유효 게이지" 추출(인스턴스별 동일값 중복 합산 방지)
+    private static double firstGauge(Map<Integer, Map<String, Double>> bundle, String... keys) {
+        if (bundle == null) return Double.NaN;
+        for (Map<String, Double> m : bundle.values()) {
+            double v = any(m, keys);
+            if (!Double.isNaN(v)) return v;
+        }
+        return Double.NaN;
+    }
+
     // 테이블 row(Map<String,Object>) 키 조회(대/소문자/언더스코어 대응)
     private static Object anyObj(Map<String, Object> row, String... keys) {
         if (row == null) return null;
@@ -588,30 +969,6 @@ public class CollectorServiceImpl implements CollectorService {
         return null;
     }
 
-    // 첫 매칭 테이블 찾기
-    private static List<Map<String, Object>> firstNonNullTable(CollectorRawDTO raw, String... keys) {
-        Map<String, List<Map<String, Object>>> tables = raw.getTables();
-        if (tables == null) return null;
-        for (String k : keys) {
-            List<Map<String, Object>> v = tables.get(k);
-            if (v != null) return v;
-        }
-        // 대/소문자/언더스코어 변형 탐색
-        for (String k : keys) {
-            String k2 = k.toUpperCase();
-            String k3 = k.toLowerCase();
-            String k4 = k.replace(' ', '_');
-            String k5 = k4.toUpperCase();
-            String k6 = k4.toLowerCase();
-            if (tables.get(k2) != null) return tables.get(k2);
-            if (tables.get(k3) != null) return tables.get(k3);
-            if (tables.get(k4) != null) return tables.get(k4);
-            if (tables.get(k5) != null) return tables.get(k5);
-            if (tables.get(k6) != null) return tables.get(k6);
-        }
-        return null;
-    }
-
     private static double num(Object o) {
         if (o == null) return Double.NaN;
         if (o instanceof Number n) return n.doubleValue();
@@ -621,6 +978,19 @@ public class CollectorServiceImpl implements CollectorService {
     private static String str(Object o) { return (o == null) ? null : String.valueOf(o); }
 
     private static double nz(double v) { return Double.isNaN(v) ? -1d : v; }
+
+    private static Double pctOrNull(double num, double denom) {
+        if (Double.isNaN(num) || Double.isNaN(denom) || denom == 0d) return null;
+        return (num * 100.0) / denom;
+    }
+
+    private static double round1(double v) { return Math.round(v * 10.0) / 10.0; }
+
+    private static Double round1OrNull(Double v) {
+        if (v == null) return null;
+        if (Double.isNaN(v) || Double.isInfinite(v)) return null;
+        return Math.round(v * 10.0) / 10.0;
+    }
 
     /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 */
     private double rate(int instId, String name, double curVal, int windowSec) {
@@ -698,6 +1068,134 @@ public class CollectorServiceImpl implements CollectorService {
         return out;
     }
 
+    /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_current_utilization 증가/감소 감지용, instId=-1 전역키 사용) */
+    private double gaugeSlopePerMin(String globalKey, double curVal, int windowSec) {
+        Instant now = Instant.now();
+        double slopePerMin = 0d;
+        var prevOpt = store.get(-1, globalKey);
+        if (prevOpt.isPresent()) {
+            double d = curVal - prevOpt.get().value(); // 증가(+)/감소(-) 모두 허용
+            slopePerMin = (d / Math.max(1, windowSec)) * 60.0;
+        }
+        store.put(-1, globalKey, curVal, now);
+        return slopePerMin;
+    }
+
+    /* ====== TS 계산 유틸 ====== */
+    private static final class Ts {
+        final double total;
+        final double max;
+        final double free;
+        Ts(double total, double max, double free) {
+            this.total = Math.max(0d, total);
+            this.max   = Math.max(0d, max);
+            this.free  = Math.max(0d, free);
+        }
+        double used() { return Math.max(0d, total - free); }
+        static Ts fromRow(Map<String, Object> row) {
+            if (row == null) return new Ts(0,0,0);
+            double total = num(anyObj(row, "TOTAL_BYTES","total_bytes"));
+            double max   = num(anyObj(row, "MAX_BYTES","max_bytes"));
+            double free  = num(anyObj(row, "FREE_BYTES","free_bytes"));
+            total = Double.isNaN(total) ? 0d : total;
+            max   = Double.isNaN(max)   ? 0d : max;
+            free  = Double.isNaN(free)  ? 0d : free;
+            return new Ts(total, max, free);
+        }
+    }
+    private static Map<String, Object> findTsByName(List<Map<String, Object>> rows, String name) {
+        if (rows == null) return null;
+        for (Map<String, Object> r : rows) {
+            Object o = anyObj(r, "TABLESPACE_NAME","tablespace_name");
+            if (o == null) continue;
+            String n = String.valueOf(o);
+            if (n != null && n.equalsIgnoreCase(name)) return r;
+        }
+        return null;
+    }
+    private static long[] aggTsByContents(List<Map<String, Object>> rows, String contents) {
+        long total = 0L, max = 0L, free = 0L;
+        if (rows == null) return new long[]{0,0,0};
+        for (Map<String, Object> r : rows) {
+            Object c = anyObj(r, "CONTENTS","contents");
+            if (c != null && String.valueOf(c).equalsIgnoreCase(contents)) {
+                long t = (long) Math.max(0d, num(anyObj(r, "TOTAL_BYTES","total_bytes")));
+                long m = (long) Math.max(0d, num(anyObj(r, "MAX_BYTES","max_bytes")));
+                long f = (long) Math.max(0d, num(anyObj(r, "FREE_BYTES","free_bytes")));
+                total += t; max += m; free += f;
+            }
+        }
+        return new long[]{total, max, free};
+    }
+    private static double pctBytes(double used, double max) {
+        return MetricsEngine.pct(used, max);
+    }
+
+    /* ====== BGPROCESS 계산 유틸 ====== */
+    private static int pidOf(List<Map<String, Object>> rows, String exactName) {
+        if (rows == null) return 0;
+        for (Map<String, Object> r : rows) {
+            String name = str(anyObj(r, "PNAME","NAME","pname","name"));
+            if (name != null && name.equalsIgnoreCase(exactName)) {
+                double pid = num(anyObj(r, "PID","pid"));
+                return (int) (Double.isNaN(pid) ? 0 : pid);
+            }
+        }
+        return 0;
+    }
+    private static int activeOf(List<Map<String, Object>> rows, String exactName) {
+        if (rows == null) return 0;
+        for (Map<String, Object> r : rows) {
+            String name = str(anyObj(r, "PNAME","NAME","pname","name"));
+            if (name != null && name.equalsIgnoreCase(exactName)) {
+                Object paddr = anyObj(r, "PADDR","paddr");
+                return isActivePaddr(paddr) ? 1 : 0;
+            }
+        }
+        return 0;
+    }
+    private static int minPidLike(List<Map<String, Object>> rows, String prefix) {
+        if (rows == null) return 0;
+        int min = Integer.MAX_VALUE;
+        boolean found = false;
+        for (Map<String, Object> r : rows) {
+            String name = str(anyObj(r, "PNAME","NAME","pname","name"));
+            if (name != null && name.toUpperCase().startsWith(prefix.toUpperCase())) {
+                double pid = num(anyObj(r, "PID","pid"));
+                if (!Double.isNaN(pid)) {
+                    int p = (int) pid;
+                    if (p < min) min = p;
+                    found = true;
+                }
+            }
+        }
+        return found ? min : 0;
+    }
+    private static int anyActiveLike(List<Map<String, Object>> rows, String prefix) {
+        if (rows == null) return 0;
+        for (Map<String, Object> r : rows) {
+            String name = str(anyObj(r, "PNAME","NAME","pname","name"));
+            if (name != null && name.toUpperCase().startsWith(prefix.toUpperCase())) {
+                if (isActivePaddr(anyObj(r, "PADDR","paddr"))) return 1;
+            }
+        }
+        return 0;
+    }
+    private static boolean isActivePaddr(Object paddrObj) {
+        if (paddrObj == null) return false;
+        String s = String.valueOf(paddrObj).trim();
+        if (s.isEmpty()) return false;
+        String sUpper = s.toUpperCase();
+        // "00", "0x00", "0000..." 형태는 비활성로 간주
+        if (sUpper.equals("00") || sUpper.equals("0X00")) return false;
+        boolean allZero = true;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch != '0') { allZero = false; break; }
+        }
+        return !allZero;
+    }
+
     /* ===== 내부 자료구조: Top SQL Δ ===== */
     private static final class SqlCpuDelta {
         final String sqlId;
@@ -707,4 +1205,23 @@ public class CollectorServiceImpl implements CollectorService {
             this.deltaUs = deltaUs;
         }
     }
+
+    // 번들 테이블에서 첫 유효 키의 테이블을 반환(대/소문자·언더스코어·공백 변형 지원)
+    private static List<Map<String, Object>> firstNonNullTable(CollectorRawDTO raw, String... keys) {
+        if (raw == null || raw.getTables() == null || keys == null) return List.of();
+        Map<String, List<Map<String, Object>>> tables = raw.getTables();
+        for (String k : keys) {
+            if (k == null) continue;
+            List<Map<String, Object>> v;
+            if ((v = tables.get(k)) != null) return v;
+            if ((v = tables.get(k.toUpperCase())) != null) return v;
+            if ((v = tables.get(k.toLowerCase())) != null) return v;
+            String k4 = k.replace(' ', '_');
+            if ((v = tables.get(k4)) != null) return v;
+            if ((v = tables.get(k4.toUpperCase())) != null) return v;
+            if ((v = tables.get(k4.toLowerCase())) != null) return v;
+        }
+        return List.of(); // 없으면 빈 리스트
+    }
+
 }

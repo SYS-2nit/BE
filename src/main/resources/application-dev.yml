@@ -4,12 +4,12 @@ spring:
     require-ssl: false  # 로컬 개발에서는 SSL 비활성화
 
 
-  # DataBase
+  # DataBase (Oracle - 기본 데이터 저장용)
   datasource:
-    driver-class-name: oracle.jdbc.OracleDriver  # 최신 방식
-    url: ${LOCAL_DB_URL}
-    username: ${LOCAL_DB_USERNAME}
-    password: ${LOCAL_DB_PASSWORD}
+    driver-class-name: oracle.jdbc.OracleDriver
+    url: ${MAIN_DB_URL}
+    username: ${MAIN_DB_USERNAME}
+    password: ${MAIN_DB_PASSWORD}
     type: com.zaxxer.hikari.HikariDataSource
 
 
@@ -22,9 +22,7 @@ spring:
     redis:
       host: localhost
       port: 6379
- 
-  
-# 로그 레벨 조정 (로컬 개발용)
+
 logging:
   level:
     root: INFO
