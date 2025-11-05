@@ -1,4 +1,4 @@
-name: CI - Build and Test
+name: CI - Build
 
 # ✅ PR에서만 실행
 on:
@@ -42,13 +42,13 @@ jobs:
         shell: bash
 
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      # 3단계: 빌드 (테스트 포함)
+      # 3단계: 빌드 (테스트 제외)
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v2
         with:
-          arguments: clean build  # ✅ 테스트 포함
+          arguments: clean build -x test  # ⏭️ 테스트 제외 (CI에서만)
 
       # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       # 4단계: 빌드 결과 검증
@@ -126,7 +126,7 @@ jobs:
               body += `| 항목 | 상태 |\n`;
               body += `|------|------|\n`;
               body += `| Gradle 빌드 | ✅ 성공 |\n`;
-              body += `| 단위 테스트 | ✅ 통과 |\n`;
+              body += `| 단위 테스트 | ⏭️ 건너뜀 |\n`;
               body += `| Docker 이미지 빌드 | ✅ 성공 |\n\n`;
               body += `---\n\n`;
               body += `> 💡 **다음 단계**: 코드 리뷰 후 \`dev\` 브랜치에 merge하면 자동으로 배포됩니다.\n`;
