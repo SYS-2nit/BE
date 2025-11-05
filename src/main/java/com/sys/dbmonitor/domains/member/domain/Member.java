@@ -26,12 +26,6 @@ public class Member extends BaseEntity {
     private String username;
 
     /**
-     * 비밀번호 (BCrypt 해시)
-     */
-    @Column(nullable = false, length = 500)
-    private String password;
-
-    /**
      * 이메일
      */
     @Column(nullable = false, unique = true, length = 100)
@@ -62,9 +56,8 @@ public class Member extends BaseEntity {
     private String criticalChannel;
 
     @Builder
-    public Member(String username, String password, String email, String company) {
+    public Member(String username, String email, String company) {
         this.username = username;
-        this.password = password;
         this.email = email;
         this.company = company;
     }
