@@ -42,7 +42,6 @@ public class MemberCommandService {
         // 엔티티 생성 (비밀번호는 BCrypt 해시로 저장)
         Member member = Member.builder()
                 .username(request.username())
-                .password(passwordEncoder.encode(request.password()))
                 .email(request.email())
                 .company(request.company())
                 .build();

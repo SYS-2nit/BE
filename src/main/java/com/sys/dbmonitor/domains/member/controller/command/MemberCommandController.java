@@ -44,14 +44,14 @@ public class MemberCommandController {
         return ApiResponse.ok(200, null, "회원이 삭제되었습니다.");
     }
 
-    @Operation(summary = "회원 주소 정보 업데이트", 
-            description = "이메일로 회원을 찾아 주소 정보를 업데이트합니다. " +
-                    "(email, slackAddress, warningChannel, criticalChannel) " +
-                    "null 값은 기존 값 유지, 새로운 값은 대체")
-    @PutMapping("/{id}/address")
-    public ApiResponse<MemberResponse> updateMemberAddress(
-            @Valid @RequestBody MemberAddressUpdateRequest request, @PathVariable(name = "id") Long id) {
-        Member updated = memberCommandService.updateMemberAddress(request, id);
-        return ApiResponse.ok(200, MemberResponse.from(updated), "회원 주소 정보가 업데이트되었습니다.");
-    }
+//    @Operation(summary = "회원 주소 정보 업데이트",
+//            description = "이메일로 회원을 찾아 주소 정보를 업데이트합니다. " +
+//                    "(email, slackAddress, warningChannel, criticalChannel) " +
+//                    "null 값은 기존 값 유지, 새로운 값은 대체")
+//    @PutMapping("/{id}/address")
+//    public ApiResponse<MemberResponse> updateMemberAddress(
+//            @Valid @RequestBody MemberAddressUpdateRequest request, @PathVariable(name = "id") Long id) {
+//        Member updated = memberCommandService.updateMemberAddress(request, id);
+//        return ApiResponse.ok(200, MemberResponse.from(updated), "회원 주소 정보가 업데이트되었습니다.");
+//    }
 }
