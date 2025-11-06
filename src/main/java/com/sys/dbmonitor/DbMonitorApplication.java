@@ -64,7 +64,7 @@ public class DbMonitorApplication {
 
                 // finals 내용 일부 확인
                 System.out.println("FINAL metrics size=" + finals.size());
-                finals.entrySet().stream().limit(200).forEach(e ->
+                finals.entrySet().stream().limit(400).forEach(e ->
                     System.out.println(e.getKey() + "=" + e.getValue())
                 );
 
