@@ -171,16 +171,13 @@ public final class GraphRegistry {
         // 2) 최종지표 맵(finals)에서 수집 시각을 해석하여 타임스탬프 결정
         LocalDateTime ts = MetricRowMapper.resolveCollectedAt(finals);
 
-        // 3) 공통 메타 필드(id는 DB에서 생성 예정)를 채우고 빌더 생성
-        MetricData.MetricDataBuilder b = MetricData.builder()
-            .id(null)                         // PK는 DB 시퀀스/IDENTITY로 생성
-            .dbId(dbId)                       // 어떤 DB의 수집값인지
-            .categoryId(r.categoryId())       // 그래프의 카테고리(1~6)
-            .graphId(r.graphId())             // 그래프 ID(1~52+)
-            .collectedAt(ts);                 // 수집 시각
-
-        // 4) 우선 메타만 가진 빈 행을 만들고
-        MetricData row = b.build();
+        // 3) 공통 메타 필드(id는 DB에서 생성 예정)를 채우고 객체 생성
+        MetricData row = new MetricData();
+        row.setId(null);                      // PK는 DB 시퀀스/IDENTITY로 생성
+        row.setDbId(dbId);                    // 어떤 DB의 수집값인지
+        row.setCategoryId(r.categoryId());    // 그래프의 카테고리(1~6)
+        row.setGraphId(r.graphId());          // 그래프 ID(1~52+)
+        row.setCollectedAt(ts);               // 수집 시각
 
         // 5) 해당 그래프가 요구하는 컬럼 목록(r.columns())만 선택적으로 채운다.
         //    (finals에 없는 키는 건너뛰며, 숫자/문자/시간 타입에 맞춰 안전 변환)

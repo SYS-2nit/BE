@@ -68,6 +68,87 @@ public final class MetricRowMapper {
         ALIAS.put("3_COMPRESSION_SEG","compressionSeg03");
         ALIAS.put("4_COMPRESSION_SEG","compressionSeg04");
         ALIAS.put("5_COMPRESSION_SEG","compressionSeg05");
+        
+        // Library Cache Reloads
+        ALIAS.put("LIBRARY_CACHE_RELOADS_PER_SEC", "libcacheReloadPerSec");
+        ALIAS.put("LIBCACHE_RELOAD_PER_S", "libcacheReloadPerSec");
+        ALIAS.put("libcache_reload_per_s", "libcacheReloadPerSec");
+        
+        // FRA Usage
+        ALIAS.put("FRA_USAGE_PCT", "fraUsagePct");
+        ALIAS.put("fra_usage_pct", "fraUsagePct");
+        
+        // Session 한도/급증
+        ALIAS.put("SESSION_USAGE_PCT", "sessionUsagePct");
+        ALIAS.put("session_usage_pct", "sessionUsagePct");
+        ALIAS.put("SESSION_HEADROOM", "sessionHeadroom");
+        ALIAS.put("session_headroom", "sessionHeadroom");
+        ALIAS.put("SESSION_GROWTH_RATE_PER_MIN", "sessionGrowthRatePerMin");
+        ALIAS.put("session_growth_rate_per_min", "sessionGrowthRatePerMin");
+        ALIAS.put("SESSION_BREACH_ETA_MIN", "sessionBreachEtaMin");
+        ALIAS.put("session_breach_eta_min", "sessionBreachEtaMin");
+        
+        // 테이블스페이스 사용률
+        ALIAS.put("SYSTEM_TS_USAGE_PCT", "systemTsUsagePct");
+        ALIAS.put("system_ts_usage_pct", "systemTsUsagePct");
+        ALIAS.put("SYSAUX_TS_USAGE_PCT", "sysauxTsUsagePct");
+        ALIAS.put("sysaux_ts_usage_pct", "sysauxTsUsagePct");
+        ALIAS.put("USERS_TS_USAGE_PCT", "usersTsUsagePct");
+        ALIAS.put("users_ts_usage_pct", "usersTsUsagePct");
+        ALIAS.put("UNDO_TS_USAGE_PCT", "undoTsUsagePct");
+        ALIAS.put("undo_ts_usage_pct", "undoTsUsagePct");
+        ALIAS.put("TEMP_TS_USAGE_PCT", "tempTsUsagePct");
+        ALIAS.put("temp_ts_usage_pct", "tempTsUsagePct");
+        
+        // 테이블스페이스 사용량 (MB)
+        ALIAS.put("SYSTEM_TS_USED_MB", "systemTsUsedMb");
+        ALIAS.put("system_ts_used_mb", "systemTsUsedMb");
+        ALIAS.put("SYSAUX_TS_USED_MB", "sysauxTsUsedMb");
+        ALIAS.put("sysaux_ts_used_mb", "sysauxTsUsedMb");
+        ALIAS.put("USERS_TS_USED_MB", "usersTsUsedMb");
+        ALIAS.put("users_ts_used_mb", "usersTsUsedMb");
+        ALIAS.put("UNDO_TS_USED_MB", "undoTsUsedMb");
+        ALIAS.put("undo_ts_used_mb", "undoTsUsedMb");
+        ALIAS.put("TEMP_TS_USED_MB", "tempTsUsedMb");
+        ALIAS.put("temp_ts_used_mb", "tempTsUsedMb");
+        
+        // 테이블스페이스 여유량 (MB)
+        ALIAS.put("SYSTEM_TS_FREE_MB", "systemTsFreeMb");
+        ALIAS.put("system_ts_free_mb", "systemTsFreeMb");
+        ALIAS.put("SYSAUX_TS_FREE_MB", "sysauxTsFreeMb");
+        ALIAS.put("sysaux_ts_free_mb", "sysauxTsFreeMb");
+        ALIAS.put("USERS_TS_FREE_MB", "usersTsFreeMb");
+        ALIAS.put("users_ts_free_mb", "usersTsFreeMb");
+        ALIAS.put("UNDO_TS_FREE_MB", "undoTsFreeMb");
+        ALIAS.put("undo_ts_free_mb", "undoTsFreeMb");
+        ALIAS.put("TEMP_TS_FREE_MB", "tempTsFreeMb");
+        ALIAS.put("temp_ts_free_mb", "tempTsFreeMb");
+        
+        // 백그라운드 프로세스 상태
+        ALIAS.put("LGWR_PID", "lgwrPid");
+        ALIAS.put("lgwr_pid", "lgwrPid");
+        ALIAS.put("LGWR_ACTIVE", "lgwrActive");
+        ALIAS.put("lgwr_active", "lgwrActive");
+        ALIAS.put("DBWR_PID", "dbwrPid");
+        ALIAS.put("dbwr_pid", "dbwrPid");
+        ALIAS.put("DBWR_ACTIVE", "dbwrActive");
+        ALIAS.put("dbwr_active", "dbwrActive");
+        ALIAS.put("PMON_PID", "pmonPid");
+        ALIAS.put("pmon_pid", "pmonPid");
+        ALIAS.put("PMON_ACTIVE", "pmonActive");
+        ALIAS.put("pmon_active", "pmonActive");
+        ALIAS.put("SMON_PID", "smonPid");
+        ALIAS.put("smon_pid", "smonPid");
+        ALIAS.put("SMON_ACTIVE", "smonActive");
+        ALIAS.put("smon_active", "smonActive");
+        ALIAS.put("CKPT_PID", "ckptPid");
+        ALIAS.put("ckpt_pid", "ckptPid");
+        ALIAS.put("CKPT_ACTIVE", "ckptActive");
+        ALIAS.put("ckpt_active", "ckptActive");
+        ALIAS.put("ARCN_PID", "arcnPid");
+        ALIAS.put("arcn_pid", "arcnPid");
+        ALIAS.put("ARCN_ACTIVE", "arcnActive");
+        ALIAS.put("arcn_active", "arcnActive");
     }
 
     /**

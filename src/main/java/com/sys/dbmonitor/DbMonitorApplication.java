@@ -36,6 +36,9 @@ public class DbMonitorApplication {
         SpringApplication.run(DbMonitorApplication.class, args);
     }
 
+    // Postman 테스트를 위해 CommandLineRunner 주석 처리
+    // 필요시 주석 해제하여 콘솔 테스트 가능
+
     @Bean
     @Profile("dev")
     CommandLineRunner collectOnce(@Qualifier("collectorServiceImpl") CollectorService svc) {
@@ -104,7 +107,7 @@ public class DbMonitorApplication {
         };
     }
 
-    /** 그래프가 요구하는 컬럼들에 대해 finals에 값이 있는지/없는지 분류 */
+//    그래프가 요구하는 컬럼들에 대해 finals에 값이 있는지/없는지 분류
     private static ColSummary summarizeColumns(GraphRule rule, Map<String, Object> finals) {
         List<String> present = new ArrayList<>();
         List<String> missing = new ArrayList<>();
@@ -116,7 +119,7 @@ public class DbMonitorApplication {
         return new ColSummary(present, missing);
     }
 
-    /** finals에서 대소문자 섞임을 허용하여 안전하게 값 조회 */
+//    finals에서 대소문자 섞임을 허용하여 안전하게 값 조회
     private static Object getFromFinals(Map<String, Object> finals, String key) {
         if (finals.containsKey(key)) return finals.get(key);
         String u = key.toUpperCase();
@@ -126,7 +129,7 @@ public class DbMonitorApplication {
         return null;
     }
 
-    /** present/missing 리스트 보관용 단순 DTO */
+//    present/missing 리스트 보관용 단순 DTO
     private static class ColSummary {
         private final List<String> present;
         private final List<String> missing;
@@ -138,4 +141,5 @@ public class DbMonitorApplication {
         public List<String> missing() { return missing; }
         @Override public String toString() { return "present=" + present + ", missing=" + missing; }
     }
+
 }
