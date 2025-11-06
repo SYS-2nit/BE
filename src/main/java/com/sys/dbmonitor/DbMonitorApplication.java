@@ -43,6 +43,7 @@ public class DbMonitorApplication {
         final int intervalSec = 5; // 수집 간격(초)
         final long testDbId = 1001L; // 콘솔 테스트용 DB ID
 
+
         return args -> {
             for (int i = 1; i <= runs; i++) {
                 Instant start = Instant.now();
@@ -64,6 +65,7 @@ public class DbMonitorApplication {
 
                 // finals 내용 일부 확인
                 System.out.println("FINAL metrics size=" + finals.size());
+
                 finals.entrySet().stream().limit(200).forEach(e ->
                     System.out.println(e.getKey() + "=" + e.getValue())
                 );

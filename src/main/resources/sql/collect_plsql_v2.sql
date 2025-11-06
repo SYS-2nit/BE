@@ -407,7 +407,9 @@ OPEN rc_bundle FOR
       MAX(CASE WHEN tablespace_name='SYSAUX'     THEN used_space END)   AS sysaux_used_blocks,
       MAX(CASE WHEN tablespace_name='USERS'      THEN used_space END)   AS users_used_blocks,
       /* 2차 추가*/
-      MAX(CASE WHEN tablespace_name='UNDOTBS1'               THEN used_space   END) AS undo_used_blocks
+      MAX(CASE WHEN tablespace_name='UNDOTBS1'               THEN used_space   END) AS undo_used_blocks,
+      /* Storage 지표 추가: undo_tablespace_name */
+      MAX(CASE WHEN tablespace_name LIKE 'UNDO%' THEN tablespace_name END) AS undo_tablespace_name
     FROM dba_tablespace_usage_metrics
   ),
   tbs_bs AS ( -- DBA_TABLESPACES block sizes
@@ -809,17 +811,22 @@ FROM (
              s.segment_type                         AS SEGMENT_TYPE,
              s.tablespace_name                      AS TABLESPACE_NAME,
              s.bytes                                AS BYTES,
-             t.compression                          AS COMPRESSION,
-             t.last_analyzed                        AS LAST_ANALYZED
+             COALESCE(t.compression, i.compression, 'DISABLED') AS COMPRESSION,
+             COALESCE(t.last_analyzed, i.last_analyzed) AS LAST_ANALYZED
          FROM dba_segments s
                   LEFT JOIN dba_tables t
                             ON t.owner = s.owner
                                 AND t.table_name = s.segment_name
+                                AND s.segment_type LIKE 'TABLE%'
+                  LEFT JOIN dba_indexes i
+                            ON i.owner = s.owner
+                                AND i.index_name = s.segment_name
+                                AND s.segment_type LIKE 'INDEX%'
          WHERE s.owner NOT IN (
                                'SYS','SYSTEM','XDB','MDSYS','CTXSYS','OLAPSYS','WMSYS','EXFSYS',
                                'ORDSYS','ORDDATA','APEX_030200','FLOWS_FILES','DBSNMP'
              )
-           AND s.segment_type IN ('TABLE','TABLE PARTITION')
+           AND s.segment_type IN ('TABLE','TABLE PARTITION','INDEX','INDEX PARTITION')
          ORDER BY s.bytes DESC
      )
 WHERE ROWNUM <= v_top_n;
