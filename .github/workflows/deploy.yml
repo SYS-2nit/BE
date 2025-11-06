@@ -149,7 +149,24 @@ jobs:
           # ✅ Docker Hub에서 이미지 확인
           echo ""
           echo "--- Docker Hub 이미지 확인 ---"
-          curl -s "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/" | jq -r '.results[].name' | head -5
+          TAG_RESPONSE=$(curl -s "https://hub.docker.com/v2/repositories/${DOCKER_USER}/${IMAGE_NAME}/tags/")
+          
+          # 디버깅: 응답 확인
+          if [ -z "$TAG_RESPONSE" ] || [ "$TAG_RESPONSE" = "null" ]; then
+            echo "⚠️  Docker Hub API 응답이 null입니다. 가능한 원인:"
+            echo "   - 리포지토리가 비공개이거나 존재하지 않음"
+            echo "   - API Rate Limit 초과"
+            echo "   - 네트워크 문제"
+            echo "   (이 경고는 무시해도 배포에는 영향 없습니다)"
+          else
+            TAG_LIST=$(echo "$TAG_RESPONSE" | jq -r '.results[]?.name // empty' 2>/dev/null | head -5)
+            if [ -n "$TAG_LIST" ]; then
+              echo "최근 태그:"
+              echo "$TAG_LIST"
+            else
+              echo "⚠️  태그 목록이 비어있습니다"
+            fi
+          fi
           
           # 환경 변수로 저장 (다음 단계에서 사용)
           echo "DOCKER_USER=${DOCKER_USER}" >> $GITHUB_ENV
@@ -327,8 +344,49 @@ jobs:
             # 기존 컨테이너 중지 및 제거 (강제)
             echo ""
             echo "--- 기존 컨테이너 정리 ---"
-            sudo docker stop 2nit_spring || true
-            sudo docker rm -f 2nit_spring || true
+            # 컨테이너 ID 찾기 (이름으로)
+            CONTAINER_ID=$(sudo docker ps -aq --filter "name=2nit_spring" | head -1)
+            
+            if [ -n "$CONTAINER_ID" ]; then
+              echo "기존 컨테이너 발견 (ID: $CONTAINER_ID), 강제 제거 중..."
+              
+              # 1. 컨테이너 중지
+              sudo docker stop "$CONTAINER_ID" 2>/dev/null || true
+              sleep 1
+              
+              # 2. 컨테이너 강제 종료 (kill)
+              sudo docker kill "$CONTAINER_ID" 2>/dev/null || true
+              sleep 1
+              
+              # 3. 컨테이너 제거
+              sudo docker rm -f "$CONTAINER_ID" 2>/dev/null || true
+              sleep 2
+              
+              # 4. 이름으로도 시도
+              sudo docker rm -f 2nit_spring 2>/dev/null || true
+             
+              echo "✅ 기존 컨테이너 제거 완료"
+            else
+              echo "기존 컨테이너 없음"
+            fi
+            
+            # 최종 확인 및 재시도
+            REMAINING=$(sudo docker ps -aq --filter "name=2nit_spring")
+            if [ -n "$REMAINING" ]; then
+              echo "⚠️  컨테이너가 아직 존재합니다 (ID: $REMAINING). 최종 강제 제거..."
+              echo "$REMAINING" | xargs -r sudo docker kill 2>/dev/null || true
+              echo "$REMAINING" | xargs -r sudo docker rm -f 2>/dev/null || true
+              sleep 3
+            fi
+            
+            # 제거 확인
+            FINAL_CHECK=$(sudo docker ps -aq --filter "name=2nit_spring")
+            if [ -n "$FINAL_CHECK" ]; then
+              echo "❌ 컨테이너 제거 실패. 다음 ID가 남아있습니다: $FINAL_CHECK"
+              echo "수동 제거가 필요할 수 있습니다."
+            else
+              echo "✅ 컨테이너 완전히 제거됨"
+            fi
             
             # 새 컨테이너 시작
             echo ""
@@ -341,16 +399,13 @@ jobs:
               -e SPRING_DATASOURCE_URL="${{ secrets.DB_URL }}" \
               -e SPRING_DATASOURCE_USERNAME="${{ secrets.DB_USERNAME }}" \
               -e SPRING_DATASOURCE_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-              -e SPRING_PROFILES_ACTIVE="${{ secrets.SPRING_PROFILES_ACTIVE }}"  \
-              -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}"  \
+              -e SPRING_PROFILES_ACTIVE="${{ secrets.SPRING_PROFILES_ACTIVE }}" \
+              -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}" \
               -e REDIS_HOST="redis" \
               -e REDIS_PORT="6379" \
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
               --network bridge \
-              ${SELECTED_IMAGE}
-              -v /home/qowhx12/ssl:/app/ssl:ro \
-              --restart unless-stopped \
               ${SELECTED_IMAGE}
             
             # 컨테이너 상태 확인

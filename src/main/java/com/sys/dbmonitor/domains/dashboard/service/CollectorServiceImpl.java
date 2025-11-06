@@ -207,6 +207,9 @@ public class CollectorServiceImpl implements CollectorService {
         // 073 AAS_WAIT_SESSIONS = (ΣΔDB_TIME_μs − ΣΔDB_CPU_μs) / 1e6 / window_sec
         out.put("AAS_WAIT_SESSIONS",   aasWaitSum);
 
+        // 073 AAS_WAIT_SESSIONS = (ΣΔDB_TIME_μs − ΣΔDB_CPU_μs) / 1e6 / window_sec
+        out.put("AAS_WAIT_SESSIONS",   aasWaitSum);
+
         /* ========= Top Blocker Sessions (089~098) ========= */
         double[] sidArr = new double[] {0,0,0,0,0};
         double[] vicArr = new double[] {0,0,0,0,0};
@@ -379,27 +382,33 @@ public class CollectorServiceImpl implements CollectorService {
                     any(m, "TIME_WAITED_μS_CLUSTER","TIME_WAITED_US_CLUSTER","WAIT_CLASS_TIME_US_CLUSTER"), windowSec);
 
             // Latency numerators/denominators
+
             double curSeqUs = any(m,
                     "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SEQ_TIME_WAITED_MICRO",
                     "SINGLEBLK_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_MICRO");
+
             double curSeqWt = any(m, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS");
             dSeqTimeUs += delta(instId, "SEQ_TIME_WAITED_US", curSeqUs);
             dSeqWaits  += delta(instId, "SEQ_TOTAL_WAITS",    curSeqWt);
             absSeqTimeUs += Double.isNaN(curSeqUs) ? 0d : curSeqUs;
             absSeqWaits  += Double.isNaN(curSeqWt) ? 0d : curSeqWt;
 
+
             double curDprUs = any(m,
                     "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DPR_TIME_WAITED_MICRO",
                     "DIRECT_PATH_READ_TIME_US","DIRECT_PATH_READ_TIME_MICRO");
+
             double curDprWt = any(m, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS");
             dDprTimeUs += delta(instId, "DPR_TIME_WAITED_US", curDprUs);
             dDprWaits  += delta(instId, "DPR_TOTAL_WAITS",    curDprWt);
             absDprTimeUs += Double.isNaN(curDprUs) ? 0d : curDprUs;
             absDprWaits  += Double.isNaN(curDprWt) ? 0d : curDprWt;
 
+
             double curDpwUs = any(m,
                     "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DPW_TIME_WAITED_MICRO",
                     "DIRECT_PATH_WRITE_TIME_US","DIRECT_PATH_WRITE_TIME_MICRO");
+
             double curDpwWt = any(m, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS");
             dDpwTimeUs += delta(instId, "DPW_TIME_WAITED_US", curDpwUs);
             dDpwWaits  += delta(instId, "DPW_TOTAL_WAITS",    curDpwWt);
@@ -574,7 +583,9 @@ public class CollectorServiceImpl implements CollectorService {
         // 114 HARD_PARSE_RATIO_PCT
         out.put("HARD_PARSE_RATIO_PCT", 100.0 * MetricsEngine.safeDiv(dParseHard, dParseTotal)); // 114
 
+
         /* ========= 세션 한도/급증 & 항등식 보정 (115~118) ========= */
+
         double sessCurUtilSum = 0d;           // sessions_current_utilization (RAC 합)
         double sessLimitValueNumSum = 0d;     // sessions_limit_value_num (RAC 합)
         double sessLimitSumForHeadroom = 0d;  // sessions_limit (RAC 합, headroom용)
@@ -613,6 +624,7 @@ public class CollectorServiceImpl implements CollectorService {
         double fraUsed = MetricsEngine.sumInst(bundle, "FRA_SPACE_USED_BYTES","fra_space_used_bytes","SPACE_USED","space_used");
         double fraLimit = MetricsEngine.sumInst(bundle, "FRA_SPACE_LIMIT_BYTES","fra_space_limit_bytes","SPACE_LIMIT","space_limit");
         out.put("fra_usage_pct", round1OrNull(pctOrNull(fraUsed, fraLimit)));
+
 
         // --- 테이블스페이스 용량 표 (RS#5 tablespace_capacity_all) (120~134)
         List<Map<String, Object>> tsRows = firstNonNullTable(raw,
@@ -654,12 +666,14 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("users_ts_usage_pct",  pctBytes(trioUSERS.used(),  trioUSERS.max));
         out.put("undo_ts_usage_pct",   pctBytes(trioUNDO.used(),   trioUNDO.max));
 
+
         // TEMP 사용률 — 항상 used/max (RS#1 우선, 없으면 RS#5로 폴백)
         double TEMP_DEN_MAX = (TEMP_MAX_BYTES_RS1 > 0) ? TEMP_MAX_BYTES_RS1 : TEMP_MAX_BYTES_RS5;
         double TEMP_USED_BYTES_UNIFIED = (TEMP_USED_BYTES_RS1 > 0)
                 ? TEMP_USED_BYTES_RS1
                 : Math.max(0d, TEMP_TOTAL_BYTES_RS5 - TEMP_FREE_BYTES_RS5);
         double tempUsagePct = pctBytes(TEMP_USED_BYTES_UNIFIED, TEMP_DEN_MAX);
+
         out.put("temp_ts_usage_pct", tempUsagePct);
 
         // 125~129 사용량(MB)
@@ -667,15 +681,19 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("sysaux_ts_used_mb", trioSYSAUX.used() / 1_048_576.0);
         out.put("users_ts_used_mb",  trioUSERS.used()  / 1_048_576.0);
         out.put("undo_ts_used_mb",   trioUNDO.used()   / 1_048_576.0);
+
         out.put("temp_ts_used_mb",   TEMP_USED_BYTES_UNIFIED / 1_048_576.0);
+
 
         // 130~134 여유(MB)
         out.put("system_ts_free_mb", (trioSYSTEM.max - trioSYSTEM.used()) / 1_048_576.0);
         out.put("sysaux_ts_free_mb", (trioSYSAUX.max - trioSYSAUX.used()) / 1_048_576.0);
         out.put("users_ts_free_mb",  (trioUSERS.max  - trioUSERS.used())  / 1_048_576.0);
         out.put("undo_ts_free_mb",   (trioUNDO.max   - trioUNDO.used())   / 1_048_576.0);
+
         double tempMaxForFree = TEMP_DEN_MAX;
         out.put("temp_ts_free_mb",   (tempMaxForFree - TEMP_USED_BYTES_UNIFIED) / 1_048_576.0);
+
 
         // --- 백그라운드 프로세스 상태 (135~146)
         List<Map<String, Object>> bgRows = firstNonNullTable(raw,
@@ -709,6 +727,8 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("arcn_active", (double) arcnActive);
 
         // --- 제한 근접 파라미터 (147~150)
+
+
         double procCurUtilSum = 0d, procLimitValNumSum = 0d;
         double sessCurUtilSum2 = 0d, sessLimitValNumSum2 = 0d;
         for (Map<String, Double> m : bundle.values()) {
@@ -735,6 +755,8 @@ public class CollectorServiceImpl implements CollectorService {
             }
             double pv = any(m, "OPEN_CURSORS_PARAM_VALUE","open_cursors_param_value","OPEN_CURSORS","open_cursors");
             if (!Double.isNaN(pv)) {
+
+
                 if (Double.isNaN(openCurParamVal) || pv > openCurParamVal) openCurParamVal = pv;
             }
         }
@@ -765,6 +787,7 @@ public class CollectorServiceImpl implements CollectorService {
         double totalPhysIoPerSec    = (dPhysReads + dPhysWrites) / Math.max(1, windowSec);
         double redoMBps             = dRedoBytes / (1_048_576.0 * Math.max(1, windowSec));
 
+
         // 151 cache_hit_ratio_pct — 분모 0이면 null
         Double cacheHitRatioPct = (logicalReadsPerSec <= 0)
                 ? null
@@ -775,6 +798,7 @@ public class CollectorServiceImpl implements CollectorService {
         double dIoTimeUs = dSeqTimeUs + dDprTimeUs + dDpwTimeUs;
         double dIoWaits  = dSeqWaits  + dDprWaits  + dDpwWaits;
         out.put("avg_io_wait_time_ms", nz0(avgMsOrNull(dIoTimeUs, dIoWaits)));
+
 
         // 153 physical_reads_per_sec
         out.put("physical_reads_per_sec", physReadsPerSec);
@@ -806,6 +830,7 @@ public class CollectorServiceImpl implements CollectorService {
         // 163/164/165/166
         out.put("physical_reads_per_diff_sec", physReadsPerSec);
         out.put("logical_reads_per_sec",       logicalReadsPerSec);
+
         Double cacheHitRatioDiffPct = (logicalReadsPerSec <= 0)
                 ? null
                 : (1.0 - (physReadsPerSec / logicalReadsPerSec)) * 100.0;
@@ -816,6 +841,7 @@ public class CollectorServiceImpl implements CollectorService {
         double dIoTimeUs2 = dSeqTimeUs + dDprTimeUs + dDpwTimeUs;
         double dIoWaits2  = dSeqWaits  + dDprWaits  + dDpwWaits;
         out.put("avg_wait_time_ms", MetricsEngine.safeDiv(dIoTimeUs2 / 1000.0, dIoWaits2));
+
 
         // 168 p95_wait_time_ms — 히스토리 필요 → 일단 null
         out.put("p95_wait_time_ms", null);
@@ -873,9 +899,11 @@ public class CollectorServiceImpl implements CollectorService {
         }
 
         /* ========= STORAGE — 195~201 ========= */
+
         // FRA 사용률: RAC 합산 방식으로 통일 (fra_usage_pct와 동일 계산식)
         double fraUsedB   = MetricsEngine.sumInst(bundle, "FRA_SPACE_USED_BYTES","fra_space_used_bytes","SPACE_USED","space_used");
         double fraLimitB  = MetricsEngine.sumInst(bundle, "FRA_SPACE_LIMIT_BYTES","fra_space_limit_bytes","SPACE_LIMIT","space_limit");
+
         Double fraPct195  = round1OrNull(pctOrNull(fraUsedB, fraLimitB));
         Double fraFreeGb196 = (Double.isNaN(fraUsedB) || Double.isNaN(fraLimitB))
                 ? null : round1OrNull((fraLimitB - fraUsedB) / 1_073_741_824.0);
@@ -885,9 +913,11 @@ public class CollectorServiceImpl implements CollectorService {
 
         double tempUsedRS1   = firstGauge(bundle, "TEMP_SUM_BYTES_USED","temp_sum_bytes_used","TEMP_USED_BYTES","temp_used_bytes");
         double tempCurRS1    = firstGauge(bundle, "TEMP_SUM_CURRENT_BYTES","temp_sum_current_bytes","TEMP_CURRENT_BYTES","temp_current_bytes");
+
         double tempMaxRS1    = firstGauge(bundle, "TEMP_SUM_MAX_BYTES","temp_sum_max_bytes","TEMP_MAX_BYTES","temp_max_bytes");
         double tempDen198    = (tempMaxRS1 > 0) ? tempMaxRS1 : tempCurRS1; // used/max 우선, 없으면 used/current
         Double tempPct198    = round1OrNull(pctOrNull(tempUsedRS1, tempDen198));
+
 
         double tsSystemPct = firstGauge(bundle, "TS_SYSTEM_USED_PERCENT","ts_SYSTEM_used_percent","TS_SYSTEM_PCT","system_ts_usage_pct");
         double tsSysauxPct = firstGauge(bundle, "TS_SYSAUX_USED_PERCENT","ts_SYSAUX_used_percent","TS_SYSAUX_PCT","sysaux_ts_usage_pct");
@@ -1046,6 +1076,7 @@ public class CollectorServiceImpl implements CollectorService {
                 out.put(compressionKey, "DISABLED");
             }
         }
+
 
         /* ========= DB_ID & 수집시각 ========= */
         double dbid = 0d;
@@ -1222,7 +1253,9 @@ public class CollectorServiceImpl implements CollectorService {
         return out;
     }
 
+
     /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_* 증가/감소 감지용, instId=-1 전역키 사용) */
+
     private double gaugeSlopePerMin(String globalKey, double curVal, int windowSec) {
         Instant now = Instant.now();
         double slopePerMin = 0d;
@@ -1285,7 +1318,9 @@ public class CollectorServiceImpl implements CollectorService {
         return MetricsEngine.pct(used, max);
     }
 
+
     /* ===== BGPROCESS 계산 유틸 ===== */
+
     private static int pidOf(List<Map<String, Object>> rows, String exactName) {
         if (rows == null) return 0;
         for (Map<String, Object> r : rows) {
@@ -1377,5 +1412,5 @@ public class CollectorServiceImpl implements CollectorService {
         }
         return List.of(); // 없으면 빈 리스트
     }
-
 }
+
