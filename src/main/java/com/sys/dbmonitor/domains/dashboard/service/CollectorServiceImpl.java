@@ -609,10 +609,10 @@ public class CollectorServiceImpl implements CollectorService {
         double disconnectsPerSecRecon = Math.max(0d, logonsPerSecSum - dSessionsUsedPerSec);
         out.put("DISCONNECTS_PER_SEC", disconnectsPerSecRecon); // 기존 계산값 덮어쓰기
 
-        // --- FRA 사용률 (119)
+        // --- FRA 사용률 (119) - 소수점 1자리로 고정
         double fraUsed = MetricsEngine.sumInst(bundle, "FRA_SPACE_USED_BYTES","fra_space_used_bytes","SPACE_USED","space_used");
         double fraLimit = MetricsEngine.sumInst(bundle, "FRA_SPACE_LIMIT_BYTES","fra_space_limit_bytes","SPACE_LIMIT","space_limit");
-        out.put("fra_usage_pct", MetricsEngine.pct(fraUsed, fraLimit));
+        out.put("fra_usage_pct", round1OrNull(pctOrNull(fraUsed, fraLimit)));
 
         // --- 테이블스페이스 용량 표 (RS#5 tablespace_capacity_all) (120~134)
         List<Map<String, Object>> tsRows = firstNonNullTable(raw,
@@ -916,6 +916,136 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("MAX_TS_USAGE_PCT",         maxTsPct);         // 199 (x.x %)
         out.put("MAX_TS_NAME",              maxTsName == null ? "" : maxTsName); // 200
         out.put("TOTAL_DB_USAGE_PCT",       totalDbUsage201);  // 201 (x.x %)
+
+        /* ========= Storage 추가 지표 (202-255) ========= */
+        
+        // --- Temp Tablespace Active Usage (202-207)
+        double tempSumBytesUsed = MetricsEngine.sumInst(bundle, "TEMP_SUM_BYTES_USED", "temp_sum_bytes_used");
+        double tempSumCurrentBytes = MetricsEngine.sumInst(bundle, "TEMP_SUM_CURRENT_BYTES", "temp_sum_current_bytes");
+        double tempSumMaxBytes = MetricsEngine.sumInst(bundle, "TEMP_SUM_MAX_BYTES", "temp_sum_max_bytes");
+        
+        out.put("temp_active_usage_gb", round1OrNull(tempSumBytesUsed / 1_073_741_824.0)); // 202
+        out.put("temp_current_size_gb", round1OrNull(tempSumCurrentBytes / 1_073_741_824.0)); // 203
+        out.put("temp_max_size_gb", round1OrNull(tempSumMaxBytes / 1_073_741_824.0)); // 204
+        out.put("temp_usage_percent", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumCurrentBytes))); // 205
+        out.put("temp_usage_pct_of_max", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumMaxBytes))); // 206
+        out.put("temp_peak_usage_24h_gb", null); // 207 (null 고정)
+
+        // --- 테이블스페이스 사용률 추세 (208-215)
+        out.put("system_tablespace_name", "SYSTEM"); // 208
+        out.put("sysaux_tablespace_name", "SYSAUX"); // 209
+        out.put("undotbs1_tablespace_name", "UNDOTBS1"); // 210
+        out.put("users_tablespace_name", "USERS"); // 211
+        
+        double tsSystemUsedPct = firstGauge(bundle, "TS_SYSTEM_USED_PERCENT", "ts_SYSTEM_used_percent");
+        double tsSysauxUsedPct = firstGauge(bundle, "TS_SYSAUX_USED_PERCENT", "ts_SYSAUX_used_percent");
+        double tsUsersUsedPct = firstGauge(bundle, "TS_USERS_USED_PERCENT", "ts_USERS_used_percent");
+        double undoUsedPct = firstGauge(bundle, "UNDO_USED_PERCENT", "undo_used_percent");
+        
+        out.put("system_used_percent", Double.isNaN(tsSystemUsedPct) ? null : round1OrNull(tsSystemUsedPct)); // 212
+        out.put("sysaux_used_percent", Double.isNaN(tsSysauxUsedPct) ? null : round1OrNull(tsSysauxUsedPct)); // 213
+        out.put("undotbs1_used_percent", Double.isNaN(undoUsedPct) ? null : round1OrNull(undoUsedPct)); // 214
+        out.put("users_used_percent", Double.isNaN(tsUsersUsedPct) ? null : round1OrNull(tsUsersUsedPct)); // 215
+
+        // --- 테이블스페이스 증가 추세 (216-223)
+        out.put("system_tablespace_name_inc", "SYSTEM"); // 216
+        out.put("sysaux_tablespace_name_inc", "SYSAUX"); // 217
+        out.put("undotbs1_tablespace_name_inc", "UNDOTBS1"); // 218
+        out.put("users_tablespace_name_inc", "USERS"); // 219
+        
+        // used_space_gb_inc = (TOTAL_BYTES - FREE_BYTES) / 1024 / 1024 / 1024
+        double systemUsedGbInc = (trioSYSTEM.total - trioSYSTEM.free) / 1_073_741_824.0;
+        double sysauxUsedGbInc = (trioSYSAUX.total - trioSYSAUX.free) / 1_073_741_824.0;
+        double usersUsedGbInc = (trioUSERS.total - trioUSERS.free) / 1_073_741_824.0;
+        
+        // UNDOTBS1: ResultSet #5에서 UNDO 타입 찾기
+        Map<String, Object> rowUNDOTBS1 = findTsByName(tsRows, "UNDOTBS1");
+        double undotbs1UsedGbInc = 0d;
+        if (rowUNDOTBS1 != null) {
+            Ts trioUNDOTBS1 = Ts.fromRow(rowUNDOTBS1);
+            undotbs1UsedGbInc = (trioUNDOTBS1.total - trioUNDOTBS1.free) / 1_073_741_824.0;
+        }
+        
+        out.put("system_used_space_gb_inc", round1OrNull(systemUsedGbInc)); // 220
+        out.put("sysaux_used_space_gb_inc", round1OrNull(sysauxUsedGbInc)); // 221
+        out.put("undotbs1_used_space_gb_inc", round1OrNull(undotbs1UsedGbInc)); // 222
+        out.put("users_used_space_gb_inc", round1OrNull(usersUsedGbInc)); // 223
+
+        // --- FRA 사용률 추세 (224-229)
+        double fraSpaceLimitBytes = MetricsEngine.sumInst(bundle, "FRA_SPACE_LIMIT_BYTES", "fra_space_limit_bytes", "SPACE_LIMIT", "space_limit");
+        double fraSpaceUsedBytes = MetricsEngine.sumInst(bundle, "FRA_SPACE_USED_BYTES", "fra_space_used_bytes", "SPACE_USED", "space_used");
+        double fraSpaceReclaimableBytes = MetricsEngine.sumInst(bundle, "FRA_SPACE_RECLAIMABLE_BYTES", "fra_space_reclaimable_bytes", "SPACE_RECLAIMABLE", "space_reclaimable");
+        
+        out.put("space_limit_gb", round1OrNull(fraSpaceLimitBytes / 1_073_741_824.0)); // 224
+        out.put("space_used_gb", round1OrNull(fraSpaceUsedBytes / 1_073_741_824.0)); // 225
+        out.put("space_reclaimable_gb", round1OrNull(fraSpaceReclaimableBytes / 1_073_741_824.0)); // 226
+        out.put("usage_pct", round1OrNull(pctOrNull(fraSpaceUsedBytes, fraSpaceLimitBytes))); // 227
+        out.put("hourly_growth_pct", null); // 228 (null 고정)
+        out.put("time_to_95_pct_hours", null); // 229 (null 고정)
+
+        // --- Undo 사용률 추세 (230-234)
+        // undo_tablespace_name: ResultSet #5에서 UNDO 타입 테이블스페이스 찾기
+        String undoTablespaceName = null;
+        for (Map<String, Object> row : tsRows) {
+            String contents = MetricsEngine.toStr(row.get("CONTENTS"));
+            if ("UNDO".equalsIgnoreCase(contents)) {
+                undoTablespaceName = MetricsEngine.toStr(row.get("TABLESPACE_NAME"));
+                break;
+            }
+        }
+        out.put("undo_tablespace_name", undoTablespaceName == null ? "" : undoTablespaceName); // 230
+        out.put("undo_usage_percent", Double.isNaN(undoUsedPct) ? null : round1OrNull(undoUsedPct)); // 231
+        
+        double longTxCount30m = MetricsEngine.sumInst(bundle, "LONG_TX_COUNT_30M", "long_tx_count_30m");
+        double longTxUsedUblkSum = MetricsEngine.sumInst(bundle, "LONG_TX_USED_UBLK_SUM", "long_tx_used_ublk_sum");
+        // dbBlockSizeBytes는 275번째 줄에서 이미 선언되어 있음 (539번째 줄에서 기본값 설정됨)
+        double longTxUndoMb = (longTxUsedUblkSum * dbBlockSizeBytes) / 1_048_576.0;
+        
+        out.put("long_transaction_count", longTxCount30m); // 232
+        out.put("long_transaction_undo_mb", round1OrNull(longTxUndoMb)); // 233
+        
+        double undoRetentionSec = firstGauge(bundle, "UNDO_RETENTION_SEC", "undo_retention_sec");
+        out.put("undo_retention_sec", Double.isNaN(undoRetentionSec) ? null : undoRetentionSec); // 234
+
+        // --- Total Database Usage Trend (235)
+        out.put("total_db_usage_percent", totalDbUsage201); // 235 (201번과 동일한 값, 다른 이름)
+
+        // --- 대용량 세그먼트 Top 5 (236-255)
+        List<Map<String, Object>> segRows = firstNonNullTable(raw,
+                "segment_top_candidates", "SEGMENT_TOP_CANDIDATES", "segment_candidates", "SEGMENT_CANDIDATES");
+        
+        for (int i = 0; i < 5; i++) {
+            int rank = i + 1;
+            String ownerKey = String.format("%d_owner_seg", rank);
+            String tablespaceKey = String.format("%d_tablespace_name_seg", rank);
+            String sizeKey = String.format("%d_size_gb_seg", rank); // 지표 이름은 GB 유지 (호환성)
+            String compressionKey = String.format("%d_compression_seg", rank);
+            
+            if (i < segRows.size()) {
+                Map<String, Object> segRow = segRows.get(i);
+                String owner = MetricsEngine.toStr(segRow.get("OWNER"));
+                String tablespace = MetricsEngine.toStr(segRow.get("TABLESPACE_NAME"));
+                double bytes = MetricsEngine.toDouble(segRow.get("BYTES"));
+                double sizeMb = bytes / 1_048_576.0; // MB 단위로 계산 (값은 MB)
+                String compression = MetricsEngine.toStr(segRow.get("COMPRESSION"));
+                if (compression == null || compression.isEmpty()) {
+                    compression = "DISABLED";
+                }
+                
+                out.put(ownerKey, owner == null ? "" : owner);
+                out.put(tablespaceKey, tablespace == null ? "" : tablespace);
+                // 값은 MB 단위로 소수점 2자리까지 표기 (지표 이름은 GB 유지)
+                Double sizeMbRounded = (Double.isNaN(sizeMb) || Double.isInfinite(sizeMb)) 
+                    ? null : Math.round(sizeMb * 100.0) / 100.0;
+                out.put(sizeKey, sizeMbRounded);
+                out.put(compressionKey, compression);
+            } else {
+                out.put(ownerKey, "");
+                out.put(tablespaceKey, "");
+                out.put(sizeKey, 0.0);
+                out.put(compressionKey, "DISABLED");
+            }
+        }
 
         /* ========= DB_ID & 수집시각 ========= */
         double dbid = 0d;
