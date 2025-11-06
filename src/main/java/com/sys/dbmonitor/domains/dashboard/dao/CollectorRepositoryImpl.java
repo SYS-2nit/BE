@@ -1,6 +1,12 @@
 package com.sys.dbmonitor.domains.dashboard.dao;
 
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
+import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
+import com.sys.dbmonitor.global.exception.ExceptionMessage;
+import com.sys.dbmonitor.global.exception.NotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
 
@@ -16,11 +22,20 @@ import java.util.Objects;
 @Repository
 public class CollectorRepositoryImpl implements CollectorRepository {
 
+    private final InstanceRepository instanceRepository;
+    private final DynamicDataSourceFactory dynamicDataSourceFactory;
     /* ====== 의존성: 트랜잭션 연동 커넥션 제공 ====== */
-    private final DataSource dataSource;
-    public CollectorRepositoryImpl(DataSource dataSource) {
-        this.dataSource = dataSource;
+
+
+    private List<DataSource> dataSource;
+
+    public CollectorRepositoryImpl(InstanceRepository instanceRepository, DynamicDataSourceFactory dynamicDataSourceFactory) {
+        this.instanceRepository = instanceRepository;
+        this.dynamicDataSourceFactory = dynamicDataSourceFactory;
     }
+
+
+
 
     /* ====== PL/SQL 파일 경로(클래스패스) ====== */
     private static final String PL_SQL_PATH = "sql/collect_plsql_v2.sql";
@@ -44,6 +59,20 @@ public class CollectorRepositoryImpl implements CollectorRepository {
     public CollectorRawDTO collectSnapshot() {
         final String plsql = loadClasspathSql(PL_SQL_PATH);
         final CollectorRawDTO out = new CollectorRawDTO();
+
+        Instance instance =         instanceRepository.findById(1L)
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
+//        List<DataSource> dataSources = instances.stream().map(instance ->
+//        {
+//            return dynamicDataSourceFactory.getDataSource(instance.getId());
+//        }).toList();
+
+        // 타겟 DB 데이터소스 가져오기
+        DataSource dataSource = dynamicDataSourceFactory.getDataSource(1L);
+
+        if (dataSource ==  null) {
+            throw new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB가 연결되지 않았습니다. 먼저 연결해주세요.");
+        }
 
         try (Connection con = DataSourceUtils.getConnection(dataSource);
              CallableStatement cs = con.prepareCall(plsql)) {

@@ -1089,7 +1089,15 @@ public class CollectorServiceImpl implements CollectorService {
 
         // Δ 상태 저장
         store.saveBundle(bundle, t0);
+
+
+        // dto = out
+        // dto = entity
+        // entity -> db
         return out;
+
+
+
     }
 
     /* ==== Helpers ======================================================= */
