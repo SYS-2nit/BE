@@ -77,7 +77,7 @@ public final class GraphRegistry {
         put(25, MEMORY, "Workarea Spill Rate (%) – Trend",
             "WORKAREA_SPILL_RATE_PCT");
         put(26, MEMORY, "Library Cache Reloads per Second – Trend",
-            "libcache_reload_per_s");
+            "LIBRARY_CACHE_RELOADS_PER_SEC");
         put(27, MEMORY, "Buffer Cache Miss Rate (%) – Proxy – Trend",
             "BUFFER_MISS_PCT");
         put(28, MEMORY, "Top SQL by Shared Pool Memory — Bar",
@@ -128,7 +128,7 @@ public final class GraphRegistry {
 
         // ===== Storage(6) =====
         put(45, STORAGE, "Storage Health Dashboard",
-            "fra_usage_percent","fra_free_gb","undo_usage_pct","temp_usage_pct","max_ts_name","max_ts_usage_pct","total_db_usage_pct");
+            "FRA_USAGE_PERCENT","FRA_FREE_GB","UNDO_USAGE_PCT","TEMP_USAGE_PCT","MAX_TS_NAME","MAX_TS_USAGE_PCT","TOTAL_DB_USAGE_PCT");
         put(46, STORAGE, "Temp Tablespace Active Usage (GB)",
             "temp_active_usage_gb","temp_current_size_gb","temp_max_size_gb","temp_usage_percent","temp_usage_pct_of_max","temp_peak_usage_24h_gb");
         put(47, STORAGE, "테이블스페이스 사용률 추세 (%)",
@@ -163,7 +163,7 @@ public final class GraphRegistry {
      * - 그래프 정의(GraphRule)의 categoryId, graphId, 필요 컬럼 목록(r.columns())을 사용
      * - collectedAt 타임스탬프는 finals에 담긴 수집 시각 키에서 해석
      */
-    public static MetricData mapRow(int graphId, long dbId, Map<String,Object> finals) {
+    public static MetricData mapRow(int graphId, long instanceId, Map<String,Object> finals) {
         // 1) 그래프 메타(카테고리/이름/필요컬럼)를 가져온다. 정의가 없으면 예외.
         GraphRule r = RULES.get(graphId);
         if (r == null) throw new IllegalArgumentException("Unknown graphId=" + graphId);
@@ -171,16 +171,13 @@ public final class GraphRegistry {
         // 2) 최종지표 맵(finals)에서 수집 시각을 해석하여 타임스탬프 결정
         LocalDateTime ts = MetricRowMapper.resolveCollectedAt(finals);
 
-        // 3) 공통 메타 필드(id는 DB에서 생성 예정)를 채우고 빌더 생성
-        MetricData.MetricDataBuilder b = MetricData.builder()
-            .id(null)                         // PK는 DB 시퀀스/IDENTITY로 생성
-            .dbId(dbId)                       // 어떤 DB의 수집값인지
-            .categoryId(r.categoryId())       // 그래프의 카테고리(1~6)
-            .graphId(r.graphId())             // 그래프 ID(1~52+)
-            .collectedAt(ts);                 // 수집 시각
-
-        // 4) 우선 메타만 가진 빈 행을 만들고
-        MetricData row = b.build();
+        // 3) 공통 메타 필드(id는 DB에서 생성 예정)를 채우고 객체 생성
+        MetricData row = new MetricData();
+        row.setId(null);                      // PK는 DB 시퀀스/IDENTITY로 생성
+        row.setInstanceId(instanceId);        // 어떤 인스턴스의 수집값인지
+        row.setCategoryId(r.categoryId());    // 그래프의 카테고리(1~6)
+        row.setGraphId(r.graphId());          // 그래프 ID(1~52+)
+        row.setCollectedAt(ts);               // 수집 시각
 
         // 5) 해당 그래프가 요구하는 컬럼 목록(r.columns())만 선택적으로 채운다.
         //    (finals에 없는 키는 건너뛰며, 숫자/문자/시간 타입에 맞춰 안전 변환)
