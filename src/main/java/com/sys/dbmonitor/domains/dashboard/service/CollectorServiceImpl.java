@@ -7,6 +7,7 @@ import com.sys.dbmonitor.domains.dashboard.state.DeltaStateStore;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -28,17 +29,17 @@ public class CollectorServiceImpl implements CollectorService {
     }
 
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
-    public CollectorRawDTO collectRaw(Long dbId) { return repo.collectSnapshot(dbId); }
+    public CollectorRawDTO collectRaw(Long instanceId) { return repo.collectSnapshot(instanceId); }
 
     /** 1회 실행: 수집 → Δ/Σ/window_sec → 클러스터(Σ_inst) 최종 지표 산출 + Top Blockers/Top SQL 매핑(부족분 0/공백 패딩) */
     @Override
-    public Map<String, Object> runOnce(Long dbId) {
+    public Map<String, Object> runOnce(Long instanceId) {
         Instant t0 = Instant.now();
-        CollectorRawDTO raw = repo.collectSnapshot(dbId);
+        CollectorRawDTO raw = repo.collectSnapshot(instanceId);
         Map<Integer, Map<String, Double>> bundle = raw.getBundle();
 
-        // window_sec (MetricsEngine 이용, DB별 마지막 수집 시각 사용)
-        final int windowSec = MetricsEngine.computeWindowSec(store.getLastTs(dbId), t0, 60);
+        // window_sec (MetricsEngine 이용, Instance별 마지막 수집 시각 사용)
+        final int windowSec = MetricsEngine.computeWindowSec(store.getLastTs(instanceId), t0, 60);
 
         Map<String, Object> out = new LinkedHashMap<>();
 
@@ -131,29 +132,29 @@ public class CollectorServiceImpl implements CollectorService {
             double dbCpuUs = cachedAny(cache, "DB_CPU_μS", "DB_CPU_US", "db_cpu_us", "db cpu");
             double dbTimeUs= cachedAny(cache, "DB_TIME_μS", "DB_TIME_US", "db_time_us", "db time");
 
-            double tps   = rate(dbId, instId, "USER_COMMITS", commits, windowSec);
-            double execs = rate(dbId, instId, "EXECUTE_COUNT", execCnt, windowSec);
-            double ucall = rate(dbId, instId, "USER_CALLS", calls, windowSec);
+            double tps   = rate(instanceId, instId, "USER_COMMITS", commits, windowSec);
+            double execs = rate(instanceId, instId, "EXECUTE_COUNT", execCnt, windowSec);
+            double ucall = rate(instanceId, instId, "USER_CALLS", calls, windowSec);
 
-            double aasOnCpu = rateUsToAas(dbId, instId, "DB_CPU_US", dbCpuUs, windowSec);
-            double aasTotal = rateUsToAas(dbId, instId, "DB_TIME_US", dbTimeUs, windowSec);
+            double aasOnCpu = rateUsToAas(instanceId, instId, "DB_CPU_US", dbCpuUs, windowSec);
+            double aasTotal = rateUsToAas(instanceId, instId, "DB_TIME_US", dbTimeUs, windowSec);
             double aasWait  = Math.max(0d, aasTotal - aasOnCpu);
 
             double logonsCum = cachedAny(cache, "LOGONS_CUMULATIVE", "logons_cumulative");
-            double logonsPerSec = rate(dbId, instId, "LOGONS_CUMULATIVE", logonsCum, windowSec);
+            double logonsPerSec = rate(instanceId, instId, "LOGONS_CUMULATIVE", logonsCum, windowSec);
 
             double logonsCur = cachedAny(cache, "LOGONS_CURRENT", "logons_current");
-            double disconnectsPerSec = negRate(dbId, instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
+            double disconnectsPerSec = negRate(instanceId, instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
 
             // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
             double bgUs = cachedAny(cache, "BACKGROUND_CPU_μS", "BACKGROUND_CPU_US", "bg_cpu_us");
-            aasBgSum += rateUsToAas(dbId, instId, "BACKGROUND_CPU_US", bgUs, windowSec);
+            aasBgSum += rateUsToAas(instanceId, instId, "BACKGROUND_CPU_US", bgUs, windowSec);
 
             // HOST 계산용 (001~003, 007~008, 012)
             double busy = cachedAny(cache, "BUSY_TIME", "busy_time");
             double idle = cachedAny(cache, "IDLE_TIME", "idle_time");
-            busyDeltaSum += delta(dbId, instId, "BUSY_TIME", busy);
-            idleDeltaSum += delta(dbId, instId, "IDLE_TIME", idle);
+            busyDeltaSum += delta(instanceId, instId, "BUSY_TIME", busy);
+            idleDeltaSum += delta(instanceId, instId, "IDLE_TIME", idle);
 
             double load = cachedAny(cache, "LOAD", "load");
             if (!Double.isNaN(load)) loadSum += load;
@@ -173,46 +174,46 @@ public class CollectorServiceImpl implements CollectorService {
             disconnectsPerSecSum += disconnectsPerSec; // 임시(아래에서 재산출/덮어씀)
 
             // ====== 2) Memory 탭 지표(030~070) ======
-            dSortMem  += delta(dbId, instId, "SORTS_MEMORY",  cachedAny(cache, "SORTS_MEMORY", "sorts_memory"));
-            dSortDisk += delta(dbId, instId, "SORTS_DISK",    cachedAny(cache, "SORTS_DISK",   "sorts_disk"));
+            dSortMem  += delta(instanceId, instId, "SORTS_MEMORY",  cachedAny(cache, "SORTS_MEMORY", "sorts_memory"));
+            dSortDisk += delta(instanceId, instId, "SORTS_DISK",    cachedAny(cache, "SORTS_DISK",   "sorts_disk"));
 
-            dWAOpt   += delta(dbId, instId, "WORKAREA_EXEC_OPTIMAL",   cachedAny(cache, "WORKAREA_EXEC_OPTIMAL",   "workarea_exec_optimal"));
-            dWAOne   += delta(dbId, instId, "WORKAREA_EXEC_ONEPASS",   cachedAny(cache, "WORKAREA_EXEC_ONEPASS",   "workarea_exec_onepass"));
-            dWAMulti += delta(dbId, instId, "WORKAREA_EXEC_MULTIPASS", cachedAny(cache, "WORKAREA_EXEC_MULTIPASS", "workarea_exec_multipass"));
+            dWAOpt   += delta(instanceId, instId, "WORKAREA_EXEC_OPTIMAL",   cachedAny(cache, "WORKAREA_EXEC_OPTIMAL",   "workarea_exec_optimal"));
+            dWAOne   += delta(instanceId, instId, "WORKAREA_EXEC_ONEPASS",   cachedAny(cache, "WORKAREA_EXEC_ONEPASS",   "workarea_exec_onepass"));
+            dWAMulti += delta(instanceId, instId, "WORKAREA_EXEC_MULTIPASS", cachedAny(cache, "WORKAREA_EXEC_MULTIPASS", "workarea_exec_multipass"));
 
             Double curGets = cachedAny(cache, "LC_GETS", "lc_gets");
             Double curRlds = cachedAny(cache, "LC_RELOADS", "lc_reloads");
-            if (!Double.isNaN(curGets)) dLCGets += delta(dbId, instId, "LC_GETS", curGets);
-            if (!Double.isNaN(curRlds)) dLCReloads += delta(dbId, instId, "LC_RELOADS", curRlds);
+            if (!Double.isNaN(curGets)) dLCGets += delta(instanceId, instId, "LC_GETS", curGets);
+            if (!Double.isNaN(curRlds)) dLCReloads += delta(instanceId, instId, "LC_RELOADS", curRlds);
 
-            dRCGets += delta(dbId, instId, "RC_GETS",      cachedAny(cache, "RC_GETS",      "rc_gets"));
-            dRCMiss += delta(dbId, instId, "RC_GETMISSES", cachedAny(cache, "RC_GETMISSES", "rc_getmisses"));
+            dRCGets += delta(instanceId, instId, "RC_GETS",      cachedAny(cache, "RC_GETS",      "rc_gets"));
+            dRCMiss += delta(instanceId, instId, "RC_GETMISSES", cachedAny(cache, "RC_GETMISSES", "rc_getmisses"));
 
-            dLatchGets += delta(dbId, instId, "LATCH_GETS",   cachedAny(cache, "LATCH_GETS",   "latch_gets"));
-            dLatchMiss += delta(dbId, instId, "LATCH_MISSES", cachedAny(cache, "LATCH_MISSES", "latch_misses"));
+            dLatchGets += delta(instanceId, instId, "LATCH_GETS",   cachedAny(cache, "LATCH_GETS",   "latch_gets"));
+            dLatchMiss += delta(instanceId, instId, "LATCH_MISSES", cachedAny(cache, "LATCH_MISSES", "latch_misses"));
 
-            dRedoRetries += delta(dbId, instId, "REDO_BUF_ALLOC_RETRIES", cachedAny(cache, "REDO_BUF_ALLOC_RETRIES", "redo_buf_alloc_retries"));
-            dRedoEntries += delta(dbId, instId, "REDO_ENTRIES",           cachedAny(cache, "REDO_ENTRIES",           "redo_entries"));
+            dRedoRetries += delta(instanceId, instId, "REDO_BUF_ALLOC_RETRIES", cachedAny(cache, "REDO_BUF_ALLOC_RETRIES", "redo_buf_alloc_retries"));
+            dRedoEntries += delta(instanceId, instId, "REDO_ENTRIES",           cachedAny(cache, "REDO_ENTRIES",           "redo_entries"));
 
-            dPhysReadsCache += delta(dbId, instId, "PHYSICAL_READS_CACHE", cachedAny(cache, "PHYSICAL_READS_CACHE", "physical_reads_cache"));
-            dDbBlockGets    += delta(dbId, instId, "DB_BLOCK_GETS",        cachedAny(cache, "DB_BLOCK_GETS",        "db_block_gets"));
-            dConsGets       += delta(dbId, instId, "CONSISTENT_GETS",      cachedAny(cache, "CONSISTENT_GETS",      "consistent_gets"));
-            dPhysReads      += delta(dbId, instId, "PHYSICAL_READS",       cachedAny(cache, "PHYSICAL_READS",       "physical_reads"));
+            dPhysReadsCache += delta(instanceId, instId, "PHYSICAL_READS_CACHE", cachedAny(cache, "PHYSICAL_READS_CACHE", "physical_reads_cache"));
+            dDbBlockGets    += delta(instanceId, instId, "DB_BLOCK_GETS",        cachedAny(cache, "DB_BLOCK_GETS",        "db_block_gets"));
+            dConsGets       += delta(instanceId, instId, "CONSISTENT_GETS",      cachedAny(cache, "CONSISTENT_GETS",      "consistent_gets"));
+            dPhysReads      += delta(instanceId, instId, "PHYSICAL_READS",       cachedAny(cache, "PHYSICAL_READS",       "physical_reads"));
 
             // libcache reloads per sec (prefer LC_RELOADS; fallback LIBCACHE_RELOADS from sysstat)
             double rr = 0d;
             if (!Double.isNaN(curRlds)) {
-                rr = rate(dbId, instId, "LC_RELOADS", curRlds, windowSec);
+                rr = rate(instanceId, instId, "LC_RELOADS", curRlds, windowSec);
             } else {
                 double sysRlds = cachedAny(cache, "LIBCACHE_RELOADS", "libcache_reloads");
-                if (!Double.isNaN(sysRlds)) rr = rate(dbId, instId, "LIBCACHE_RELOADS", sysRlds, windowSec);
+                if (!Double.isNaN(sysRlds)) rr = rate(instanceId, instId, "LIBCACHE_RELOADS", sysRlds, windowSec);
             }
             libReloadRateSum += rr;
 
             // ====== 3) MAIN(성능) 계산을 위한 재료 수집 (099~114) ======
-            dTempReadBlocks  += delta(dbId, instId, "TEMP_READ_BLOCKS",
+            dTempReadBlocks  += delta(instanceId, instId, "TEMP_READ_BLOCKS",
                     cachedAny(cache, "TEMP_READ_BLOCKS", "temp_read_blocks", "PHYSICAL_READS_DIRECT_TEMPORARY_TABLESPACE"));
-            dTempWriteBlocks += delta(dbId, instId, "TEMP_WRITE_BLOCKS",
+            dTempWriteBlocks += delta(instanceId, instId, "TEMP_WRITE_BLOCKS",
                     cachedAny(cache, "TEMP_WRITE_BLOCKS", "temp_write_blocks", "PHYSICAL_WRITES_DIRECT_TEMPORARY_TABLESPACE"));
 
             if (Double.isNaN(dbBlockSizeBytes)) {
@@ -220,28 +221,28 @@ public class CollectorServiceImpl implements CollectorService {
                 if (!Double.isNaN(bs) && bs > 0) dbBlockSizeBytes = bs;
             }
 
-            dParseHard  += delta(dbId, instId, "PARSE_HARD",  cachedAny(cache, "PARSE_HARD",  "parse_hard",  "PARSE_COUNT_HARD",  "parse_count_hard"));
-            dParseTotal += delta(dbId, instId, "PARSE_TOTAL", cachedAny(cache, "PARSE_TOTAL", "parse_total", "PARSE_COUNT_TOTAL", "parse_count_total"));
+            dParseHard  += delta(instanceId, instId, "PARSE_HARD",  cachedAny(cache, "PARSE_HARD",  "parse_hard",  "PARSE_COUNT_HARD",  "parse_count_hard"));
+            dParseTotal += delta(instanceId, instId, "PARSE_TOTAL", cachedAny(cache, "PARSE_TOTAL", "parse_total", "PARSE_COUNT_TOTAL", "parse_count_total"));
 
-            wcUserIoAas += rateUsToAas(dbId, instId, "TIME_WAITED_US_USER_IO",
+            wcUserIoAas += rateUsToAas(instanceId, instId, "TIME_WAITED_US_USER_IO",
                     cachedAny(cache, "TIME_WAITED_μS_USER_IO","TIME_WAITED_US_USER_IO","WAIT_CLASS_TIME_US_USER_IO"), windowSec);
-            wcCommitAas += rateUsToAas(dbId, instId, "TIME_WAITED_US_COMMIT",
+            wcCommitAas += rateUsToAas(instanceId, instId, "TIME_WAITED_US_COMMIT",
                     cachedAny(cache, "TIME_WAITED_μS_COMMIT","TIME_WAITED_US_COMMIT","WAIT_CLASS_TIME_US_COMMIT","wait_class_time_us_COMMIT"), windowSec);
-            wcConcAas   += rateUsToAas(dbId, instId, "TIME_WAITED_US_CONCURRENCY",
+            wcConcAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CONCURRENCY",
                     cachedAny(cache, "TIME_WAITED_μS_CONCURRENCY","TIME_WAITED_US_CONCURRENCY","WAIT_CLASS_TIME_US_CONCURRENCY","wait_class_time_us_CONCURRENCY"), windowSec);
-            wcSysIoAas  += rateUsToAas(dbId, instId, "TIME_WAITED_US_SYSTEM_IO",
+            wcSysIoAas  += rateUsToAas(instanceId, instId, "TIME_WAITED_US_SYSTEM_IO",
                     cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_IO","wait_class_time_us_SYSTEM_I_O"), windowSec);
-            wcNetAas    += rateUsToAas(dbId, instId, "TIME_WAITED_US_NETWORK",
+            wcNetAas    += rateUsToAas(instanceId, instId, "TIME_WAITED_US_NETWORK",
                     cachedAny(cache, "TIME_WAITED_μS_NETWORK","TIME_WAITED_US_NETWORK","WAIT_CLASS_TIME_US_NETWORK","wait_class_time_us_NETWORK"), windowSec);
-            wcClusAas   += rateUsToAas(dbId, instId, "TIME_WAITED_US_CLUSTER",
+            wcClusAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CLUSTER",
                     cachedAny(cache, "TIME_WAITED_μS_CLUSTER","TIME_WAITED_US_CLUSTER","WAIT_CLASS_TIME_US_CLUSTER"), windowSec);
 
             double curSeqUs = cachedAny(cache,
                     "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SEQ_TIME_WAITED_MICRO",
                     "SINGLEBLK_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_MICRO");
             double curSeqWt = cachedAny(cache, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS");
-            dSeqTimeUs += delta(dbId, instId, "SEQ_TIME_WAITED_US", curSeqUs);
-            dSeqWaits  += delta(dbId, instId, "SEQ_TOTAL_WAITS",    curSeqWt);
+            dSeqTimeUs += delta(instanceId, instId, "SEQ_TIME_WAITED_US", curSeqUs);
+            dSeqWaits  += delta(instanceId, instId, "SEQ_TOTAL_WAITS",    curSeqWt);
             absSeqTimeUs += Double.isNaN(curSeqUs) ? 0d : curSeqUs;
             absSeqWaits  += Double.isNaN(curSeqWt) ? 0d : curSeqWt;
 
@@ -249,8 +250,8 @@ public class CollectorServiceImpl implements CollectorService {
                     "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DPR_TIME_WAITED_MICRO",
                     "DIRECT_PATH_READ_TIME_US","DIRECT_PATH_READ_TIME_MICRO");
             double curDprWt = cachedAny(cache, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS");
-            dDprTimeUs += delta(dbId, instId, "DPR_TIME_WAITED_US", curDprUs);
-            dDprWaits  += delta(dbId, instId, "DPR_TOTAL_WAITS",    curDprWt);
+            dDprTimeUs += delta(instanceId, instId, "DPR_TIME_WAITED_US", curDprUs);
+            dDprWaits  += delta(instanceId, instId, "DPR_TOTAL_WAITS",    curDprWt);
             absDprTimeUs += Double.isNaN(curDprUs) ? 0d : curDprUs;
             absDprWaits  += Double.isNaN(curDprWt) ? 0d : curDprWt;
 
@@ -258,30 +259,30 @@ public class CollectorServiceImpl implements CollectorService {
                     "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DPW_TIME_WAITED_MICRO",
                     "DIRECT_PATH_WRITE_TIME_US","DIRECT_PATH_WRITE_TIME_MICRO");
             double curDpwWt = cachedAny(cache, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS");
-            dDpwTimeUs += delta(dbId, instId, "DPW_TIME_WAITED_US", curDpwUs);
-            dDpwWaits  += delta(dbId, instId, "DPW_TOTAL_WAITS",    curDpwWt);
+            dDpwTimeUs += delta(instanceId, instId, "DPW_TIME_WAITED_US", curDpwUs);
+            dDpwWaits  += delta(instanceId, instId, "DPW_TOTAL_WAITS",    curDpwWt);
             absDpwTimeUs += Double.isNaN(curDpwUs) ? 0d : curDpwUs;
             absDpwWaits  += Double.isNaN(curDpwWt) ? 0d : curDpwWt;
 
-            dReadTotalBytes  += delta(dbId, instId, "PHYSICAL_READ_TOTAL_BYTES",
+            dReadTotalBytes  += delta(instanceId, instId, "PHYSICAL_READ_TOTAL_BYTES",
                     cachedAny(cache, "PHYSICAL_READ_TOTAL_BYTES","physical_read_total_bytes"));
-            dWriteTotalBytes += delta(dbId, instId, "PHYSICAL_WRITE_TOTAL_BYTES",
+            dWriteTotalBytes += delta(instanceId, instId, "PHYSICAL_WRITE_TOTAL_BYTES",
                     cachedAny(cache, "PHYSICAL_WRITE_TOTAL_BYTES","physical_write_total_bytes"));
 
             // ====== 4) I/O(151~) 재료 수집 ======
-            dSessLogicalReads += delta(dbId, instId, "SESSION_LOGICAL_READS",
+            dSessLogicalReads += delta(instanceId, instId, "SESSION_LOGICAL_READS",
                     cachedAny(cache, "SESSION_LOGICAL_READS","session_logical_reads","session logical reads"));
-            dPhysReadsDirect  += delta(dbId, instId, "PHYSICAL_READS_DIRECT",
+            dPhysReadsDirect  += delta(instanceId, instId, "PHYSICAL_READS_DIRECT",
                     cachedAny(cache, "PHYSICAL_READS_DIRECT","physical_reads_direct"));
-            dPhysWritesDirect += delta(dbId, instId, "PHYSICAL_WRITES_DIRECT",
+            dPhysWritesDirect += delta(instanceId, instId, "PHYSICAL_WRITES_DIRECT",
                     cachedAny(cache, "PHYSICAL_WRITES_DIRECT","physical_writes_direct"));
-            dPhysWrites       += delta(dbId, instId, "PHYSICAL_WRITES",
+            dPhysWrites       += delta(instanceId, instId, "PHYSICAL_WRITES",
                     cachedAny(cache, "PHYSICAL_WRITES","physical_writes"));
-            dRedoBytes        += delta(dbId, instId, "REDO_SIZE_BYTES",
+            dRedoBytes        += delta(instanceId, instId, "REDO_SIZE_BYTES",
                     cachedAny(cache, "REDO_SIZE_BYTES","redo_size_bytes","REDO_SIZE","redo size"));
-            dDbwrCheckpoints  += delta(dbId, instId, "DBWR_CHECKPOINTS",
+            dDbwrCheckpoints  += delta(instanceId, instId, "DBWR_CHECKPOINTS",
                     cachedAny(cache, "DBWR_CHECKPOINTS","dbwr_checkpoints"));
-            dLogSeqDeltaSum   += delta(dbId, instId, "LOG_CURRENT_SEQUENCE",
+            dLogSeqDeltaSum   += delta(instanceId, instId, "LOG_CURRENT_SEQUENCE",
                     cachedAny(cache, "LOG_CURRENT_SEQUENCE","log_current_sequence"));
 
             // ====== 5) 세션 한도/급증 & 항등식 보정 (115~118) ======
@@ -455,7 +456,7 @@ public class CollectorServiceImpl implements CollectorService {
                 if (sqlId == null || sqlId.isBlank()) continue;
                 double curUs = num(anyObj(r, "VALUE_NUM", "value_num", "CPU_US", "cpu_us"));
                 String k = "TOPSQL_CPU|" + sqlId;
-                double dUs = deltaByKey(dbId, -1, k, curUs, now); // Δμs (음수 방지)
+                double dUs = deltaByKey(instanceId, -1, k, curUs, now); // Δμs (음수 방지)
                 deltas.add(new SqlCpuDelta(sqlId, dUs));
             }
             deltas.sort(Comparator.comparingDouble((SqlCpuDelta d) -> d.deltaUs).reversed());
@@ -631,7 +632,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("session_headroom", sessionHeadroom);
 
         // FIX: 성장률 기준을 'SESSIONS_USED_CURRENT'로 통일 (개/분, 부호 유지)
-        double usedGrowthPerMin = gaugeSlopePerMin(dbId, "GAUGE_CLUSTER|SESSIONS_USED_CURRENT", sessUsedSum, windowSec);
+        double usedGrowthPerMin = gaugeSlopePerMin(instanceId, "GAUGE_CLUSTER|SESSIONS_USED_CURRENT", sessUsedSum, windowSec);
         out.put("session_growth_rate_per_min", usedGrowthPerMin); // 117
 
         // 118 ETA (분) — 증가율 ≤0이면 NULL (0이 아님), headroom==0도 NULL
@@ -1071,8 +1072,8 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("DB_ID", dbid);
         out.put("COLLECT_EPOCH_MS", (double) t0.toEpochMilli()); // 숫자형 epoch ms
 
-        // Δ 상태 저장 (DB별 상태 격리)
-        store.saveBundle(dbId, bundle, t0);
+        // Δ 상태 저장 (Instance별 상태 격리)
+        store.saveBundle(instanceId, bundle, t0);
 
 
         // dto = out
@@ -1200,92 +1201,97 @@ public class CollectorServiceImpl implements CollectorService {
         return Math.round(v * 10.0) / 10.0;
     }
 
-    /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 (DB별 격리) */
-    private double rate(Long dbId, int instId, String name, double curVal, int windowSec) {
+    /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 (Instance별 격리) */
+    private double rate(Long instanceId, int instId, String name, double curVal, int windowSec) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(dbId, instId, key);
+        var prevOpt = store.get(instanceId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value();
             if (d < 0) d = 0; // 리셋 방지
             out = d / Math.max(1, windowSec);
         }
-        store.put(dbId, instId, key, curVal, now);
+        store.put(instanceId, instId, key, curVal, now);
         return out;
     }
 
-    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (DB별 격리) */
-    private double rateUsToAas(Long dbId, int instId, String name, double curUs, int windowSec) {
+    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (Instance별 격리) */
+    private double rateUsToAas(Long instanceId, int instId, String name, double curUs, int windowSec) {
         if (Double.isNaN(curUs)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(dbId, instId, key);
+        var prevOpt = store.get(instanceId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curUs - prevOpt.get().value();
             if (d < 0) d = 0;
             out = (d / 1_000_000.0) / Math.max(1, windowSec);
         }
-        store.put(dbId, instId, key, curUs, now);
+        store.put(instanceId, instId, key, curUs, now);
         return out;
     }
 
-    /** Δ(윈도 분모 없이 순수 증가량) — 상태는 store에 저장 (DB별 격리) */
-    private double delta(Long dbId, int instId, String name, double curVal) {
+    /** Δ(윈도 분모 없이 순수 증가량) — 상태는 store에 저장 (Instance별 격리) */
+    private double delta(Long instanceId, int instId, String name, double curVal) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double d = 0d;
-        var prevOpt = store.get(dbId, instId, key);
+        var prevOpt = store.get(instanceId, instId, key);
         if (prevOpt.isPresent()) {
             d = curVal - prevOpt.get().value();
             if (d < 0) d = 0;
         }
-        store.put(dbId, instId, key, curVal, now);
+        store.put(instanceId, instId, key, curVal, now);
         return d;
     }
 
-    /** 임의 문자열 키 기반 Δ (예: TOPSQL_CPU|<SQL_ID>) - DB별 격리 */
-    private double deltaByKey(Long dbId, int instId, String key, double curVal, Instant now) {
+    /** 임의 문자열 키 기반 Δ (예: TOPSQL_CPU|<SQL_ID>) - Instance별 격리 */
+    private double deltaByKey(Long instanceId, int instId, String key, double curVal, Instant now) {
         if (Double.isNaN(curVal)) return 0d;
         double d = 0d;
-        var prevOpt = store.get(dbId, instId, key);
+        var prevOpt = store.get(instanceId, instId, key);
         if (prevOpt.isPresent()) {
             d = curVal - prevOpt.get().value();
             if (d < 0) d = 0;
         }
-        store.put(dbId, instId, key, curVal, now);
+        store.put(instanceId, instId, key, curVal, now);
         return d;
     }
 
-    /** 음수 Δ만 양수로 환산하여 /window (예: disconnects/sec) - DB별 격리 */
-    private double negRate(Long dbId, int instId, String name, double curVal, int windowSec) {
+    /** 음수 Δ만 양수로 환산하여 /window (예: disconnects/sec) - Instance별 격리 */
+    private double negRate(Long instanceId, int instId, String name, double curVal, int windowSec) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(dbId, instId, key);
+        var prevOpt = store.get(instanceId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value(); // gauge의 증감
             double neg = Math.max(0d, -d);             // 감소분만 취함
             out = neg / Math.max(1, windowSec);
         }
-        store.put(dbId, instId, key, curVal, now);
+        store.put(instanceId, instId, key, curVal, now);
         return out;
     }
 
-    /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_* 증가/감소 감지용, instId=-1 전역키 사용) - DB별 격리 */
-    private double gaugeSlopePerMin(Long dbId, String globalKey, double curVal, int windowSec) {
+    /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_* 증가/감소 감지용, instId=-1 전역키 사용) - Instance별 격리 */
+    private double gaugeSlopePerMin(Long instanceId, String globalKey, double curVal, int windowSec) {
         Instant now = Instant.now();
         double slopePerMin = 0d;
-        var prevOpt = store.get(dbId, -1, globalKey);
+        var prevOpt = store.get(instanceId, -1, globalKey);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value(); // 증가(+)/감소(-) 모두 허용
-            slopePerMin = (d / Math.max(1, windowSec)) * 60.0;
+            // 실제 저장된 시각 사용 (windowSec 파라미터 무시)
+            Instant prevTs = prevOpt.get().ts();
+            long actualWindowSec = Duration.between(prevTs, now).getSeconds();
+            if (actualWindowSec > 0) {
+                slopePerMin = (d / actualWindowSec) * 60.0;
+            }
         }
-        store.put(dbId, -1, globalKey, curVal, now);
+        store.put(instanceId, -1, globalKey, curVal, now);
         return slopePerMin;
     }
 

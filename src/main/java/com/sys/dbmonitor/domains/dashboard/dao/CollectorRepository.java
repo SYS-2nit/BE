@@ -22,9 +22,9 @@ import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 public interface CollectorRepository {
 
      /** 기본 수집(PL/SQL의 NVL 기본값 사용)
-      *  @param dbId 대상 DB ID
+      *  @param instanceId 대상 Instance ID
       */
-     CollectorRawDTO collectSnapshot(Long dbId);
+     CollectorRawDTO collectSnapshot(Long instanceId);
 
      /**
       * 바인드 옵션을 전달하는 수집 오버로드.

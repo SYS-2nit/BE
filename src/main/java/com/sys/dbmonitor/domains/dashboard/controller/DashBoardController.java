@@ -31,6 +31,8 @@ public class DashBoardController {
         
         Map<String, Object> lastResult = null;
         
+        
+
         for (int i = 1; i <= runs; i++) {
             Instant start = Instant.now();
             System.out.println("COLLECT START [" + i + "/" + runs + "] " + OffsetDateTime.now());

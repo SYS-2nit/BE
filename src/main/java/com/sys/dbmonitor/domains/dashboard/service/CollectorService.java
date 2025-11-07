@@ -7,12 +7,12 @@ import java.util.Map;
 public interface CollectorService {
 
     /** 1회 실행: 수집 → Δ/Σ/window_sec → 최종 지표 계산 → 결과 반환
-     *  @param dbId 대상 DB ID (다중 DB 수집 시 상태 격리용)
+     *  @param instanceId 대상 Instance ID (다중 Instance 수집 시 상태 격리용)
      */
-    Map<String, Object> runOnce(Long dbId);
+    Map<String, Object> runOnce(Long instanceId);
 
     /** 원시 수집만 수행(계산 생략)
-     *  @param dbId 대상 DB ID
+     *  @param instanceId 대상 Instance ID
      */
-    CollectorRawDTO collectRaw(Long dbId);
+    CollectorRawDTO collectRaw(Long instanceId);
 }
