@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,79 +28,141 @@ public class CollectorServiceImpl implements CollectorService {
     }
 
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
-    public CollectorRawDTO collectRaw() { return repo.collectSnapshot(); }
+    public CollectorRawDTO collectRaw(Long dbId) { return repo.collectSnapshot(dbId); }
 
     /** 1회 실행: 수집 → Δ/Σ/window_sec → 클러스터(Σ_inst) 최종 지표 산출 + Top Blockers/Top SQL 매핑(부족분 0/공백 패딩) */
     @Override
-    public Map<String, Object> runOnce() {
+    public Map<String, Object> runOnce(Long dbId) {
         Instant t0 = Instant.now();
-        CollectorRawDTO raw = repo.collectSnapshot();
+        CollectorRawDTO raw = repo.collectSnapshot(dbId);
         Map<Integer, Map<String, Double>> bundle = raw.getBundle();
 
-        // window_sec (MetricsEngine 이용)
-        final int windowSec = MetricsEngine.computeWindowSec(store.getLastTs(), t0, 60);
+        // window_sec (MetricsEngine 이용, DB별 마지막 수집 시각 사용)
+        final int windowSec = MetricsEngine.computeWindowSec(store.getLastTs(dbId), t0, 60);
 
         Map<String, Object> out = new LinkedHashMap<>();
 
-        /* ========= Δ 기반 Σ_inst 누적 ========= */
-        double tpsSum   = 0d;     // Σ Δuser_commits / window
-        double execsSum = 0d;     // Σ Δexecute_count / window
-        double callsSum = 0d;     // Σ Δuser_calls / window
-        double aasOnCpuSum = 0d;  // (Σ ΔDB_CPU_μs / 1e6) / window
-        double aasWaitSum  = 0d;  // (Σ (ΔDB_TIME_μs - ΔDB_CPU_μs) / 1e6) / window
-        double aasTotalSum = 0d;  // Σ_inst AAS_TOTAL
-        double logonsPerSecSum = 0d;
-        double disconnectsPerSecSum = 0d; // (초기값: LOGONS_CURRENT 감소분 기반, 아래에서 항등식으로 재산출/덮어씀)
+        /* ========= Bundle 단일 순회: 모든 지표 수집 (통합) ========= */
+        // Δ 기반 Σ_inst 누적 (001~019, 073)
+        double tpsSum   = 0d;     // 009 Σ Δuser_commits / window
+        double execsSum = 0d;     // 010 Σ Δexecute_count / window
+        double callsSum = 0d;     // 011 Σ Δuser_calls / window
+        double aasOnCpuSum = 0d;  // 004 (Σ ΔDB_CPU_μs / 1e6) / window
+        double aasWaitSum  = 0d;  // 073 (Σ (ΔDB_TIME_μs - ΔDB_CPU_μs) / 1e6) / window
+        double aasTotalSum = 0d;  // 101 Σ_inst AAS_TOTAL
+        double logonsPerSecSum = 0d; // LOGONS_PER_SEC
+        double disconnectsPerSecSum = 0d; // DISCONNECTS_PER_SEC (초기값: LOGONS_CURRENT 감소분 기반, 아래에서 항등식으로 재산출/덮어씀)
+        double aasBgSum = 0d;     // 019 (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
 
-        // HOST 계산용
+        // HOST 계산용 (001~003, 007~008, 012)
         double busyDeltaSum = 0d;   // Σ ΔBUSY_TIME
         double idleDeltaSum = 0d;   // Σ ΔIDLE_TIME
         double loadSum      = 0d;   // Σ value('LOAD')
         double numCpuSum    = 0d;   // Σ NUM_CPUS
         double ncpuCoresSum = 0d;   // Σ NUM_CPU_CORES
 
+        // Memory 탭 지표(030~070) - Δ 누적 변수들
+        double dSortMem = 0d, dSortDisk = 0d; // 030
+        double dWAOpt = 0d, dWAOne = 0d, dWAMulti = 0d; // 039~041
+        double dLCGets = 0d, dLCReloads = 0d; // 043, 059
+        double dRCGets = 0d, dRCMiss = 0d; // 044
+        double dLatchGets = 0d, dLatchMiss = 0d; // 045
+        double dRedoRetries = 0d, dRedoEntries = 0d; // 046
+        double dPhysReadsCache = 0d, dDbBlockGets = 0d, dConsGets = 0d, dPhysReads = 0d; // 042, 060
+        double libReloadRateSum = 0d; // 059 Σ_inst(Δ libcache reloads / window_sec)
+
+        // MAIN(성능) 지표 계산용 누적(099~114)
+        double dTempReadBlocks = 0d, dTempWriteBlocks = 0d; // 099
+        double dbBlockSizeBytes = Double.NaN; // 공통 사용
+        double dParseHard = 0d, dParseTotal = 0d; // 100, 114
+
+        // wait class AAS (per-class) (102~108)
+        double wcUserIoAas = 0d, wcCommitAas = 0d, wcConcAas = 0d, wcSysIoAas = 0d, wcNetAas = 0d, wcClusAas = 0d;
+
+        // latency numerators/denominators (Δμs / Δwaits) (109~111)
+        double dSeqTimeUs = 0d, dSeqWaits = 0d; // single block read (sequential)
+        double dDprTimeUs = 0d, dDprWaits = 0d; // direct path read
+        double dDpwTimeUs = 0d, dDpwWaits = 0d; // direct path write
+
+        // physical bytes throughput (112~113)
+        double dReadTotalBytes = 0d, dWriteTotalBytes = 0d;
+
+        // I/O 확장용(151~194 재료)
+        double dSessLogicalReads = 0d;         // Δ session logical reads
+        double dPhysReadsDirect  = 0d;         // Δ physical reads direct
+        double dPhysWritesDirect = 0d;         // Δ physical writes direct
+        double dPhysWrites       = 0d;         // Δ physical writes
+        double dRedoBytes        = 0d;         // Δ redo size bytes
+        double dDbwrCheckpoints  = 0d;         // Δ dbwr checkpoints
+        double dLogSeqDeltaSum   = 0d;         // Δ log current sequence
+
+        // 절대치 합(152번 계산용)
+        double absSeqTimeUs = 0d, absSeqWaits = 0d;
+        double absDprTimeUs = 0d, absDprWaits = 0d;
+        double absDpwTimeUs = 0d, absDpwWaits = 0d;
+
+        // 세션 한도/급증 & 항등식 보정 (115~118)
+        double sessCurUtilSum = 0d;           // sessions_current_utilization (RAC 합)
+        double sessLimitValueNumSum = 0d;     // sessions_limit_value_num (RAC 합)
+        double sessLimitSumForHeadroom = 0d;  // sessions_limit (RAC 합, headroom용)
+
+        // 제한 근접 파라미터 (147~150)
+        double procCurUtilSum = 0d, procLimitValNumSum = 0d; // 147
+        double sessCurUtilSum2 = 0d, sessLimitValNumSum2 = 0d; // 145
+        double openCurMaxSession = Double.NaN; // 146
+        double openCurParamVal = Double.NaN; // 146
+        double datafileCount = Double.NaN; // 147
+        double dbFilesParam  = Double.NaN; // 147
+
+        // DB_ID 추출
+        double dbid = 0d;
+
+        // ========= 단일 Bundle 순회: 모든 지표 수집 =========
         for (Map.Entry<Integer, Map<String, Double>> entry : bundle.entrySet()) {
             int instId = entry.getKey();
             Map<String, Double> m = entry.getValue();
+            // 메트릭 캐싱: 한 번만 정규화하여 이후 조회 최적화
+            Map<String, Double> cache = buildMetricCache(m);
 
-            // ====== 원시값 ======
-            double commits = any(m, "USER_COMMITS", "user_commits", "user commits");
-            double execCnt = any(m, "EXECUTE_COUNT", "execute_count", "execute count");
-            double calls   = any(m, "USER_CALLS", "user_calls", "user calls");
-            double dbCpuUs = any(m, "DB_CPU_μS", "DB_CPU_US", "db_cpu_us", "db cpu");
-            double dbTimeUs= any(m, "DB_TIME_μS", "DB_TIME_US", "db_time_us", "db time");
+            // ====== 1) Δ 기반 Σ_inst 누적 (001~019, 073) ======
+            double commits = cachedAny(cache, "USER_COMMITS", "user_commits", "user commits");
+            double execCnt = cachedAny(cache, "EXECUTE_COUNT", "execute_count", "execute count");
+            double calls   = cachedAny(cache, "USER_CALLS", "user_calls", "user calls");
+            double dbCpuUs = cachedAny(cache, "DB_CPU_μS", "DB_CPU_US", "db_cpu_us", "db cpu");
+            double dbTimeUs= cachedAny(cache, "DB_TIME_μS", "DB_TIME_US", "db_time_us", "db time");
 
-            // ====== Δ/초 → rate ======
-            double tps   = rate(instId, "USER_COMMITS", commits, windowSec);
-            double execs = rate(instId, "EXECUTE_COUNT", execCnt, windowSec);
-            double ucall = rate(instId, "USER_CALLS", calls, windowSec);
+            double tps   = rate(dbId, instId, "USER_COMMITS", commits, windowSec);
+            double execs = rate(dbId, instId, "EXECUTE_COUNT", execCnt, windowSec);
+            double ucall = rate(dbId, instId, "USER_CALLS", calls, windowSec);
 
-            double aasOnCpu = rateUsToAas(instId, "DB_CPU_US", dbCpuUs, windowSec);
-            double aasTotal = rateUsToAas(instId, "DB_TIME_US", dbTimeUs, windowSec);
+            double aasOnCpu = rateUsToAas(dbId, instId, "DB_CPU_US", dbCpuUs, windowSec);
+            double aasTotal = rateUsToAas(dbId, instId, "DB_TIME_US", dbTimeUs, windowSec);
             double aasWait  = Math.max(0d, aasTotal - aasOnCpu);
 
-            // 로그온/디스커넥트(초기 계산)
-            double logonsCum = any(m, "LOGONS_CUMULATIVE", "logons_cumulative");
-            double logonsPerSec = rate(instId, "LOGONS_CUMULATIVE", logonsCum, windowSec);
+            double logonsCum = cachedAny(cache, "LOGONS_CUMULATIVE", "logons_cumulative");
+            double logonsPerSec = rate(dbId, instId, "LOGONS_CUMULATIVE", logonsCum, windowSec);
 
-            double logonsCur = any(m, "LOGONS_CURRENT", "logons_current");
-            double disconnectsPerSec = negRate(instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
+            double logonsCur = cachedAny(cache, "LOGONS_CURRENT", "logons_current");
+            double disconnectsPerSec = negRate(dbId, instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
 
-            // ====== HOST busy/idle Δ ======
-            double busy = any(m, "BUSY_TIME", "busy_time");
-            double idle = any(m, "IDLE_TIME", "idle_time");
-            busyDeltaSum += delta(instId, "BUSY_TIME", busy);
-            idleDeltaSum += delta(instId, "IDLE_TIME", idle);
+            // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
+            double bgUs = cachedAny(cache, "BACKGROUND_CPU_μS", "BACKGROUND_CPU_US", "bg_cpu_us");
+            aasBgSum += rateUsToAas(dbId, instId, "BACKGROUND_CPU_US", bgUs, windowSec);
 
-            // ====== LOAD / NUM_CPU(S|_CORES) (게이지 합) ======
-            double load = any(m, "LOAD", "load");
+            // HOST 계산용 (001~003, 007~008, 012)
+            double busy = cachedAny(cache, "BUSY_TIME", "busy_time");
+            double idle = cachedAny(cache, "IDLE_TIME", "idle_time");
+            busyDeltaSum += delta(dbId, instId, "BUSY_TIME", busy);
+            idleDeltaSum += delta(dbId, instId, "IDLE_TIME", idle);
+
+            double load = cachedAny(cache, "LOAD", "load");
             if (!Double.isNaN(load)) loadSum += load;
-            double ncpus = any(m, "NUM_CPUS", "num_cpus");
+            double ncpus = cachedAny(cache, "NUM_CPUS", "num_cpus");
             if (!Double.isNaN(ncpus)) numCpuSum += ncpus;
-            double ncpuCores = any(m, "NUM_CPU_CORES",  "num_cpu_cores");
+            double ncpuCores = cachedAny(cache, "NUM_CPU_CORES",  "num_cpu_cores");
             if (!Double.isNaN(ncpuCores)) ncpuCoresSum += ncpuCores;
 
-            // ====== 누적 ======
+            // 누적
             tpsSum               += tps;
             execsSum             += execs;
             callsSum             += ucall;
@@ -108,6 +171,161 @@ public class CollectorServiceImpl implements CollectorService {
             aasWaitSum           += aasWait;
             logonsPerSecSum      += logonsPerSec;
             disconnectsPerSecSum += disconnectsPerSec; // 임시(아래에서 재산출/덮어씀)
+
+            // ====== 2) Memory 탭 지표(030~070) ======
+            dSortMem  += delta(dbId, instId, "SORTS_MEMORY",  cachedAny(cache, "SORTS_MEMORY", "sorts_memory"));
+            dSortDisk += delta(dbId, instId, "SORTS_DISK",    cachedAny(cache, "SORTS_DISK",   "sorts_disk"));
+
+            dWAOpt   += delta(dbId, instId, "WORKAREA_EXEC_OPTIMAL",   cachedAny(cache, "WORKAREA_EXEC_OPTIMAL",   "workarea_exec_optimal"));
+            dWAOne   += delta(dbId, instId, "WORKAREA_EXEC_ONEPASS",   cachedAny(cache, "WORKAREA_EXEC_ONEPASS",   "workarea_exec_onepass"));
+            dWAMulti += delta(dbId, instId, "WORKAREA_EXEC_MULTIPASS", cachedAny(cache, "WORKAREA_EXEC_MULTIPASS", "workarea_exec_multipass"));
+
+            Double curGets = cachedAny(cache, "LC_GETS", "lc_gets");
+            Double curRlds = cachedAny(cache, "LC_RELOADS", "lc_reloads");
+            if (!Double.isNaN(curGets)) dLCGets += delta(dbId, instId, "LC_GETS", curGets);
+            if (!Double.isNaN(curRlds)) dLCReloads += delta(dbId, instId, "LC_RELOADS", curRlds);
+
+            dRCGets += delta(dbId, instId, "RC_GETS",      cachedAny(cache, "RC_GETS",      "rc_gets"));
+            dRCMiss += delta(dbId, instId, "RC_GETMISSES", cachedAny(cache, "RC_GETMISSES", "rc_getmisses"));
+
+            dLatchGets += delta(dbId, instId, "LATCH_GETS",   cachedAny(cache, "LATCH_GETS",   "latch_gets"));
+            dLatchMiss += delta(dbId, instId, "LATCH_MISSES", cachedAny(cache, "LATCH_MISSES", "latch_misses"));
+
+            dRedoRetries += delta(dbId, instId, "REDO_BUF_ALLOC_RETRIES", cachedAny(cache, "REDO_BUF_ALLOC_RETRIES", "redo_buf_alloc_retries"));
+            dRedoEntries += delta(dbId, instId, "REDO_ENTRIES",           cachedAny(cache, "REDO_ENTRIES",           "redo_entries"));
+
+            dPhysReadsCache += delta(dbId, instId, "PHYSICAL_READS_CACHE", cachedAny(cache, "PHYSICAL_READS_CACHE", "physical_reads_cache"));
+            dDbBlockGets    += delta(dbId, instId, "DB_BLOCK_GETS",        cachedAny(cache, "DB_BLOCK_GETS",        "db_block_gets"));
+            dConsGets       += delta(dbId, instId, "CONSISTENT_GETS",      cachedAny(cache, "CONSISTENT_GETS",      "consistent_gets"));
+            dPhysReads      += delta(dbId, instId, "PHYSICAL_READS",       cachedAny(cache, "PHYSICAL_READS",       "physical_reads"));
+
+            // libcache reloads per sec (prefer LC_RELOADS; fallback LIBCACHE_RELOADS from sysstat)
+            double rr = 0d;
+            if (!Double.isNaN(curRlds)) {
+                rr = rate(dbId, instId, "LC_RELOADS", curRlds, windowSec);
+            } else {
+                double sysRlds = cachedAny(cache, "LIBCACHE_RELOADS", "libcache_reloads");
+                if (!Double.isNaN(sysRlds)) rr = rate(dbId, instId, "LIBCACHE_RELOADS", sysRlds, windowSec);
+            }
+            libReloadRateSum += rr;
+
+            // ====== 3) MAIN(성능) 계산을 위한 재료 수집 (099~114) ======
+            dTempReadBlocks  += delta(dbId, instId, "TEMP_READ_BLOCKS",
+                    cachedAny(cache, "TEMP_READ_BLOCKS", "temp_read_blocks", "PHYSICAL_READS_DIRECT_TEMPORARY_TABLESPACE"));
+            dTempWriteBlocks += delta(dbId, instId, "TEMP_WRITE_BLOCKS",
+                    cachedAny(cache, "TEMP_WRITE_BLOCKS", "temp_write_blocks", "PHYSICAL_WRITES_DIRECT_TEMPORARY_TABLESPACE"));
+
+            if (Double.isNaN(dbBlockSizeBytes)) {
+                double bs = cachedAny(cache, "DB_BLOCK_SIZE_BYTES", "db_block_size_bytes");
+                if (!Double.isNaN(bs) && bs > 0) dbBlockSizeBytes = bs;
+            }
+
+            dParseHard  += delta(dbId, instId, "PARSE_HARD",  cachedAny(cache, "PARSE_HARD",  "parse_hard",  "PARSE_COUNT_HARD",  "parse_count_hard"));
+            dParseTotal += delta(dbId, instId, "PARSE_TOTAL", cachedAny(cache, "PARSE_TOTAL", "parse_total", "PARSE_COUNT_TOTAL", "parse_count_total"));
+
+            wcUserIoAas += rateUsToAas(dbId, instId, "TIME_WAITED_US_USER_IO",
+                    cachedAny(cache, "TIME_WAITED_μS_USER_IO","TIME_WAITED_US_USER_IO","WAIT_CLASS_TIME_US_USER_IO"), windowSec);
+            wcCommitAas += rateUsToAas(dbId, instId, "TIME_WAITED_US_COMMIT",
+                    cachedAny(cache, "TIME_WAITED_μS_COMMIT","TIME_WAITED_US_COMMIT","WAIT_CLASS_TIME_US_COMMIT","wait_class_time_us_COMMIT"), windowSec);
+            wcConcAas   += rateUsToAas(dbId, instId, "TIME_WAITED_US_CONCURRENCY",
+                    cachedAny(cache, "TIME_WAITED_μS_CONCURRENCY","TIME_WAITED_US_CONCURRENCY","WAIT_CLASS_TIME_US_CONCURRENCY","wait_class_time_us_CONCURRENCY"), windowSec);
+            wcSysIoAas  += rateUsToAas(dbId, instId, "TIME_WAITED_US_SYSTEM_IO",
+                    cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_IO","wait_class_time_us_SYSTEM_I_O"), windowSec);
+            wcNetAas    += rateUsToAas(dbId, instId, "TIME_WAITED_US_NETWORK",
+                    cachedAny(cache, "TIME_WAITED_μS_NETWORK","TIME_WAITED_US_NETWORK","WAIT_CLASS_TIME_US_NETWORK","wait_class_time_us_NETWORK"), windowSec);
+            wcClusAas   += rateUsToAas(dbId, instId, "TIME_WAITED_US_CLUSTER",
+                    cachedAny(cache, "TIME_WAITED_μS_CLUSTER","TIME_WAITED_US_CLUSTER","WAIT_CLASS_TIME_US_CLUSTER"), windowSec);
+
+            double curSeqUs = cachedAny(cache,
+                    "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SEQ_TIME_WAITED_MICRO",
+                    "SINGLEBLK_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_MICRO");
+            double curSeqWt = cachedAny(cache, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS");
+            dSeqTimeUs += delta(dbId, instId, "SEQ_TIME_WAITED_US", curSeqUs);
+            dSeqWaits  += delta(dbId, instId, "SEQ_TOTAL_WAITS",    curSeqWt);
+            absSeqTimeUs += Double.isNaN(curSeqUs) ? 0d : curSeqUs;
+            absSeqWaits  += Double.isNaN(curSeqWt) ? 0d : curSeqWt;
+
+            double curDprUs = cachedAny(cache,
+                    "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DPR_TIME_WAITED_MICRO",
+                    "DIRECT_PATH_READ_TIME_US","DIRECT_PATH_READ_TIME_MICRO");
+            double curDprWt = cachedAny(cache, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS");
+            dDprTimeUs += delta(dbId, instId, "DPR_TIME_WAITED_US", curDprUs);
+            dDprWaits  += delta(dbId, instId, "DPR_TOTAL_WAITS",    curDprWt);
+            absDprTimeUs += Double.isNaN(curDprUs) ? 0d : curDprUs;
+            absDprWaits  += Double.isNaN(curDprWt) ? 0d : curDprWt;
+
+            double curDpwUs = cachedAny(cache,
+                    "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DPW_TIME_WAITED_MICRO",
+                    "DIRECT_PATH_WRITE_TIME_US","DIRECT_PATH_WRITE_TIME_MICRO");
+            double curDpwWt = cachedAny(cache, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS");
+            dDpwTimeUs += delta(dbId, instId, "DPW_TIME_WAITED_US", curDpwUs);
+            dDpwWaits  += delta(dbId, instId, "DPW_TOTAL_WAITS",    curDpwWt);
+            absDpwTimeUs += Double.isNaN(curDpwUs) ? 0d : curDpwUs;
+            absDpwWaits  += Double.isNaN(curDpwWt) ? 0d : curDpwWt;
+
+            dReadTotalBytes  += delta(dbId, instId, "PHYSICAL_READ_TOTAL_BYTES",
+                    cachedAny(cache, "PHYSICAL_READ_TOTAL_BYTES","physical_read_total_bytes"));
+            dWriteTotalBytes += delta(dbId, instId, "PHYSICAL_WRITE_TOTAL_BYTES",
+                    cachedAny(cache, "PHYSICAL_WRITE_TOTAL_BYTES","physical_write_total_bytes"));
+
+            // ====== 4) I/O(151~) 재료 수집 ======
+            dSessLogicalReads += delta(dbId, instId, "SESSION_LOGICAL_READS",
+                    cachedAny(cache, "SESSION_LOGICAL_READS","session_logical_reads","session logical reads"));
+            dPhysReadsDirect  += delta(dbId, instId, "PHYSICAL_READS_DIRECT",
+                    cachedAny(cache, "PHYSICAL_READS_DIRECT","physical_reads_direct"));
+            dPhysWritesDirect += delta(dbId, instId, "PHYSICAL_WRITES_DIRECT",
+                    cachedAny(cache, "PHYSICAL_WRITES_DIRECT","physical_writes_direct"));
+            dPhysWrites       += delta(dbId, instId, "PHYSICAL_WRITES",
+                    cachedAny(cache, "PHYSICAL_WRITES","physical_writes"));
+            dRedoBytes        += delta(dbId, instId, "REDO_SIZE_BYTES",
+                    cachedAny(cache, "REDO_SIZE_BYTES","redo_size_bytes","REDO_SIZE","redo size"));
+            dDbwrCheckpoints  += delta(dbId, instId, "DBWR_CHECKPOINTS",
+                    cachedAny(cache, "DBWR_CHECKPOINTS","dbwr_checkpoints"));
+            dLogSeqDeltaSum   += delta(dbId, instId, "LOG_CURRENT_SEQUENCE",
+                    cachedAny(cache, "LOG_CURRENT_SEQUENCE","log_current_sequence"));
+
+            // ====== 5) 세션 한도/급증 & 항등식 보정 (115~118) ======
+            double curUtil = cachedAny(cache, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
+            if (!Double.isNaN(curUtil)) sessCurUtilSum += curUtil;
+            double limVal  = cachedAny(cache, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
+            if (!Double.isNaN(limVal)) sessLimitValueNumSum += limVal;
+            double lim     = cachedAny(cache, "SESSIONS_LIMIT","sessions_limit");
+            if (!Double.isNaN(lim)) sessLimitSumForHeadroom += lim;
+
+            // ====== 6) 제한 근접 파라미터 (147~150) ======
+            double a = cachedAny(cache, "PROCESSES_CURRENT_UTILIZATION","processes_current_utilization","PROCESSES_CURRENT","processes_current");
+            if (!Double.isNaN(a)) procCurUtilSum += a;
+            double b = cachedAny(cache, "PROCESSES_LIMIT_VALUE_NUM","processes_limit_value_num");
+            if (!Double.isNaN(b)) procLimitValNumSum += b;
+
+            double c = cachedAny(cache, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
+            if (!Double.isNaN(c)) sessCurUtilSum2 += c;
+            double d = cachedAny(cache, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
+            if (!Double.isNaN(d)) sessLimitValNumSum2 += d;
+
+            double mx = cachedAny(cache, "OPEN_CURSORS_MAX_SESSION_COUNT","open_cursors_max_session_count");
+            if (!Double.isNaN(mx)) {
+                if (Double.isNaN(openCurMaxSession) || mx > openCurMaxSession) openCurMaxSession = mx;
+            }
+            double pv = cachedAny(cache, "OPEN_CURSORS_PARAM_VALUE","open_cursors_param_value","OPEN_CURSORS","open_cursors");
+            if (!Double.isNaN(pv)) {
+                if (Double.isNaN(openCurParamVal) || pv > openCurParamVal) openCurParamVal = pv;
+            }
+
+            double datafileCnt = cachedAny(cache, "DATAFILE_COUNT","datafile_count");
+            if (!Double.isNaN(datafileCnt)) {
+                if (Double.isNaN(datafileCount) || datafileCnt > datafileCount) datafileCount = datafileCnt; // 중복 방지용 max
+            }
+            double dbFilesP = cachedAny(cache, "DB_FILES_PARAM_VALUE","db_files_param_value","DB_FILES","db_files");
+            if (!Double.isNaN(dbFilesP)) {
+                if (Double.isNaN(dbFilesParam) || dbFilesP > dbFilesParam) dbFilesParam = dbFilesP;
+            }
+
+            // ====== 7) DB_ID 추출 ======
+            if (dbid == 0d) {
+                Double v = m.get("DB_ID"); if (v == null) v = m.get("db_id");
+                if (v != null) dbid = v;
+            }
         }
 
         /* ========= 게이지 Σ_inst ========= */
@@ -167,14 +385,7 @@ public class CollectorServiceImpl implements CollectorService {
         // 018 FG = oncpu
         out.put("AAS_FG_SESSIONS", aasOnCpuSum); // 018
 
-        // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
-        double aasBgSum = 0d;
-        for (Map.Entry<Integer, Map<String, Double>> entry : bundle.entrySet()) {
-            int instId = entry.getKey();
-            Map<String, Double> m = entry.getValue();
-            double bgUs = any(m, "BACKGROUND_CPU_μS", "BACKGROUND_CPU_US", "bg_cpu_us");
-            aasBgSum += rateUsToAas(instId, "BACKGROUND_CPU_US", bgUs, windowSec);
-        }
+        // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec (단일 순회에서 이미 계산됨)
         out.put("AAS_BG_SESSIONS", aasBgSum); // 019
 
         /* ========= 세션 탭 지표(요약) ========= */
@@ -244,7 +455,7 @@ public class CollectorServiceImpl implements CollectorService {
                 if (sqlId == null || sqlId.isBlank()) continue;
                 double curUs = num(anyObj(r, "VALUE_NUM", "value_num", "CPU_US", "cpu_us"));
                 String k = "TOPSQL_CPU|" + sqlId;
-                double dUs = deltaByKey(-1, k, curUs, now); // Δμs (음수 방지)
+                double dUs = deltaByKey(dbId, -1, k, curUs, now); // Δμs (음수 방지)
                 deltas.add(new SqlCpuDelta(sqlId, dUs));
             }
             deltas.sort(Comparator.comparingDouble((SqlCpuDelta d) -> d.deltaUs).reversed());
@@ -263,180 +474,7 @@ public class CollectorServiceImpl implements CollectorService {
         }
 
         /* ========= Memory 탭 지표(030~070) ========= */
-        // Δ 누적 변수들
-        double dSortMem = 0d, dSortDisk = 0d;
-        double dWAOpt = 0d, dWAOne = 0d, dWAMulti = 0d;
-        double dLCGets = 0d, dLCReloads = 0d;
-        double dRCGets = 0d, dRCMiss = 0d;
-        double dLatchGets = 0d, dLatchMiss = 0d;
-        double dRedoRetries = 0d, dRedoEntries = 0d;
-        double dPhysReadsCache = 0d, dDbBlockGets = 0d, dConsGets = 0d, dPhysReads = 0d;
-        double libReloadRateSum = 0d; // Σ_inst(Δ libcache reloads / window_sec)
-
-        /* ========= MAIN(성능) 지표 계산용 누적(099~114) ========= */
-        double dTempReadBlocks = 0d, dTempWriteBlocks = 0d;
-        double dbBlockSizeBytes = Double.NaN;
-        double dParseHard = 0d, dParseTotal = 0d;
-
-        // wait class AAS (per-class)
-        double wcUserIoAas = 0d, wcCommitAas = 0d, wcConcAas = 0d, wcSysIoAas = 0d, wcNetAas = 0d, wcClusAas = 0d;
-
-        // latency numerators/denominators (Δμs / Δwaits)
-        double dSeqTimeUs = 0d, dSeqWaits = 0d; // single block read (sequential)
-        double dDprTimeUs = 0d, dDprWaits = 0d; // direct path read
-        double dDpwTimeUs = 0d, dDpwWaits = 0d; // direct path write
-
-        // physical bytes throughput
-        double dReadTotalBytes = 0d, dWriteTotalBytes = 0d;
-
-        /* ========= I/O 확장용(151~194 재료) ========= */
-        double dSessLogicalReads = 0d;         // Δ session logical reads
-        double dPhysReadsDirect  = 0d;         // Δ physical reads direct
-        double dPhysWritesDirect = 0d;         // Δ physical writes direct
-        double dPhysWrites       = 0d;         // Δ physical writes
-        double dRedoBytes        = 0d;         // Δ redo size bytes
-        double dDbwrCheckpoints  = 0d;         // Δ dbwr checkpoints
-        double dLogSeqDeltaSum   = 0d;         // Δ log current sequence
-
-        // 절대치 합(152번 계산용)
-        double absSeqTimeUs = 0d, absSeqWaits = 0d;
-        double absDprTimeUs = 0d, absDprWaits = 0d;
-        double absDpwTimeUs = 0d, absDpwWaits = 0d;
-
-        for (Map.Entry<Integer, Map<String, Double>> entry : bundle.entrySet()) {
-            int instId = entry.getKey();
-            Map<String, Double> m = entry.getValue();
-
-            // sorts
-            dSortMem  += delta(instId, "SORTS_MEMORY",  any(m, "SORTS_MEMORY", "sorts_memory"));
-            dSortDisk += delta(instId, "SORTS_DISK",    any(m, "SORTS_DISK",   "sorts_disk"));
-
-            // workarea
-            dWAOpt   += delta(instId, "WORKAREA_EXEC_OPTIMAL",   any(m, "WORKAREA_EXEC_OPTIMAL",   "workarea_exec_optimal"));
-            dWAOne   += delta(instId, "WORKAREA_EXEC_ONEPASS",   any(m, "WORKAREA_EXEC_ONEPASS",   "workarea_exec_onepass"));
-            dWAMulti += delta(instId, "WORKAREA_EXEC_MULTIPASS", any(m, "WORKAREA_EXEC_MULTIPASS", "workarea_exec_multipass"));
-
-            // library cache (gv$librarycache agg)
-            Double curGets = any(m, "LC_GETS", "lc_gets");
-            Double curRlds = any(m, "LC_RELOADS", "lc_reloads");
-            if (!Double.isNaN(curGets)) dLCGets += delta(instId, "LC_GETS", curGets);
-            if (!Double.isNaN(curRlds)) dLCReloads += delta(instId, "LC_RELOADS", curRlds);
-
-            // dictionary cache (gv$rowcache)
-            dRCGets += delta(instId, "RC_GETS",      any(m, "RC_GETS",      "rc_gets"));
-            dRCMiss += delta(instId, "RC_GETMISSES", any(m, "RC_GETMISSES", "rc_getmisses"));
-
-            // latch (gv$latch)
-            dLatchGets += delta(instId, "LATCH_GETS",   any(m, "LATCH_GETS",   "latch_gets"));
-            dLatchMiss += delta(instId, "LATCH_MISSES", any(m, "LATCH_MISSES", "latch_misses"));
-
-            // redo buffer wait (gv$sysstat)
-            dRedoRetries += delta(instId, "REDO_BUF_ALLOC_RETRIES", any(m, "REDO_BUF_ALLOC_RETRIES", "redo_buf_alloc_retries"));
-            dRedoEntries += delta(instId, "REDO_ENTRIES",           any(m, "REDO_ENTRIES",           "redo_entries"));
-
-            // buffer miss (%)
-            dPhysReadsCache += delta(instId, "PHYSICAL_READS_CACHE", any(m, "PHYSICAL_READS_CACHE", "physical_reads_cache"));
-            dDbBlockGets    += delta(instId, "DB_BLOCK_GETS",        any(m, "DB_BLOCK_GETS",        "db_block_gets"));
-            dConsGets       += delta(instId, "CONSISTENT_GETS",      any(m, "CONSISTENT_GETS",      "consistent_gets"));
-            dPhysReads      += delta(instId, "PHYSICAL_READS",       any(m, "PHYSICAL_READS",       "physical_reads"));
-
-            // libcache reloads per sec (prefer LC_RELOADS; fallback LIBCACHE_RELOADS from sysstat)
-            double rr = 0d;
-            if (!Double.isNaN(curRlds)) {
-                rr = rate(instId, "LC_RELOADS", curRlds, windowSec);
-            } else {
-                double sysRlds = any(m, "LIBCACHE_RELOADS", "libcache_reloads");
-                if (!Double.isNaN(sysRlds)) rr = rate(instId, "LIBCACHE_RELOADS", sysRlds, windowSec);
-            }
-            libReloadRateSum += rr;
-
-            /* ===== MAIN(성능) 계산을 위한 재료 수집 ===== */
-            // TEMP blocks
-            dTempReadBlocks  += delta(instId, "TEMP_READ_BLOCKS",
-                    any(m, "TEMP_READ_BLOCKS", "temp_read_blocks", "PHYSICAL_READS_DIRECT_TEMPORARY_TABLESPACE"));
-            dTempWriteBlocks += delta(instId, "TEMP_WRITE_BLOCKS",
-                    any(m, "TEMP_WRITE_BLOCKS", "temp_write_blocks", "PHYSICAL_WRITES_DIRECT_TEMPORARY_TABLESPACE"));
-
-            // DB block size (게이지, 첫 유효값 사용)
-            if (Double.isNaN(dbBlockSizeBytes)) {
-                double bs = any(m, "DB_BLOCK_SIZE_BYTES", "db_block_size_bytes");
-                if (!Double.isNaN(bs) && bs > 0) dbBlockSizeBytes = bs;
-            }
-
-            // Parse
-            dParseHard  += delta(instId, "PARSE_HARD",  any(m, "PARSE_HARD",  "parse_hard",  "PARSE_COUNT_HARD",  "parse_count_hard"));
-            dParseTotal += delta(instId, "PARSE_TOTAL", any(m, "PARSE_TOTAL", "parse_total", "PARSE_COUNT_TOTAL", "parse_count_total"));
-
-            // Wait class AAS (Δμs → AAS)
-            wcUserIoAas += rateUsToAas(instId, "TIME_WAITED_US_USER_IO",
-                    any(m, "TIME_WAITED_μS_USER_IO","TIME_WAITED_US_USER_IO","WAIT_CLASS_TIME_US_USER_IO"), windowSec);
-            wcCommitAas += rateUsToAas(instId, "TIME_WAITED_US_COMMIT",
-                    any(m, "TIME_WAITED_μS_COMMIT","TIME_WAITED_US_COMMIT","WAIT_CLASS_TIME_US_COMMIT","wait_class_time_us_COMMIT"), windowSec);
-            wcConcAas   += rateUsToAas(instId, "TIME_WAITED_US_CONCURRENCY",
-                    any(m, "TIME_WAITED_μS_CONCURRENCY","TIME_WAITED_US_CONCURRENCY","WAIT_CLASS_TIME_US_CONCURRENCY","wait_class_time_us_CONCURRENCY"), windowSec);
-            wcSysIoAas  += rateUsToAas(instId, "TIME_WAITED_US_SYSTEM_IO",
-                    any(m, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_IO","wait_class_time_us_SYSTEM_I_O"), windowSec);
-            wcNetAas    += rateUsToAas(instId, "TIME_WAITED_US_NETWORK",
-                    any(m, "TIME_WAITED_μS_NETWORK","TIME_WAITED_US_NETWORK","WAIT_CLASS_TIME_US_NETWORK","wait_class_time_us_NETWORK"), windowSec);
-            wcClusAas   += rateUsToAas(instId, "TIME_WAITED_US_CLUSTER",
-                    any(m, "TIME_WAITED_μS_CLUSTER","TIME_WAITED_US_CLUSTER","WAIT_CLASS_TIME_US_CLUSTER"), windowSec);
-
-            // Latency numerators/denominators
-
-            double curSeqUs = any(m,
-                    "SEQ_TIME_WAITED_μS","SEQ_TIME_WAITED_US","SEQ_TIME_WAITED_MICRO",
-                    "SINGLEBLK_TIME_WAITED_US","SINGLEBLK_TIME_WAITED_MICRO");
-
-            double curSeqWt = any(m, "SEQ_TOTAL_WAITS","SINGLEBLK_TOTAL_WAITS");
-            dSeqTimeUs += delta(instId, "SEQ_TIME_WAITED_US", curSeqUs);
-            dSeqWaits  += delta(instId, "SEQ_TOTAL_WAITS",    curSeqWt);
-            absSeqTimeUs += Double.isNaN(curSeqUs) ? 0d : curSeqUs;
-            absSeqWaits  += Double.isNaN(curSeqWt) ? 0d : curSeqWt;
-
-
-            double curDprUs = any(m,
-                    "DPR_TIME_WAITED_μS","DPR_TIME_WAITED_US","DPR_TIME_WAITED_MICRO",
-                    "DIRECT_PATH_READ_TIME_US","DIRECT_PATH_READ_TIME_MICRO");
-
-            double curDprWt = any(m, "DPR_TOTAL_WAITS","DIRECT_PATH_READ_TOTAL_WAITS");
-            dDprTimeUs += delta(instId, "DPR_TIME_WAITED_US", curDprUs);
-            dDprWaits  += delta(instId, "DPR_TOTAL_WAITS",    curDprWt);
-            absDprTimeUs += Double.isNaN(curDprUs) ? 0d : curDprUs;
-            absDprWaits  += Double.isNaN(curDprWt) ? 0d : curDprWt;
-
-
-            double curDpwUs = any(m,
-                    "DPW_TIME_WAITED_μS","DPW_TIME_WAITED_US","DPW_TIME_WAITED_MICRO",
-                    "DIRECT_PATH_WRITE_TIME_US","DIRECT_PATH_WRITE_TIME_MICRO");
-
-            double curDpwWt = any(m, "DPW_TOTAL_WAITS","DIRECT_PATH_WRITE_TOTAL_WAITS");
-            dDpwTimeUs += delta(instId, "DPW_TIME_WAITED_US", curDpwUs);
-            dDpwWaits  += delta(instId, "DPW_TOTAL_WAITS",    curDpwWt);
-            absDpwTimeUs += Double.isNaN(curDpwUs) ? 0d : curDpwUs;
-            absDpwWaits  += Double.isNaN(curDpwWt) ? 0d : curDpwWt;
-
-            // Physical bytes
-            dReadTotalBytes  += delta(instId, "PHYSICAL_READ_TOTAL_BYTES",
-                    any(m, "PHYSICAL_READ_TOTAL_BYTES","physical_read_total_bytes"));
-            dWriteTotalBytes += delta(instId, "PHYSICAL_WRITE_TOTAL_BYTES",
-                    any(m, "PHYSICAL_WRITE_TOTAL_BYTES","physical_write_total_bytes"));
-
-            /* ===== I/O(151~) 재료 수집 ===== */
-            dSessLogicalReads += delta(instId, "SESSION_LOGICAL_READS",
-                    any(m, "SESSION_LOGICAL_READS","session_logical_reads","session logical reads"));
-            dPhysReadsDirect  += delta(instId, "PHYSICAL_READS_DIRECT",
-                    any(m, "PHYSICAL_READS_DIRECT","physical_reads_direct"));
-            dPhysWritesDirect += delta(instId, "PHYSICAL_WRITES_DIRECT",
-                    any(m, "PHYSICAL_WRITES_DIRECT","physical_writes_direct"));
-            dPhysWrites       += delta(instId, "PHYSICAL_WRITES",
-                    any(m, "PHYSICAL_WRITES","physical_writes"));
-            dRedoBytes        += delta(instId, "REDO_SIZE_BYTES",
-                    any(m, "REDO_SIZE_BYTES","redo_size_bytes","REDO_SIZE","redo size"));
-            dDbwrCheckpoints  += delta(instId, "DBWR_CHECKPOINTS",
-                    any(m, "DBWR_CHECKPOINTS","dbwr_checkpoints"));
-            dLogSeqDeltaSum   += delta(instId, "LOG_CURRENT_SEQUENCE",
-                    any(m, "LOG_CURRENT_SEQUENCE","log_current_sequence"));
-        }
+        // (단일 순회에서 이미 계산됨)
 
         // 030 MEMORY_SORT_PCT
         out.put("MEMORY_SORT_PCT", MetricsEngine.pct(dSortMem, dSortMem + dSortDisk));
@@ -585,19 +623,7 @@ public class CollectorServiceImpl implements CollectorService {
 
 
         /* ========= 세션 한도/급증 & 항등식 보정 (115~118) ========= */
-
-        double sessCurUtilSum = 0d;           // sessions_current_utilization (RAC 합)
-        double sessLimitValueNumSum = 0d;     // sessions_limit_value_num (RAC 합)
-        double sessLimitSumForHeadroom = 0d;  // sessions_limit (RAC 합, headroom용)
-
-        for (Map<String, Double> m : bundle.values()) {
-            double curUtil = any(m, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
-            if (!Double.isNaN(curUtil)) sessCurUtilSum += curUtil;
-            double limVal  = any(m, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
-            if (!Double.isNaN(limVal)) sessLimitValueNumSum += limVal;
-            double lim     = any(m, "SESSIONS_LIMIT","sessions_limit");
-            if (!Double.isNaN(lim)) sessLimitSumForHeadroom += lim;
-        }
+        // (단일 순회에서 이미 계산됨)
         // 115
         out.put("session_usage_pct", MetricsEngine.pct(sessCurUtilSum, sessLimitValueNumSum));
         // 116
@@ -605,7 +631,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("session_headroom", sessionHeadroom);
 
         // FIX: 성장률 기준을 'SESSIONS_USED_CURRENT'로 통일 (개/분, 부호 유지)
-        double usedGrowthPerMin = gaugeSlopePerMin("GAUGE_CLUSTER|SESSIONS_USED_CURRENT", sessUsedSum, windowSec);
+        double usedGrowthPerMin = gaugeSlopePerMin(dbId, "GAUGE_CLUSTER|SESSIONS_USED_CURRENT", sessUsedSum, windowSec);
         out.put("session_growth_rate_per_min", usedGrowthPerMin); // 117
 
         // 118 ETA (분) — 증가율 ≤0이면 NULL (0이 아님), headroom==0도 NULL
@@ -727,54 +753,16 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("arcn_active", (double) arcnActive);
 
         // --- 제한 근접 파라미터 (147~150)
-
-
-        double procCurUtilSum = 0d, procLimitValNumSum = 0d;
-        double sessCurUtilSum2 = 0d, sessLimitValNumSum2 = 0d;
-        for (Map<String, Double> m : bundle.values()) {
-            double a = any(m, "PROCESSES_CURRENT_UTILIZATION","processes_current_utilization","PROCESSES_CURRENT","processes_current");
-            if (!Double.isNaN(a)) procCurUtilSum += a;
-            double b = any(m, "PROCESSES_LIMIT_VALUE_NUM","processes_limit_value_num");
-            if (!Double.isNaN(b)) procLimitValNumSum += b;
-
-            double c = any(m, "SESSIONS_CURRENT_UTILIZATION","sessions_current_utilization","SESSIONS_CURRENT","sessions_current");
-            if (!Double.isNaN(c)) sessCurUtilSum2 += c;
-            double d = any(m, "SESSIONS_LIMIT_VALUE_NUM","sessions_limit_value_num");
-            if (!Double.isNaN(d)) sessLimitValNumSum2 += d;
-        }
+        // (단일 순회에서 이미 계산됨)
         out.put("processes_usage_pct", MetricsEngine.pct(procCurUtilSum, procLimitValNumSum));
         out.put("sessions_usage_pct",  MetricsEngine.pct(sessCurUtilSum2, sessLimitValNumSum2));
 
         // open_cursors_max_session_pct = 100 * max(session별 오픈커서 수) / open_cursors_param_value
-        double openCurMaxSession = Double.NaN;
-        double openCurParamVal = Double.NaN;
-        for (Map<String, Double> m : bundle.values()) {
-            double mx = any(m, "OPEN_CURSORS_MAX_SESSION_COUNT","open_cursors_max_session_count");
-            if (!Double.isNaN(mx)) {
-                if (Double.isNaN(openCurMaxSession) || mx > openCurMaxSession) openCurMaxSession = mx;
-            }
-            double pv = any(m, "OPEN_CURSORS_PARAM_VALUE","open_cursors_param_value","OPEN_CURSORS","open_cursors");
-            if (!Double.isNaN(pv)) {
-
-
-                if (Double.isNaN(openCurParamVal) || pv > openCurParamVal) openCurParamVal = pv;
-            }
-        }
+        // (단일 순회에서 이미 계산됨)
         out.put("open_cursors_max_session_pct", MetricsEngine.pct(openCurMaxSession, openCurParamVal));
 
         // db_files_usage_pct = 100 * datafile_count / db_files_param_value
-        double datafileCount = Double.NaN;
-        double dbFilesParam  = Double.NaN;
-        for (Map<String, Double> m : bundle.values()) {
-            double c = any(m, "DATAFILE_COUNT","datafile_count");
-            if (!Double.isNaN(c)) {
-                if (Double.isNaN(datafileCount) || c > datafileCount) datafileCount = c; // 중복 방지용 max
-            }
-            double p = any(m, "DB_FILES_PARAM_VALUE","db_files_param_value","DB_FILES","db_files");
-            if (!Double.isNaN(p)) {
-                if (Double.isNaN(dbFilesParam) || p > dbFilesParam) dbFilesParam = p;
-            }
-        }
+        // (단일 순회에서 이미 계산됨)
         out.put("db_files_usage_pct", MetricsEngine.pct(datafileCount, dbFilesParam));
 
         /* ========= I/O 성능 지표 — 151~194 ========= */
@@ -1079,16 +1067,12 @@ public class CollectorServiceImpl implements CollectorService {
 
 
         /* ========= DB_ID & 수집시각 ========= */
-        double dbid = 0d;
-        for (var m : bundle.values()) {
-            Double v = m.get("DB_ID"); if (v == null) v = m.get("db_id");
-            if (v != null) { dbid = v; break; }
-        }
+        // (단일 순회에서 이미 계산됨)
         out.put("DB_ID", dbid);
         out.put("COLLECT_EPOCH_MS", (double) t0.toEpochMilli()); // 숫자형 epoch ms
 
-        // Δ 상태 저장
-        store.saveBundle(bundle, t0);
+        // Δ 상태 저장 (DB별 상태 격리)
+        store.saveBundle(dbId, bundle, t0);
 
 
         // dto = out
@@ -1115,7 +1099,37 @@ public class CollectorServiceImpl implements CollectorService {
         return v;
     }
 
-    // metrics bundle 키 조회: 대/소문자/언더스코어/공백 대응
+    // 메트릭 캐싱: Map<String, Double>의 모든 키를 정규화된 키로 캐싱 (대/소문자/공백↔언더스코어 변형 포함)
+    private static Map<String, Double> buildMetricCache(Map<String, Double> m) {
+        if (m == null) return null;
+        Map<String, Double> cache = new HashMap<>();
+        for (Map.Entry<String, Double> entry : m.entrySet()) {
+            String origKey = entry.getKey();
+            Double value = entry.getValue();
+            if (value == null) continue;
+            // 원본 키와 모든 변형을 캐시에 저장
+            cache.put(origKey, value);
+            cache.put(origKey.toUpperCase(), value);
+            cache.put(origKey.toLowerCase(), value);
+            String k4 = origKey.replace(' ', '_');
+            cache.put(k4, value);
+            cache.put(k4.toUpperCase(), value);
+            cache.put(k4.toLowerCase(), value);
+        }
+        return cache;
+    }
+
+    // 캐시에서 메트릭 조회: 첫 번째 키만 확인 (캐시에 모든 변형이 저장되어 있음)
+    private static double cachedAny(Map<String, Double> cache, String... keys) {
+        if (cache == null) return Double.NaN;
+        for (String k : keys) {
+            Double v = cache.get(k);
+            if (v != null) return v;
+        }
+        return Double.NaN;
+    }
+
+    // metrics bundle 키 조회: 대/소문자/언더스코어/공백 대응 (캐싱 미사용 시 사용)
     private static double any(Map<String, Double> m, String... keys) {
         if (m == null) return Double.NaN;
         for (String k : keys) {
@@ -1136,11 +1150,12 @@ public class CollectorServiceImpl implements CollectorService {
         return Double.NaN;
     }
 
-    // 번들에서 "첫 유효 게이지" 추출(인스턴스별 동일값 중복 합산 방지)
+    // 번들에서 "첫 유효 게이지" 추출(인스턴스별 동일값 중복 합산 방지) - 캐시 활용
     private static double firstGauge(Map<Integer, Map<String, Double>> bundle, String... keys) {
         if (bundle == null) return Double.NaN;
         for (Map<String, Double> m : bundle.values()) {
-            double v = any(m, keys);
+            Map<String, Double> cache = buildMetricCache(m);
+            double v = cachedAny(cache, keys);
             if (!Double.isNaN(v)) return v;
         }
         return Double.NaN;
@@ -1185,94 +1200,92 @@ public class CollectorServiceImpl implements CollectorService {
         return Math.round(v * 10.0) / 10.0;
     }
 
-    /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 */
-    private double rate(int instId, String name, double curVal, int windowSec) {
+    /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 (DB별 격리) */
+    private double rate(Long dbId, int instId, String name, double curVal, int windowSec) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(instId, key);
+        var prevOpt = store.get(dbId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value();
             if (d < 0) d = 0; // 리셋 방지
             out = d / Math.max(1, windowSec);
         }
-        store.put(instId, key, curVal, now);
+        store.put(dbId, instId, key, curVal, now);
         return out;
     }
 
-    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 */
-    private double rateUsToAas(int instId, String name, double curUs, int windowSec) {
+    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (DB별 격리) */
+    private double rateUsToAas(Long dbId, int instId, String name, double curUs, int windowSec) {
         if (Double.isNaN(curUs)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(instId, key);
+        var prevOpt = store.get(dbId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curUs - prevOpt.get().value();
             if (d < 0) d = 0;
             out = (d / 1_000_000.0) / Math.max(1, windowSec);
         }
-        store.put(instId, key, curUs, now);
+        store.put(dbId, instId, key, curUs, now);
         return out;
     }
 
-    /** Δ(윈도 분모 없이 순수 증가량) — 상태는 store에 저장 */
-    private double delta(int instId, String name, double curVal) {
+    /** Δ(윈도 분모 없이 순수 증가량) — 상태는 store에 저장 (DB별 격리) */
+    private double delta(Long dbId, int instId, String name, double curVal) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double d = 0d;
-        var prevOpt = store.get(instId, key);
+        var prevOpt = store.get(dbId, instId, key);
         if (prevOpt.isPresent()) {
             d = curVal - prevOpt.get().value();
             if (d < 0) d = 0;
         }
-        store.put(instId, key, curVal, now);
+        store.put(dbId, instId, key, curVal, now);
         return d;
     }
 
-    /** 임의 문자열 키 기반 Δ (예: TOPSQL_CPU|<SQL_ID>) */
-    private double deltaByKey(int instId, String key, double curVal, Instant now) {
+    /** 임의 문자열 키 기반 Δ (예: TOPSQL_CPU|<SQL_ID>) - DB별 격리 */
+    private double deltaByKey(Long dbId, int instId, String key, double curVal, Instant now) {
         if (Double.isNaN(curVal)) return 0d;
         double d = 0d;
-        var prevOpt = store.get(instId, key);
+        var prevOpt = store.get(dbId, instId, key);
         if (prevOpt.isPresent()) {
             d = curVal - prevOpt.get().value();
             if (d < 0) d = 0;
         }
-        store.put(instId, key, curVal, now);
+        store.put(dbId, instId, key, curVal, now);
         return d;
     }
 
-    /** 음수 Δ만 양수로 환산하여 /window (예: disconnects/sec) */
-    private double negRate(int instId, String name, double curVal, int windowSec) {
+    /** 음수 Δ만 양수로 환산하여 /window (예: disconnects/sec) - DB별 격리 */
+    private double negRate(Long dbId, int instId, String name, double curVal, int windowSec) {
         if (Double.isNaN(curVal)) return 0d;
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
-        var prevOpt = store.get(instId, key);
+        var prevOpt = store.get(dbId, instId, key);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value(); // gauge의 증감
             double neg = Math.max(0d, -d);             // 감소분만 취함
             out = neg / Math.max(1, windowSec);
         }
-        store.put(instId, key, curVal, now);
+        store.put(dbId, instId, key, curVal, now);
         return out;
     }
 
-
-    /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_* 증가/감소 감지용, instId=-1 전역키 사용) */
-
-    private double gaugeSlopePerMin(String globalKey, double curVal, int windowSec) {
+    /** gauge(게이지)의 기울기(개/분): 부호 유지 (sessions_* 증가/감소 감지용, instId=-1 전역키 사용) - DB별 격리 */
+    private double gaugeSlopePerMin(Long dbId, String globalKey, double curVal, int windowSec) {
         Instant now = Instant.now();
         double slopePerMin = 0d;
-        var prevOpt = store.get(-1, globalKey);
+        var prevOpt = store.get(dbId, -1, globalKey);
         if (prevOpt.isPresent()) {
             double d = curVal - prevOpt.get().value(); // 증가(+)/감소(-) 모두 허용
             slopePerMin = (d / Math.max(1, windowSec)) * 60.0;
         }
-        store.put(-1, globalKey, curVal, now);
+        store.put(dbId, -1, globalKey, curVal, now);
         return slopePerMin;
     }
 

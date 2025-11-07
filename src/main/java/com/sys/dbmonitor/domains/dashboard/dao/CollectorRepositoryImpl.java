@@ -56,19 +56,15 @@ public class CollectorRepositoryImpl implements CollectorRepository {
     );
 
     @Override
-    public CollectorRawDTO collectSnapshot() {
+    public CollectorRawDTO collectSnapshot(Long dbId) {
         final String plsql = loadClasspathSql(PL_SQL_PATH);
         final CollectorRawDTO out = new CollectorRawDTO();
 
-        Instance instance =         instanceRepository.findById(1L)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
-//        List<DataSource> dataSources = instances.stream().map(instance ->
-//        {
-//            return dynamicDataSourceFactory.getDataSource(instance.getId());
-//        }).toList();
+        Instance instance = instanceRepository.findById(dbId)
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다: dbId=" + dbId));
 
         // 타겟 DB 데이터소스 가져오기
-        DataSource dataSource = dynamicDataSourceFactory.getDataSource(1L);
+        DataSource dataSource = dynamicDataSourceFactory.getDataSource(dbId);
 
         if (dataSource ==  null) {
             throw new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB가 연결되지 않았습니다. 먼저 연결해주세요.");

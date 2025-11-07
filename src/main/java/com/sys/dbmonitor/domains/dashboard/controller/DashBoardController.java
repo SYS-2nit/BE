@@ -36,13 +36,14 @@ public class DashBoardController {
             System.out.println("COLLECT START [" + i + "/" + runs + "] " + OffsetDateTime.now());
             
             // 최종 계산 실행(Δ/Σ/window_sec 포함) — Map<String,Object>
-            Map<String, Object> finals = collectorService.runOnce();
+            // TODO: 실제 운영 시에는 여러 DB를 순회하며 수집 (현재는 테스트용으로 1L 사용)
+            Map<String, Object> finals = collectorService.runOnce(1L);
             
             // finals 내용 일부 확인
             System.out.println("FINAL metrics size=" + finals.size());
             
             // 주요 지표 일부 출력 (처음 200개)
-            finals.entrySet().stream().limit(200).forEach(e ->
+            finals.entrySet().stream().limit(400).forEach(e ->
                 System.out.println(e.getKey() + "=" + e.getValue())
             );
             

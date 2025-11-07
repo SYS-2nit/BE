@@ -21,8 +21,10 @@ import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
  */
 public interface CollectorRepository {
 
-     /** 기본 수집(PL/SQL의 NVL 기본값 사용) */
-     CollectorRawDTO collectSnapshot();
+     /** 기본 수집(PL/SQL의 NVL 기본값 사용)
+      *  @param dbId 대상 DB ID
+      */
+     CollectorRawDTO collectSnapshot(Long dbId);
 
      /**
       * 바인드 옵션을 전달하는 수집 오버로드.
