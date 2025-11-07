@@ -60,7 +60,7 @@ public class CollectorRepositoryImpl implements CollectorRepository {
         final String plsql = loadClasspathSql(PL_SQL_PATH);
         final CollectorRawDTO out = new CollectorRawDTO();
 
-        Instance instance = instanceRepository.findById(dbId)
+        instanceRepository.findById(dbId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다: dbId=" + dbId));
 
         // 타겟 DB 데이터소스 가져오기
