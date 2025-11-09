@@ -35,12 +35,12 @@ public class InstanceCommandController {
             @Valid @RequestBody DatabaseTestRequest request) {
         // Service에서 Exception이 발생하지 않으면 성공
         InstanceTestResponse result = targetDatabaseCommandService.testDatabaseConnection(request);
-        
+
         // 값이 있을 경우에만 사용하고 그 외에는 null 반환
         if (result != null && result.success() != null && result.success()) {
             return ApiResponse.ok(200, result, result.message());
         }
-        
+
         // 성공했지만 result가 null인 경우 (이론적으로 발생하지 않지만 안전장치)
         return ApiResponse.ok(200, null, "DB 연결 테스트가 완료되었습니다.");
     }
@@ -55,13 +55,13 @@ public class InstanceCommandController {
 
         // Service에서 Exception이 발생하지 않으면 성공
         Instance created = targetDatabaseCommandService.createDatabase(request, memberId);
-        
+
         // 값이 있을 경우에만 사용하고 그 외에는 null 반환
         if (created != null) {
             InstanceResponse response = InstanceResponse.from(created);
             return ApiResponse.ok(200, response, "데이터베이스가 등록되었습니다.");
         }
-        
+
         // created가 null인 경우 (이론적으로 발생하지 않지만 안전장치)
         return ApiResponse.ok(200, null, "데이터베이스 등록이 완료되었습니다.");
     }

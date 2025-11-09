@@ -106,10 +106,10 @@ public class InstanceCommandService {
         try {
             // JDBC URL 생성
             String jdbcUrl = request.generateJdbcUrl();
-            
+
             // 테스트용 임시 ID 사용
             Long testInstanceId = -1L;
-            
+
             dynamicDataSourceFactory.createDataSource(
                     testInstanceId,
                     "test-connection",
@@ -119,7 +119,7 @@ public class InstanceCommandService {
             );
             log.info("[Database] DB 연결 테스트 성공: ip={}, port={}, sid={}",
                     request.ip(), request.port(), request.sid());
-            
+
             // 테스트 후 즉시 제거
             dynamicDataSourceFactory.removeDataSource(testInstanceId);
 
@@ -133,37 +133,37 @@ public class InstanceCommandService {
             // 잘못된 타입이나 URL 형식
             log.error("[Database] DB 연결 테스트 실패: 잘못된 요청 -  ip={}, port={}, sid={}, error={}",
                      request.ip(), request.port(), request.sid(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.DB_INVALID_URL, 
+            throw new BadRequestException(ExceptionMessage.DB_INVALID_URL,
                     "데이터베이스 연결 URL 생성 실패: " + e.getMessage());
         } catch (Exception e) {
             // SQL 관련 에러 또는 기타 에러 처리
             String errorMsg = extractErrorMessage(e);
             log.error("[Database] DB 연결 테스트 실패:  ip={}, port={}, sid={}, error={}",
                     request.ip(), request.port(), request.sid(), errorMsg, e);
-            
+
             // SQLException인지 확인 (cause를 통해)
             Throwable cause = e.getCause();
             if (cause instanceof java.sql.SQLException) {
                 java.sql.SQLException sqlEx = (java.sql.SQLException) cause;
                 // 인증 관련 에러인지 확인
-                if (sqlEx.getErrorCode() == 1017 || sqlEx.getMessage().contains("invalid username/password") 
+                if (sqlEx.getErrorCode() == 1017 || sqlEx.getMessage().contains("invalid username/password")
                         || sqlEx.getMessage().contains("ORA-01017")) {
-                    throw new BadRequestException(ExceptionMessage.DB_INVALID_CREDENTIALS, 
+                    throw new BadRequestException(ExceptionMessage.DB_INVALID_CREDENTIALS,
                             "데이터베이스 인증 정보가 올바르지 않습니다: " + errorMsg);
                 }
             }
-            
+
             // 직접 SQLException인 경우
             if (e instanceof java.sql.SQLException) {
                 java.sql.SQLException sqlEx = (java.sql.SQLException) e;
-                if (sqlEx.getErrorCode() == 1017 || sqlEx.getMessage().contains("invalid username/password") 
+                if (sqlEx.getErrorCode() == 1017 || sqlEx.getMessage().contains("invalid username/password")
                         || sqlEx.getMessage().contains("ORA-01017")) {
-                    throw new BadRequestException(ExceptionMessage.DB_INVALID_CREDENTIALS, 
+                    throw new BadRequestException(ExceptionMessage.DB_INVALID_CREDENTIALS,
                             "데이터베이스 인증 정보가 올바르지 않습니다: " + errorMsg);
                 }
             }
-            
-            throw new BadRequestException(ExceptionMessage.DB_CONNECTION_TEST_FAILED, 
+
+            throw new BadRequestException(ExceptionMessage.DB_CONNECTION_TEST_FAILED,
                     "데이터베이스 연결 테스트 실패: " + errorMsg);
         }
     }
@@ -176,7 +176,7 @@ public class InstanceCommandService {
     public Instance createDatabase(DatabaseCreateRequest request, Long memberId) {
         // 이름 중복 확인
         if (dbInfoRepository.existsByName(request.name())) {
-            throw new BadRequestException(ExceptionMessage.DB_NAME_ALREADY_EXISTS, 
+            throw new BadRequestException(ExceptionMessage.DB_NAME_ALREADY_EXISTS,
                     "이미 존재하는 데이터베이스 이름입니다: " + request.name());
         }
 
@@ -189,7 +189,7 @@ public class InstanceCommandService {
             encryptedPassword = PasswordEncryptionUtil.encrypt(request.password(), encryptionKey);
         } catch (Exception e) {
             log.error("[Database] 비밀번호 암호화 실패: error={}", e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                     "비밀번호 암호화 중 오류가 발생했습니다.");
         }
 
@@ -212,7 +212,7 @@ public class InstanceCommandService {
             log.info("[Database] DBInfo 저장 완료: id={}, name={}", savedDbInfo.getId(), savedDbInfo.getName());
         } catch (Exception e) {
             log.error("[Database] DBInfo 저장 실패: name={}, error={}", request.name(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                     "데이터베이스 정보 저장 중 오류가 발생했습니다: " + e.getMessage());
         }
 
@@ -230,12 +230,12 @@ public class InstanceCommandService {
         Instance savedInstance;
         try {
             savedInstance = targetDatabaseRepository.save(instance);
-            log.info("[Database] Instance 저장 완료: id={}, sid={}, url={}", 
+            log.info("[Database] Instance 저장 완료: id={}, sid={}, url={}",
                     savedInstance.getId(), savedInstance.getSid(), savedInstance.getUrl());
         } catch (Exception e) {
-            log.error("[Database] Instance 저장 실패: dbInfoId={}, sid={}, error={}", 
+            log.error("[Database] Instance 저장 실패: dbInfoId={}, sid={}, error={}",
                     savedDbInfo.getId(), request.sid(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                     "데이터베이스 인스턴스 저장 중 오류가 발생했습니다: " + e.getMessage());
         }
 
@@ -251,7 +251,7 @@ public class InstanceCommandService {
                         savedDbInfo.getUserName(),
                         request.password()  // 원본 비밀번호 사용
                 );
-                log.info("[Database] 동적 데이터소스 생성 완료: instanceId={}, dbInfoId={}, name={}", 
+                log.info("[Database] 동적 데이터소스 생성 완료: instanceId={}, dbInfoId={}, name={}",
                         savedInstance.getId(), savedDbInfo.getId(), savedDbInfo.getName());
             } catch (Exception e) {
                 log.error("[Database] 동적 데이터소스 생성 실패: instanceId={}, dbInfoId={}, name={}, error={}",
@@ -272,19 +272,19 @@ public class InstanceCommandService {
     @Transactional
     public DBInfo updateTargetDatabase(Long dbInfoId, InstanceUpdateRequest request) {
         DBInfo dbInfo = dbInfoRepository.findById(dbInfoId)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                         "데이터베이스 정보를 찾을 수 없습니다."));
 
         // 삭제된 DBInfo인지 확인
         if (dbInfo.getIsDeleted() != null && dbInfo.getIsDeleted()) {
-            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                     "삭제된 데이터베이스 정보입니다.");
         }
 
         // 이름 중복 확인 (자신 제외)
         if (request.name() != null && !request.name().equals(dbInfo.getName())) {
             if (dbInfoRepository.existsByNameAndIdNot(request.name(), dbInfoId)) {
-                throw new BadRequestException(ExceptionMessage.DB_NAME_ALREADY_EXISTS, 
+                throw new BadRequestException(ExceptionMessage.DB_NAME_ALREADY_EXISTS,
                         "이미 존재하는 데이터베이스 이름입니다.");
             }
         }
@@ -307,7 +307,7 @@ public class InstanceCommandService {
         );
 
         DBInfo savedDbInfo = dbInfoRepository.save(dbInfo);
-        log.info("[DBInfo] DBInfo 수정 완료: dbInfoId={}, name={}", 
+        log.info("[DBInfo] DBInfo 수정 완료: dbInfoId={}, name={}",
                 savedDbInfo.getId(), savedDbInfo.getName());
 
         // 연결된 모든 Instance의 데이터소스 제거 및 재생성
@@ -319,8 +319,8 @@ public class InstanceCommandService {
             // 활성화된 경우 새로운 데이터소스 생성
             if (savedDbInfo.getIsActive()) {
                 try {
-                    String password = request.password() != null 
-                            ? request.password() 
+                    String password = request.password() != null
+                            ? request.password()
                             : PasswordEncryptionUtil.decrypt(savedDbInfo.getPassword(), encryptionKey);
                     String jdbcUrl = savedDbInfo.generateJdbcUrl(instance.getSid());
                     dynamicDataSourceFactory.createDataSource(
@@ -330,7 +330,7 @@ public class InstanceCommandService {
                             savedDbInfo.getUserName(),
                             password
                     );
-                    log.info("[DBInfo] 동적 데이터소스 재생성 완료: instanceId={}, dbInfoId={}, name={}", 
+                    log.info("[DBInfo] 동적 데이터소스 재생성 완료: instanceId={}, dbInfoId={}, name={}",
                             instance.getId(), savedDbInfo.getId(), savedDbInfo.getName());
                 } catch (Exception e) {
                     log.error("[DBInfo] 동적 데이터소스 재생성 실패: instanceId={}, dbInfoId={}, name={}, error={}",
@@ -348,12 +348,12 @@ public class InstanceCommandService {
     @Transactional
     public void deleteTargetDatabase(Long dbInfoId, String requestedName, String rawPassword) {
         DBInfo dbInfo = dbInfoRepository.findById(dbInfoId)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                         "데이터베이스 정보를 찾을 수 없습니다."));
 
         // 이미 삭제된 경우
         if (dbInfo.getIsDeleted() != null && dbInfo.getIsDeleted()) {
-            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                     "이미 삭제된 데이터베이스 정보입니다.");
         }
 
@@ -384,7 +384,7 @@ public class InstanceCommandService {
         dbInfo.markAsDeleted();
         dbInfoRepository.save(dbInfo);
 
-        log.info("[DBInfo] DBInfo 논리적 삭제 완료: dbInfoId={}, name={}, 연결된 Instance 수={}", 
+        log.info("[DBInfo] DBInfo 논리적 삭제 완료: dbInfoId={}, name={}, 연결된 Instance 수={}",
                 dbInfoId, dbInfo.getName(), instances.size());
     }
 
@@ -476,12 +476,12 @@ public class InstanceCommandService {
     @Transactional
     public Instance activateTargetDatabase(Long id) {
         Instance instance = targetDatabaseRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND, 
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND,
                         "데이터베이스 인스턴스를 찾을 수 없습니다."));
 
         DBInfo dbInfo = instance.getDbInfo();
         if (dbInfo == null) {
-            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                     "데이터베이스 정보를 찾을 수 없습니다.");
         }
 
@@ -533,12 +533,12 @@ public class InstanceCommandService {
     @Transactional
     public Instance connectTargetDatabase(Long id, String password) {
         Instance instance = targetDatabaseRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND, 
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND,
                         "데이터베이스 인스턴스를 찾을 수 없습니다."));
 
         DBInfo dbInfo = instance.getDbInfo();
         if (dbInfo == null) {
-            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                     "데이터베이스 정보를 찾을 수 없습니다.");
         }
 
@@ -611,12 +611,12 @@ public class InstanceCommandService {
     @Transactional
     public Instance deactivateTargetDatabase(Long id) {
         Instance instance = targetDatabaseRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND, 
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND,
                         "데이터베이스 인스턴스를 찾을 수 없습니다."));
 
         DBInfo dbInfo = instance.getDbInfo();
         if (dbInfo == null) {
-            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+            throw new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                     "데이터베이스 정보를 찾을 수 없습니다.");
         }
 
@@ -625,7 +625,7 @@ public class InstanceCommandService {
 
         // 동적 데이터소스 제거
         dynamicDataSourceFactory.removeDataSource(id);
-        log.info("[TargetDatabase] 타겟 DB 비활성화 및 데이터소스 제거 완료: instanceId={}, name={}", 
+        log.info("[TargetDatabase] 타겟 DB 비활성화 및 데이터소스 제거 완료: instanceId={}, name={}",
                 id, savedDbInfo.getName());
 
         return instance;

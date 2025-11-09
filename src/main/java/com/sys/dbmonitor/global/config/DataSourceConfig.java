@@ -131,7 +131,7 @@ public class DataSourceConfig {
         // JDBC URL에 따라 Hibernate Dialect 자동 선택
         String dialect = determineHibernateDialect(oracleUrl);
         properties.setProperty("hibernate.dialect", dialect);
-        
+
         // Oracle NUMBER 타입과 Java Double 매핑 호환성 설정
         if (dialect.contains("Oracle")) {
             properties.setProperty("hibernate.type.prefer_java_time_jdbc_types", "false");

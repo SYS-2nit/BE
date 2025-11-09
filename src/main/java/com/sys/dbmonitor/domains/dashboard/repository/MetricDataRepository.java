@@ -8,7 +8,6 @@ import java.util.List;
 
 @Repository
 public interface MetricDataRepository extends JpaRepository<MetricData, Long>, MetricDataRepositoryCustom {
-    
     /**
      * 인스턴스 ID, 그래프 ID, 시간 단위로 데이터 조회
      */
