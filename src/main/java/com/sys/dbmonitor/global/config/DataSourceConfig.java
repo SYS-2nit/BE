@@ -20,21 +20,12 @@ import java.util.Properties;
 
 /**
  * Oracle 기본 값 설정하는 곳
- * JPA 설정
- */
-/**
- * 다중 데이터소스 설정
- * - Oracle (Primary): 기본 데이터 저장용 (Instance, Member 등 엔티티 저장)
- * - Oracle (동적): 타겟 DB 데이터 수집용 (DynamicDataSourceFactory에서 관리)
  */
 @Configuration
 @Profile("!test")  // 테스트 프로파일에서는 제외
 @EnableTransactionManagement
 @EnableJpaRepositories(
-        basePackages = {
-                "com.sys.dbmonitor.domains.instance.repository",
-                "com.sys.dbmonitor.domains.member.repository"
-        },
+        basePackages = "com.sys.dbmonitor.domains",  // 모든 domains 하위 repository 자동 스캔
         entityManagerFactoryRef = "oracleEntityManagerFactory",
         transactionManagerRef = "oracleTransactionManager"
 )
@@ -130,11 +121,21 @@ public class DataSourceConfig {
         em.setJpaVendorAdapter(vendorAdapter);
 
         Properties properties = new Properties();
+        // update: 엔티티 기반으로 테이블 자동 생성/업데이트
+        // - 테이블이 없으면 생성
+        // - 컬럼이 추가/변경되면 자동 업데이트
+        // - 기존 데이터는 유지 (DROP하지 않음)
         properties.setProperty("hibernate.hbm2ddl.auto", "update");
+        properties.setProperty("hibernate.id.new_generator_mappings", "true");
 
         // JDBC URL에 따라 Hibernate Dialect 자동 선택
         String dialect = determineHibernateDialect(oracleUrl);
         properties.setProperty("hibernate.dialect", dialect);
+        
+        // Oracle NUMBER 타입과 Java Double 매핑 호환성 설정
+        if (dialect.contains("Oracle")) {
+            properties.setProperty("hibernate.type.prefer_java_time_jdbc_types", "false");
+        }
 
         properties.setProperty("hibernate.show_sql", "false");
         properties.setProperty("hibernate.format_sql", "true");
