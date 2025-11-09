@@ -229,3 +229,13 @@ swingbench/scenarios/*.xml
 BOOT-INF/
 BOOT-INF/**
 /docs/
+/src/main/java/com/sys/dbmonitor/global/config/SystemTerminationConfig.java
+/src/main/resources/sql/alter_metric_data_test_double_columns.sql
+/src/main/resources/sql/insert_dashboard_dummy_data.sql
+/src/main/resources/sql/insert_dashboard_dummy_data_30min.sql
+/src/main/resources/sql/insert_graph_data.sql
+/src/main/resources/sql/insert_member_widget_dummy_data.sql
+/src/main/resources/sql/member_widget_table.sql
+/src/main/resources/sql/rename_metric_data_to_test.sql
+/src/api/databases.ts
+/src/api/types.ts
