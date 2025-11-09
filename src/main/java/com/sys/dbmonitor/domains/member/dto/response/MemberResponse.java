@@ -34,9 +34,7 @@ public record MemberResponse(
         @Schema(description = "수정일시")
         LocalDateTime updatedAt
 ) {
-    /**
-     * Member 엔티티를 MemberResponse로 변환
-     */
+
     public static MemberResponse from(Member member) {
         return new MemberResponse(
                 member.getId(),

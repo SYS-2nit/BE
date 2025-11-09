@@ -19,39 +19,21 @@ public class Member extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /**
-     * 사용자명
-     */
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    /**
-     * 이메일
-     */
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    /**
-     * 회사명
-     */
     @Column(nullable = false, length = 100)
     private String company;
 
-    /**
-     * Slack 주소 (nullable)
-     */
     @Column(length = 500)
     private String slackAddress;
 
-    /**
-     * 경고 채널 (nullable)
-     */
     @Column(length = 200)
     private String warningChannel;
 
-    /**
-     * 심각 채널 (nullable)
-     */
     @Column(length = 200)
     private String criticalChannel;
 
@@ -62,9 +44,6 @@ public class Member extends BaseEntity {
         this.company = company;
     }
 
-    /**
-     * 기본 정보 수정 (username, email, company)
-     */
     public void update(String username, String email, String company) {
         if (username != null) this.username = username;
         if (email != null) this.email = email;

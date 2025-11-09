@@ -25,7 +25,7 @@ public class MemberCommandService {
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * 회원 등록 (slackAddress, warningChannel, criticalChannel 제외)
+     * 회원 등록 (이메일, Slack 데이터 제외)
      */
     @Transactional
     public Member createMember(MemberCreateRequest request) {
@@ -98,7 +98,7 @@ public class MemberCommandService {
     }
 
     /**
-     * 주소 정보 업데이트
+     * 주소 정보 업데이트 (email, slack 업데이트)
      * null 값은 기존 값 유지, 새로운 값은 대체
      */
     @Transactional
