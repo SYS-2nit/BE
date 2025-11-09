@@ -45,6 +45,16 @@ public enum ExceptionMessage {
 
     // DB 데이터 정보
     DB_NOT_ACTIVE("활성화 된 DB가 없습니다"),
+    
+    // DB 연결 관련
+    DB_CONNECTION_FAILED("데이터베이스 연결에 실패했습니다."),
+    DB_CONNECTION_TEST_FAILED("데이터베이스 연결 테스트에 실패했습니다."),
+    DB_INVALID_CREDENTIALS("데이터베이스 인증 정보가 올바르지 않습니다."),
+    DB_INVALID_URL("데이터베이스 연결 URL이 올바르지 않습니다."),
+    DB_UNSUPPORTED_TYPE("지원하지 않는 데이터베이스 타입입니다."),
+    DB_NAME_ALREADY_EXISTS("이미 존재하는 데이터베이스 이름입니다."),
+    DB_INFO_NOT_FOUND("데이터베이스 정보를 찾을 수 없습니다."),
+    DB_INSTANCE_NOT_FOUND("데이터베이스 인스턴스를 찾을 수 없습니다."),
 
 
 
