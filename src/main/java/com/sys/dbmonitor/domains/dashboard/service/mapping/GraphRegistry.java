@@ -164,6 +164,10 @@ public final class GraphRegistry {
      * - collectedAt 타임스탬프는 finals에 담긴 수집 시각 키에서 해석
      */
     public static MetricData mapRow(int graphId, long instanceId, Map<String,Object> finals) {
+        return mapRow(graphId, instanceId, "1m", finals);
+    }
+
+    public static MetricData mapRow(int graphId, long instanceId, String intervalType, Map<String,Object> finals) {
         // 1) 그래프 메타(카테고리/이름/필요컬럼)를 가져온다. 정의가 없으면 예외.
         GraphRule r = RULES.get(graphId);
         if (r == null) throw new IllegalArgumentException("Unknown graphId=" + graphId);
@@ -175,9 +179,10 @@ public final class GraphRegistry {
         MetricData row = new MetricData();
         row.setId(null);                      // PK는 DB 시퀀스/IDENTITY로 생성
         row.setInstanceId(instanceId);        // 어떤 인스턴스의 수집값인지
-        row.setCategoryId(r.categoryId());    // 그래프의 카테고리(1~6)
-        row.setGraphId(r.graphId());          // 그래프 ID(1~52+)
+        row.setCategoryId((long) r.categoryId());    // 그래프의 카테고리(1~6)
+        row.setGraphId((long) r.graphId());          // 그래프 ID(1~52+)
         row.setCollectedAt(ts);               // 수집 시각
+        row.setIntervalType(intervalType);
 
         // 5) 해당 그래프가 요구하는 컬럼 목록(r.columns())만 선택적으로 채운다.
         //    (finals에 없는 키는 건너뛰며, 숫자/문자/시간 타입에 맞춰 안전 변환)
