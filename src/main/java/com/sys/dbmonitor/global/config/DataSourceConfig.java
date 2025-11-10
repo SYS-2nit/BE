@@ -33,7 +33,8 @@ import java.util.Properties;
 @EnableJpaRepositories(
         basePackages = {
                 "com.sys.dbmonitor.domains.instance.repository",
-                "com.sys.dbmonitor.domains.member.repository"
+                "com.sys.dbmonitor.domains.member.repository",
+                "com.sys.dbmonitor.domains.topSql.repository"
         },
         entityManagerFactoryRef = "oracleEntityManagerFactory",
         transactionManagerRef = "oracleTransactionManager"
