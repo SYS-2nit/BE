@@ -16,7 +16,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Member extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "member_seq")
+    @SequenceGenerator(name = "member_seq", sequenceName = "SEQ_MEMBER_ID", allocationSize = 1)
     private Long id;
 
     @Column(nullable = false, unique = true, length = 100)
