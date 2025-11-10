@@ -20,34 +20,32 @@ public class SqlCommandService {
     // private final SqlRepository sqlRepository;
 
     /**
-     * SQL 데이터 등록 (테스트용 하드코딩)
+     * SQL 데이터 등록 (현재는 더미 생성 후 반환)
      */
     @Transactional
     public Sql createSql(SqlCreateRequest request) {
-        // 실제 연결 시에는 아래 코드 사용
-        /*
-        Sql sql = SqlData.builder()
+        Sql sql = Sql.builder()
                 .instanceId(request.instanceId())
-                .field3(request.field3())
-                .field4(request.field4())
-                .field5(request.field5())
-                .isDeleted(false)
+                .sqlId(request.sqlId())
+                .planHashValue(request.planHashValue())
+                .bufferGetsDelta(request.bufferGetsDelta())
+                .cpuUsDelta(request.cpuUsDelta())
+                .diskReadsDelta(request.diskReadsDelta())
+                .elapsedUsDelta(request.elapsedUsDelta())
+                .executionsDelta(request.executionsDelta())
+                .waitTimeUsDelta(request.waitTimeUsDelta())
+                .waitUserIoUsDelta(null)
+                .waitConcurrencyUsDelta(null)
+                .waitApplicationUsDelta(null)
+                .waitClusterUsDelta(null)
+                .waitPlsqlUsDelta(null)
+                .waitJavaUsDelta(null)
+                .sqlText(request.sqlText())
                 .build();
-
-        Sql saved = sqlRepository.save(sql);
-        log.info("[SQL] 데이터 등록 완료: id={}, instanceId={}", saved.getId(), saved.getInstanceId());
-        return saved;
-        */
-
-        // 지금은 DB 없이 하드코딩된 객체 반환
-        Sql dummy = Sql.builder()
-                .instanceId(request.instanceId())
-                .field3(request.field3())
-                .field4(request.field4())
-                .field5(request.field5()).build();
-
-        log.info("[SQL] (더미) 데이터 등록 완료: instanceId={}, field3={}", dummy.getInstanceId(), dummy.getField3());
-        return dummy;
+        log.info("[SQL] (더미) 데이터 생성: instanceId={}, sqlId={}, textLen={}",
+                sql.getInstanceId(), sql.getSqlId(),
+                sql.getSqlText() != null ? sql.getSqlText().length() : 0);
+        return sql;
     }
 
     /**
@@ -55,8 +53,8 @@ public class SqlCommandService {
      */
     @Transactional
     public Sql updateSql(Sql sql, SqlCreateRequest request) {
-        sql.update(request.field3(), request.field4(), request.field5());
-        log.info("[SQL] 데이터 수정 완료: id={}, field3={}", sql.getId(), sql.getField3());
+        sql.updateSqlText(request.sqlText());
+        log.info("[SQL] 데이터 수정 완료: id={}, sqlId={}", sql.getId(), sql.getSqlId());
         return sql;
     }
 

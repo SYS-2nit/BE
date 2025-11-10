@@ -2,16 +2,13 @@ package com.sys.dbmonitor.domains.sql.domain;
 
 import com.sys.dbmonitor.global.common.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sql_data")
+@Table(name = "SQL_DATA")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EntityListeners(AuditingEntityListener.class)
@@ -24,43 +21,100 @@ public class Sql extends BaseEntity {
     @Column(name = "instance_id", nullable = false)
     private Long instanceId;
 
-    @Column(name = "field3", length = 255)
-    private String field3;
+    @Column(name = "sql_id")
+    private Long sqlId;
 
-    @Column(name = "field4", length = 255)
-    private String field4;
+    @Column(name = "plan_hash_value")
+    private Long planHashValue;
 
-    @Column(name = "field5", length = 255)
-    private String field5;
+    @Column(name = "buffer_gets_delta")
+    private Long bufferGetsDelta;
 
-    @Column(name = "is_deleted")
-    private Boolean isDeleted = false;
+    @Column(name = "cpu_us_delta")
+    private Long cpuUsDelta;
+
+    @Column(name = "disk_reads_delta")
+    private Long diskReadsDelta;
+
+    @Column(name = "elapsed_us_delta")
+    private Long elapsedUsDelta;
+
+    @Column(name = "executions_delta")
+    private Long executionsDelta;
+
+    @Column(name = "wait_time_us_delta")
+    private Long waitTimeUsDelta;
+
+    @Column(name = "wait_user_io_us_delta")
+    private Long waitUserIoUsDelta;
+
+    @Column(name = "wait_concurrency_us_delta")
+    private Long waitConcurrencyUsDelta;
+
+    @Column(name = "wait_application_us_delta")
+    private Long waitApplicationUsDelta;
+
+    @Column(name = "wait_cluster_us_delta")
+    private Long waitClusterUsDelta;
+
+    @Column(name = "wait_plsql_us_delta")
+    private Long waitPlsqlUsDelta;
+
+    @Column(name = "wait_java_us_delta")
+    private Long waitJavaUsDelta;
+
+    @Column(name = "sql_text", length = 4000)
+    private String sqlText;
 
     @Builder
-    public Sql(Long instanceId, String field3, String field4, String field5, Boolean isDeleted) {
+    public Sql(Long instanceId,
+               Long sqlId,
+               Long planHashValue,
+               Long bufferGetsDelta,
+               Long cpuUsDelta,
+               Long diskReadsDelta,
+               Long elapsedUsDelta,
+               Long executionsDelta,
+               Long waitTimeUsDelta,
+               Long waitUserIoUsDelta,
+               Long waitConcurrencyUsDelta,
+               Long waitApplicationUsDelta,
+               Long waitClusterUsDelta,
+               Long waitPlsqlUsDelta,
+               Long waitJavaUsDelta,
+               String sqlText) {
         this.instanceId = instanceId;
-        this.field3 = field3;
-        this.field4 = field4;
-        this.field5 = field5;
-        this.isDeleted = isDeleted != null ? isDeleted : false;
+        this.sqlId = sqlId;
+        this.planHashValue = planHashValue;
+        this.bufferGetsDelta = bufferGetsDelta;
+        this.cpuUsDelta = cpuUsDelta;
+        this.diskReadsDelta = diskReadsDelta;
+        this.elapsedUsDelta = elapsedUsDelta;
+        this.executionsDelta = executionsDelta;
+        this.waitTimeUsDelta = waitTimeUsDelta;
+        this.waitUserIoUsDelta = waitUserIoUsDelta;
+        this.waitConcurrencyUsDelta = waitConcurrencyUsDelta;
+        this.waitApplicationUsDelta = waitApplicationUsDelta;
+        this.waitClusterUsDelta = waitClusterUsDelta;
+        this.waitPlsqlUsDelta = waitPlsqlUsDelta;
+        this.waitJavaUsDelta = waitJavaUsDelta;
+        this.sqlText = sqlText;
     }
 
-    /** 업데이트 로직 */
-    public void update(String field3, String field4, String field5) {
-        if (field3 != null) this.field3 = field3;
-        if (field4 != null) this.field4 = field4;
-        if (field5 != null) this.field5 = field5;
+    /** SQL 텍스트 수정 */
+    public void updateSqlText(String sqlText) {
+        if (sqlText != null) this.sqlText = sqlText;
         touchUpdatedAt();
     }
 
-    /** 소프트 삭제 로직 */
+    /** 소프트 삭제 */
     public void delete() {
-        this.isDeleted = true;
+        super.markAsDeleted();
         touchUpdatedAt();
     }
 
-    /** 수동 업데이트 시간 반영 */
+    /** 수동 수정 시각 갱신 */
     public void touchUpdatedAt() {
-        super.setUpdatedAt(LocalDateTime.now()); // 이제 에러 사라짐 ✅
+        super.setUpdatedAt(LocalDateTime.now());
     }
 }

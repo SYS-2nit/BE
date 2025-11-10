@@ -11,16 +11,31 @@ public record SqlCreateRequest(
         @Schema(description = "Instance 식별자", example = "1")
         Long instanceId,
 
-        @Size(max = 255, message = "Field3은 최대 255자까지 입력 가능합니다.")
-        @Schema(description = "SQL 관련 필드3", example = "SELECT * FROM EMP")
-        String field3,
+        @Schema(description = "SQL ID", example = "123456")
+        Long sqlId,
 
-        @Size(max = 255, message = "Field4는 최대 255자까지 입력 가능합니다.")
-        @Schema(description = "SQL 관련 필드4", example = "example_value_4")
-        String field4,
+        @Schema(description = "Plan Hash Value", example = "987654321")
+        Long planHashValue,
 
-        @Size(max = 255, message = "Field5는 최대 255자까지 입력 가능합니다.")
-        @Schema(description = "SQL 관련 필드5", example = "example_value_5")
-        String field5
-) {
-}
+        @Schema(description = "버퍼 읽기 델타", example = "120")
+        Long bufferGetsDelta,
+
+        @Schema(description = "CPU 사용량 (μs)", example = "15000")
+        Long cpuUsDelta,
+
+        @Schema(description = "디스크 읽기 델타", example = "300")
+        Long diskReadsDelta,
+
+        @Schema(description = "Elapsed Time (μs)", example = "25000")
+        Long elapsedUsDelta,
+
+        @Schema(description = "Executions Delta", example = "12")
+        Long executionsDelta,
+
+        @Schema(description = "Wait Time (μs)", example = "6000")
+        Long waitTimeUsDelta,
+
+        @Size(max = 4000, message = "SQL 문장은 최대 4000자까지 입력 가능합니다.")
+        @Schema(description = "SQL 텍스트", example = "SELECT * FROM EMP")
+        String sqlText
+) { }

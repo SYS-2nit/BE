@@ -8,43 +8,31 @@ import java.time.LocalDateTime;
 @Schema(description = "SQL 데이터 응답")
 public record SqlResponse(
 
-        @Schema(description = "SQL 데이터 ID")
-        Long id,
-
-        @Schema(description = "Instance 식별자")
-        Long instanceId,
-
-        @Schema(description = "SQL 관련 필드3")
-        String field3,
-
-        @Schema(description = "SQL 관련 필드4")
-        String field4,
-
-        @Schema(description = "SQL 관련 필드5")
-        String field5,
-
-        @Schema(description = "삭제 여부")
-        Boolean isDeleted,
-
-        @Schema(description = "생성일시")
-        LocalDateTime createdAt,
-
-        @Schema(description = "수정일시")
-        LocalDateTime updatedAt
+        @Schema(description = "SQL 데이터 ID") Long id,
+        @Schema(description = "Instance ID") Long instanceId,
+        @Schema(description = "SQL ID") Long sqlId,
+        @Schema(description = "Plan Hash Value") Long planHashValue,
+        @Schema(description = "CPU 사용량") Long cpuUsDelta,
+        @Schema(description = "Elapsed Time") Long elapsedUsDelta,
+        @Schema(description = "Executions") Long executionsDelta,
+        @Schema(description = "SQL 텍스트") String sqlText,
+        @Schema(description = "삭제 여부") Boolean isDeleted,
+        @Schema(description = "생성 시각") LocalDateTime createdAt,
+        @Schema(description = "수정 시각") LocalDateTime updatedAt
 ) {
-    /**
-     * SqlData 엔티티를 SqlResponse로 변환
-     */
-    public static SqlResponse from(Sql sqlData) {
+    public static SqlResponse from(Sql sql) {
         return new SqlResponse(
-                sqlData.getId(),
-                sqlData.getInstanceId(),
-                sqlData.getField3(),
-                sqlData.getField4(),
-                sqlData.getField5(),
-                sqlData.getIsDeleted(),
-                sqlData.getCreatedAt(),
-                sqlData.getUpdatedAt()
+                sql.getId(),
+                sql.getInstanceId(),
+                sql.getSqlId(),
+                sql.getPlanHashValue(),
+                sql.getCpuUsDelta(),
+                sql.getElapsedUsDelta(),
+                sql.getExecutionsDelta(),
+                sql.getSqlText(),
+                sql.getIsDeleted(),
+                sql.getCreatedAt(),
+                sql.getUpdatedAt()
         );
     }
 }

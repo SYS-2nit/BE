@@ -46,13 +46,18 @@ public class SqlCommandController {
             @PathVariable Long id,
             @Valid @RequestBody SqlCreateRequest request) {
 
-        // 현재 DB 미연결 상태라 더미 객체 생성
+        // 현재는 DB 미연결 상태: 입력값을 이용한 임시 엔티티 생성 후 수정 메서드 호출
         Sql dummy = Sql.builder()
                 .instanceId(request.instanceId())
-                .field3(request.field3())
-                .field4(request.field4())
-                .field5(request.field5())
-                .isDeleted(false)
+                .sqlId(request.sqlId())
+                .planHashValue(request.planHashValue())
+                .bufferGetsDelta(request.bufferGetsDelta())
+                .cpuUsDelta(request.cpuUsDelta())
+                .diskReadsDelta(request.diskReadsDelta())
+                .elapsedUsDelta(request.elapsedUsDelta())
+                .executionsDelta(request.executionsDelta())
+                .waitTimeUsDelta(request.waitTimeUsDelta())
+                .sqlText(request.sqlText())
                 .build();
 
         Sql updated = sqlCommandService.updateSql(dummy, request);
@@ -68,9 +73,9 @@ public class SqlCommandController {
         log.info("[SQL][GET] 더미 리스트 조회 요청 수신");
 
         List<SqlResponse> dummyList = List.of(
-                new SqlResponse(1L, 101L, "SELECT * FROM EMP", "dummyField4_1", "dummyField5_1", false, LocalDateTime.now(), LocalDateTime.now()),
-                new SqlResponse(2L, 102L, "SELECT COUNT(*) FROM USERS", "dummyField4_2", "dummyField5_2", false, LocalDateTime.now(), LocalDateTime.now()),
-                new SqlResponse(3L, 103L, "SELECT SYSDATE FROM DUAL", "dummyField4_3", "dummyField5_3", false, LocalDateTime.now(), LocalDateTime.now())
+                SqlResponse.from(Sql.builder().instanceId(1L).sqlId(101L).sqlText("SELECT * FROM EMP").elapsedUsDelta(2L).executionsDelta(6L).cpuUsDelta(3723L).build()),
+                SqlResponse.from(Sql.builder().instanceId(1L).sqlId(102L).sqlText("SELECT COUNT(*) FROM USERS").elapsedUsDelta(2L).executionsDelta(5L).cpuUsDelta(16722L).build()),
+                SqlResponse.from(Sql.builder().instanceId(1L).sqlId(103L).sqlText("SELECT SYSDATE FROM DUAL").elapsedUsDelta(1L).executionsDelta(0L).cpuUsDelta(1789L).build())
         );
 
         log.info("[SQL][GET] 더미 리스트 조회 성공 ({}개)", dummyList.size());
