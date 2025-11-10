@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.instance.dto.response;
 
+import com.sys.dbmonitor.domains.instance.domain.DBInfo;
 import com.sys.dbmonitor.domains.instance.domain.Instance;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -28,25 +29,52 @@ public record InstanceResponse(
         @Schema(description = "수정일시")
         LocalDateTime updatedAt
 ) {
-    public static InstanceResponse from(Instance targetDatabase) {
+    public static InstanceResponse from(Instance instance) {
+        // Instance가 DBInfo를 참조하는 경우
+        if (instance.getDbInfo() != null) {
+            com.sys.dbmonitor.domains.instance.domain.DBInfo dbInfo = instance.getDbInfo();
+            // Instance에 저장된 URL 사용 (없으면 생성)
+            String jdbcUrl = instance.getUrl() != null 
+                    ? instance.getUrl() 
+                    : dbInfo.generateJdbcUrl(instance.getSid());
+            return new InstanceResponse(
+                    instance.getId(),
+                    dbInfo.getName(),
+                    maskUrl(jdbcUrl),
+                    dbInfo.getUserName(),
+                    dbInfo.getIsActive(),
+                    instance.getCreatedAt(),
+                    instance.getUpdatedAt()
+            );
+        }
+        
+        // 기존 구조 (하위 호환성)
         return new InstanceResponse(
-                targetDatabase.getId(),
-                targetDatabase.getName(),
-                maskUrl(targetDatabase.getUrl()),
-                targetDatabase.getUsername(),
-                targetDatabase.getIsActive(),
-                targetDatabase.getCreatedAt(),
-                targetDatabase.getUpdatedAt()
+                instance.getId(),
+                null,  // name은 DBInfo에 있음
+                instance.getUrl(),  // Instance에 저장된 URL 사용
+                null,  // username은 DBInfo에 있음
+                null,  // isActive는 DBInfo에 있음
+                instance.getCreatedAt(),
+                instance.getUpdatedAt()
         );
     }
 
-    /**
-     * URL의 비밀번호 부분을 마스킹 (보안을 위해)
-     */
+    public static InstanceResponse from(DBInfo dbInfo) {
+        return new InstanceResponse(
+                dbInfo.getId(),
+                dbInfo.getName(),
+                String.format("jdbc:oracle:thin:@%s:%d", dbInfo.getIp(), dbInfo.getPort()),
+                dbInfo.getUserName(),
+                dbInfo.getIsActive(),
+                dbInfo.getCreatedAt(),
+                dbInfo.getUpdatedAt()
+        );
+    }
+
+
     private static String maskUrl(String url) {
         if (url == null) return null;
-        // jdbc:oracle:thin:@host:port:sid 형식은 그대로 반환
-        // URL에 비밀번호가 포함된 경우를 대비한 마스킹 로직 (필요시 구현)
         return url;
     }
 }
