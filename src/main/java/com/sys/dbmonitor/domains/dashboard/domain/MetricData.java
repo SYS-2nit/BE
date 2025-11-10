@@ -23,13 +23,16 @@ public class MetricData {
     private Long instanceId;
 
     @Column(name = "category_id", nullable = false)
-    private Integer categoryId; // 1..6
+    private Long categoryId; // 1..6
 
     @Column(name = "graph_id", nullable = false)
-    private Integer graphId;    // 1..53
+    private Long graphId;    // 1..53
 
     @Column(name = "collected_at", nullable = false)
     private LocalDateTime collectedAt;
+
+    @Column(name = "interval_type", nullable = false, length = 10)
+    private String intervalType;
 
     /* ===== Custom(1) / CPU(2) / Memory(3) / Session(4) / I/O(5) / Storage(6) Superset ===== */
 
@@ -173,7 +176,8 @@ public class MetricData {
     @Column(name = "HARD_PARSES_PER_SEC")
     private Double hardParsesPerSec;
     @Column(name = "LIBRARY_CACHE_RELOADS_PER_SEC")
-    private Double libcacheReloadPerSec;
+//    private Double libcacheReloadPerSec;
+    private Double libraryCacheReloadsPerSec;
     @Column(name = "BUFFER_MISS_PCT")
     private Double bufferMissPct;
 
