@@ -134,7 +134,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             
             // MEMORY 관련
             case "workarea_spill_rate_pct" -> metricData.workareaSpillRatePct;
-            case "libcache_reload_per_s" -> metricData.libcacheReloadPerS;
+            case "libcache_reload_per_sec" -> metricData.libraryCacheReloadsPerSec;
             case "hard_parses_per_sec" -> metricData.hardParsesPerSec;
             case "spill_mb_per_min" -> metricData.spillMbPerMin;
             case "shared_pool_free_bytes" -> metricData.sharedPoolFreeBytes;
