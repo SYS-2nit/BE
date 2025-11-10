@@ -16,6 +16,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // /api/**/coupons/**를 통해 들어올때는 userIdInterceptor가 자동으로 실행됨
         registry.addInterceptor(userIdInterceptor)
-                .addPathPatterns("/api/**/coupons/**");
+                .addPathPatterns("/api/**/coupons/**")
+                .addPathPatterns("/api/dashboards/widgets/**") // 위젯 설정 API에도 적용
+                .addPathPatterns("/api/dashboards/data"); // 대시보드 데이터 조회 API에도 적용
     }
 }

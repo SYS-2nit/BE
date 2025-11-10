@@ -1,7 +1,10 @@
 package com.sys.dbmonitor.domains.instance.service.query;
 
+import com.sys.dbmonitor.domains.instance.domain.DBInfo;
 import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.domains.instance.repository.DBInfoRepository;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.dto.response.InstanceListResponse;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceResponse;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
@@ -22,13 +25,14 @@ import java.util.stream.Collectors;
 public class InstanceQueryService {
 
     private final InstanceRepository instanceRepository;
+    private final DBInfoRepository dbInfoRepository;
     private final DynamicDataSourceFactory dynamicDataSourceFactory;
 
     /**
      * 타겟 DB 목록 조회 (전체)
      */
     public List<InstanceResponse> getAllTargetDatabases() {
-        return instanceRepository.findAll().stream()
+        return dbInfoRepository.findByIsDeletedFalse().stream()
                 .map(InstanceResponse::from)
                 .collect(Collectors.toList());
     }
@@ -37,10 +41,14 @@ public class InstanceQueryService {
      * 활성화된 타겟 DB 목록 조회
      */
     public List<InstanceResponse> getActiveTargetDatabases() {
-        List<Instance> activeTargetDatabases = instanceRepository.findByIsActive(false)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_NOT_ACTIVE,"활성화 된 DB가 없습니다."));
+        // 활성화된 DBInfo 목록 조회
+        List<DBInfo> activeDbInfos = dbInfoRepository.findByIsActiveTrueAndIsDeletedFalse();
+        
+        if (activeDbInfos.isEmpty()) {
+            throw new NotFoundException(ExceptionMessage.DB_NOT_ACTIVE, "활성화 된 DB가 없습니다.");
+        }
 
-        return activeTargetDatabases.stream()
+        return activeDbInfos.stream()
                 .map(InstanceResponse::from)
                 .collect(Collectors.toList());
     }
@@ -49,19 +57,33 @@ public class InstanceQueryService {
      * 타겟 DB 상세 조회
      */
     public InstanceResponse getTargetDatabase(Long id) {
-        Instance targetDatabase = instanceRepository.findById(id)
+        Instance targetDatabase = instanceRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
+
+        if (targetDatabase.getDbInfo() != null && Boolean.TRUE.equals(targetDatabase.getDbInfo().getIsDeleted())) {
+            throw new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다.");
+        }
         return InstanceResponse.from(targetDatabase);
     }
 
     /**
-     * 이름으로 타겟 DB 조회
+     * 이름으로 타겟 DB 조회 (DBInfo의 name으로 조회)
      */
-
     public InstanceResponse getTargetDatabaseByName(String name) {
-        Instance targetDatabase = instanceRepository.findByName(name)
-                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
-        return InstanceResponse.from(targetDatabase);
+        // DBInfo에서 name으로 조회
+        DBInfo dbInfo = dbInfoRepository.findByNameAndIsDeletedFalse(name)
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND, 
+                        "데이터베이스 정보를 찾을 수 없습니다: " + name));
+        
+        // 해당 DBInfo에 연결된 첫 번째 Instance 조회
+        List<Instance> instances = instanceRepository.findByDbInfoAndIsDeletedFalse(dbInfo);
+        if (instances.isEmpty()) {
+            throw new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND, 
+                    "데이터베이스 인스턴스를 찾을 수 없습니다: " + name);
+        }
+        
+        // 첫 번째 Instance 반환 (여러 개인 경우 첫 번째)
+        return InstanceResponse.from(instances.get(0));
     }
 
     /**
@@ -69,8 +91,12 @@ public class InstanceQueryService {
      */
     public List<Map<String, Object>> queryTargetDatabase(Long instanceId) {
         // 타겟 DB 존재 확인
-        instanceRepository.findById(instanceId)
+        Instance instance = instanceRepository.findByIdAndIsDeletedFalse(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다."));
+
+        if (instance.getDbInfo() != null && Boolean.TRUE.equals(instance.getDbInfo().getIsDeleted())) {
+            throw new NotFoundException(ExceptionMessage.NOT_FOUND, "타겟 DB를 찾을 수 없습니다.");
+        }
 
         // 타겟 DB 데이터소스 가져오기
         DataSource dataSource = dynamicDataSourceFactory.getDataSource(instanceId);
@@ -85,8 +111,26 @@ public class InstanceQueryService {
         String sql = "SELECT TABLE_NAME, TABLESPACE_NAME, NUM_ROWS, LAST_ANALYZED " +
                      "FROM USER_TABLES " +
                      "ORDER BY TABLE_NAME";
-        
+
+
         return jdbcTemplate.queryForList(sql);
+    }
+
+    /**
+     * 특정 DB에 속한 인스턴스 목록 조회
+     */
+    public List<InstanceListResponse> getInstancesByDatabase(Long dbInfoId) {
+        DBInfo dbInfo = dbInfoRepository.findByIdAndIsDeletedFalse(dbInfoId)
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
+                        "데이터베이스 정보를 찾을 수 없습니다."));
+
+        List<Instance> instances = instanceRepository.findByDbInfoIdAndIsDeletedFalse(dbInfoId);
+
+        return instances.stream()
+                .filter(instance -> instance.getDbInfo() == null
+                        || Boolean.FALSE.equals(instance.getDbInfo().getIsDeleted()))
+                .map(InstanceListResponse::from)
+                .collect(Collectors.toList());
     }
 }
 
