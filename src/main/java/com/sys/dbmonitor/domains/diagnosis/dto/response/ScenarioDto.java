@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.diagnosis.repository.response;
+package com.sys.dbmonitor.domains.diagnosis.dto.response;
 
 import com.sys.dbmonitor.domains.diagnosis.domain.ScenarioType;
 

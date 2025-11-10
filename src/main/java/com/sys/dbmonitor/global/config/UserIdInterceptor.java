@@ -8,6 +8,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class UserIdInterceptor implements HandlerInterceptor {
     private static final String USER_ID_HEADER = "X-User-ID";
+    private static final Long DEFAULT_USER_ID = 1L; // 기본 사용자 ID (로그인 기능 구현 전까지 고정)
+    
     // 현재 요청의 사용자 ID를 저장하는 ThreadLocal 객체입니다. 이를 통해 스레드 간 데이터 충돌을 방지합니다.
     private static final ThreadLocal<Long> currentUserId = new ThreadLocal<>();
 
@@ -16,28 +18,36 @@ public class UserIdInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String userIdStr = request.getHeader(USER_ID_HEADER);
+        
+        // 헤더가 없거나 비어있으면 기본 사용자 ID(1) 사용
         if(userIdStr == null || userIdStr.isEmpty()) {
-            throw new IllegalStateException("X-User-ID header is required");
+            currentUserId.set(DEFAULT_USER_ID);
+            return true;
         }
 
+        // 헤더가 있으면 파싱하여 사용
         try{
             currentUserId.set(Long.parseLong(userIdStr));       // Thread에 현재 UserId 값 저장
             return true;
         }catch (NumberFormatException e){
-            throw new IllegalStateException("Invalid X-User-ID header");
+            // 파싱 실패 시 기본 사용자 ID 사용
+            currentUserId.set(DEFAULT_USER_ID);
+            return true;
         }
     }
 
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        currentUserId.remove();     // Thread애 저장된 값 삭제
+        currentUserId.remove();     // Thread에 저장된 값 삭제
     }
 
     // 현재 스레드에 저장된 사용자 ID를 반환
+    // 저장된 값이 없으면 기본 사용자 ID(1) 반환
     public static Long getCurrentUserId(){
         Long userId = currentUserId.get();
         if(userId == null) {
-            throw new IllegalStateException("X-User-ID header is required");
+            // ThreadLocal에 값이 없으면 기본 사용자 ID 반환
+            return DEFAULT_USER_ID;
         }
         return userId;
     }

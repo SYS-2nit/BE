@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.instance.controller.query;
 
+import com.sys.dbmonitor.domains.instance.dto.response.InstanceListResponse;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceResponse;
 import com.sys.dbmonitor.domains.instance.service.query.InstanceQueryService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
@@ -53,6 +54,13 @@ public class InstanceQueryController {
     public ApiResponse<List<Map<String, Object>>> getTargetDatabaseData(@PathVariable(name = "id") Long instanceId) {
         List<Map<String, Object>>  targetDatabase = targetDatabaseQueryService.queryTargetDatabase(instanceId);
         return ApiResponse.ok(200, targetDatabase, "타겟 DB 데이터를 조회했습니다.");
+    }
+
+    @Operation(summary = "특정 DB의 인스턴스 목록 조회", description = "선택한 DB에 속한 인스턴스 목록을 조회합니다.")
+    @GetMapping("/{id}/instances")
+    public ApiResponse<List<InstanceListResponse>> getInstancesByDatabase(@PathVariable(name = "id") Long dbInfoId) {
+        List<InstanceListResponse> responses = targetDatabaseQueryService.getInstancesByDatabase(dbInfoId);
+        return ApiResponse.ok(200, responses, "DB 인스턴스 목록을 조회했습니다.");
     }
 
 

@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.diagnosis.repository.response;
+package com.sys.dbmonitor.domains.diagnosis.dto.response;
 
 import java.util.List;
 
