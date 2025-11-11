@@ -5,116 +5,88 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "SQL_DATA")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
 @EntityListeners(AuditingEntityListener.class)
 public class Sql extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "ID")
     private Long id;
 
-    @Column(name = "instance_id", nullable = false)
+    @Column(name = "INSTANCE_ID", nullable = false)
     private Long instanceId;
 
-    @Column(name = "sql_id")
-    private Long sqlId;
+    @Column(name = "SQL_ID", length = 13)
+    private String sqlId;
 
-    @Column(name = "plan_hash_value")
+    @Column(name = "PLAN_HASH_VALUE")
     private Long planHashValue;
 
-    @Column(name = "buffer_gets_delta")
+    @Column(name = "BUFFER_GETS_DELTA")
     private Long bufferGetsDelta;
 
-    @Column(name = "cpu_us_delta")
+    @Column(name = "CPU_US_DELTA")
     private Long cpuUsDelta;
 
-    @Column(name = "disk_reads_delta")
+    @Column(name = "DISK_READS_DELTA")
     private Long diskReadsDelta;
 
-    @Column(name = "elapsed_us_delta")
+    @Column(name = "ELAPSED_US_DELTA")
     private Long elapsedUsDelta;
 
-    @Column(name = "executions_delta")
+    @Column(name = "EXECUTIONS_DELTA")
     private Long executionsDelta;
 
-    @Column(name = "wait_time_us_delta")
+    @Column(name = "WAIT_TIME_US_DELTA")
     private Long waitTimeUsDelta;
 
-    @Column(name = "wait_user_io_us_delta")
+    @Column(name = "WAIT_USER_IO_US_DELTA")
     private Long waitUserIoUsDelta;
 
-    @Column(name = "wait_concurrency_us_delta")
+    @Column(name = "WAIT_CONCURRENCY_US_DELTA")
     private Long waitConcurrencyUsDelta;
 
-    @Column(name = "wait_application_us_delta")
+    @Column(name = "WAIT_APPLICATION_US_DELTA")
     private Long waitApplicationUsDelta;
 
-    @Column(name = "wait_cluster_us_delta")
+    @Column(name = "WAIT_CLUSTER_US_DELTA")
     private Long waitClusterUsDelta;
 
-    @Column(name = "wait_plsql_us_delta")
+    @Column(name = "WAIT_PLSQL_US_DELTA")
     private Long waitPlsqlUsDelta;
 
-    @Column(name = "wait_java_us_delta")
+    @Column(name = "WAIT_JAVA_US_DELTA")
     private Long waitJavaUsDelta;
 
-    @Column(name = "sql_text", length = 4000)
+    @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
-    @Builder
-    public Sql(Long instanceId,
-               Long sqlId,
-               Long planHashValue,
-               Long bufferGetsDelta,
-               Long cpuUsDelta,
-               Long diskReadsDelta,
-               Long elapsedUsDelta,
-               Long executionsDelta,
-               Long waitTimeUsDelta,
-               Long waitUserIoUsDelta,
-               Long waitConcurrencyUsDelta,
-               Long waitApplicationUsDelta,
-               Long waitClusterUsDelta,
-               Long waitPlsqlUsDelta,
-               Long waitJavaUsDelta,
-               String sqlText) {
-        this.instanceId = instanceId;
-        this.sqlId = sqlId;
-        this.planHashValue = planHashValue;
-        this.bufferGetsDelta = bufferGetsDelta;
-        this.cpuUsDelta = cpuUsDelta;
-        this.diskReadsDelta = diskReadsDelta;
-        this.elapsedUsDelta = elapsedUsDelta;
-        this.executionsDelta = executionsDelta;
-        this.waitTimeUsDelta = waitTimeUsDelta;
-        this.waitUserIoUsDelta = waitUserIoUsDelta;
-        this.waitConcurrencyUsDelta = waitConcurrencyUsDelta;
-        this.waitApplicationUsDelta = waitApplicationUsDelta;
-        this.waitClusterUsDelta = waitClusterUsDelta;
-        this.waitPlsqlUsDelta = waitPlsqlUsDelta;
-        this.waitJavaUsDelta = waitJavaUsDelta;
-        this.sqlText = sqlText;
+    /** soft delete */
+    public void softDelete() {
+        markAsDeleted();
+        setUpdatedAt(java.time.LocalDateTime.now());
     }
 
-    /** SQL 텍스트 수정 */
-    public void updateSqlText(String sqlText) {
-        if (sqlText != null) this.sqlText = sqlText;
-        touchUpdatedAt();
+    /** SQL 데이터 갱신 */
+    public void updateFrom(Sql newSql) {
+        if (newSql.sqlText != null) this.sqlText = newSql.sqlText;
+        if (newSql.cpuUsDelta != null) this.cpuUsDelta = newSql.cpuUsDelta;
+        if (newSql.elapsedUsDelta != null) this.elapsedUsDelta = newSql.elapsedUsDelta;
+        if (newSql.executionsDelta != null) this.executionsDelta = newSql.executionsDelta;
+        setUpdatedAt(java.time.LocalDateTime.now());
     }
 
-    /** 소프트 삭제 */
-    public void delete() {
-        super.markAsDeleted();
-        touchUpdatedAt();
-    }
-
-    /** 수동 수정 시각 갱신 */
-    public void touchUpdatedAt() {
-        super.setUpdatedAt(LocalDateTime.now());
+    /** 평균 수행시간 계산 (elapsedUsDelta / executionsDelta) */
+    public Long getAvgElapsedUs() {
+        if (elapsedUsDelta == null || executionsDelta == null || executionsDelta == 0) {
+            return null;
+        }
+        return elapsedUsDelta / executionsDelta;
     }
 }

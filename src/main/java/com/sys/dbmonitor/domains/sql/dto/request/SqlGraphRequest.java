@@ -20,8 +20,8 @@ public record SqlGraphRequest(
 		@Schema(description = "메트릭 종류", example = "elapsed", allowableValues = {"elapsed","cpu","exec","logical","physical","wait"})
 		String metric,
 
-		@Schema(description = "특정 SQL ID 필터(선택)", example = "12345")
-		Long sqlId,
+		@Schema(description = "특정 SQL ID 필터(선택)", example = "cq8s0cpgt7xn9")
+		String sqlId,
 
 		@Schema(description = "SQL 텍스트 키워드(선택)", example = "SELECT")
 		String keyword

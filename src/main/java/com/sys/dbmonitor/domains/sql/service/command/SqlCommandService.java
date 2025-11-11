@@ -2,27 +2,23 @@ package com.sys.dbmonitor.domains.sql.service.command;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlCreateRequest;
+import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
+import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class SqlCommandService {
 
-    private static final Logger log = LoggerFactory.getLogger(SqlCommandService.class);
+    private final SqlRepository sqlRepository;
 
-    // 🔒 DB 연결 후 주석 해제 예정
-    // private final SqlRepository sqlRepository;
-
-    /**
-     * SQL 데이터 등록 (현재는 더미 생성 후 반환)
-     */
-    @Transactional
+    /** SQL 등록 */
     public Sql createSql(SqlCreateRequest request) {
         Sql sql = Sql.builder()
                 .instanceId(request.instanceId())
@@ -34,36 +30,46 @@ public class SqlCommandService {
                 .elapsedUsDelta(request.elapsedUsDelta())
                 .executionsDelta(request.executionsDelta())
                 .waitTimeUsDelta(request.waitTimeUsDelta())
-                .waitUserIoUsDelta(null)
-                .waitConcurrencyUsDelta(null)
-                .waitApplicationUsDelta(null)
-                .waitClusterUsDelta(null)
-                .waitPlsqlUsDelta(null)
-                .waitJavaUsDelta(null)
+                .waitUserIoUsDelta(request.waitUserIoUsDelta())
+                .waitConcurrencyUsDelta(request.waitConcurrencyUsDelta())
+                .waitApplicationUsDelta(request.waitApplicationUsDelta())
+                .waitClusterUsDelta(request.waitClusterUsDelta())
+                .waitPlsqlUsDelta(request.waitPlsqlUsDelta())
+                .waitJavaUsDelta(request.waitJavaUsDelta())
                 .sqlText(request.sqlText())
                 .build();
-        log.info("[SQL] (더미) 데이터 생성: instanceId={}, sqlId={}, textLen={}",
-                sql.getInstanceId(), sql.getSqlId(),
-                sql.getSqlText() != null ? sql.getSqlText().length() : 0);
-        return sql;
+        return sqlRepository.save(sql);
     }
 
-    /**
-     * SQL 데이터 수정
-     */
-    @Transactional
-    public Sql updateSql(Sql sql, SqlCreateRequest request) {
-        sql.updateSqlText(request.sqlText());
-        log.info("[SQL] 데이터 수정 완료: id={}, sqlId={}", sql.getId(), sql.getSqlId());
-        return sql;
+    /** SQL 수정 */
+    public Sql updateSql(Long id, SqlCreateRequest request) {
+        Sql sql = sqlRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 SQL 데이터가 존재하지 않습니다. id=" + id));
+
+        Sql updated = Sql.builder()
+                .sqlText(request.sqlText())
+                .cpuUsDelta(request.cpuUsDelta())
+                .elapsedUsDelta(request.elapsedUsDelta())
+                .executionsDelta(request.executionsDelta())
+                .build();
+
+        sql.updateFrom(updated);
+        return sqlRepository.save(sql);
     }
 
-    /**
-     * SQL 데이터 삭제 (soft delete)
-     */
-    @Transactional
-    public void deleteSql(Sql sql) {
-        sql.delete();
-        log.info("[SQL] 데이터 삭제 완료: id={}", sql.getId());
+    /** SQL 리스트 */
+    @Transactional(readOnly = true)
+    public List<SqlResponse> getActiveSqlList() {
+        return sqlRepository.findByIsDeletedFalse().stream()
+                .map(SqlResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /** SQL 삭제 */
+    public void deleteSql(Long id) {
+        Sql sql = sqlRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("해당 SQL 데이터가 존재하지 않습니다. id=" + id));
+        sql.softDelete();
+        sqlRepository.save(sql);
     }
 }
