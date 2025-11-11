@@ -33,7 +33,7 @@ public class DiagnosisController {
     }
 
     // FE 호환용 엔드포인트 (/run)
-    @PostMapping("/run")
+    @PutMapping("/run")
     public ApiResponse<String> runDiagnosis(@RequestBody DiagnosisStartRequest req) {
         diagnosisService.startDiagnosis(req);
         return ApiResponse.ok("진단 실행 시작");

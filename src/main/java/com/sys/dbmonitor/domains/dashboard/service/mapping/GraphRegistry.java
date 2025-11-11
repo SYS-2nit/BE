@@ -157,6 +157,15 @@ public final class GraphRegistry {
     public static Collection<GraphRule> all() { return RULES.values(); }
     public static Optional<GraphRule> of(int id) { return Optional.ofNullable(RULES.get(id)); }
 
+    public static Optional<GraphRule> findByName(String name) {
+        if (name == null) {
+            return Optional.empty();
+        }
+        return RULES.values().stream()
+                .filter(rule -> rule.name().equalsIgnoreCase(name))
+                .findFirst();
+    }
+
     /**
      * finals(Map<String,Object>)에서 해당 그래프에 필요한 컬럼만 뽑아
      * MetricData 엔티티 한 행으로 매핑한다.
