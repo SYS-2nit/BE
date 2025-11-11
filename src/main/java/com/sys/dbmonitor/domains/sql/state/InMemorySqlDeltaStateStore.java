@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.topSql.state;
+package com.sys.dbmonitor.domains.sql.state;
 
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;

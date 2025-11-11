@@ -1,7 +1,7 @@
-package com.sys.dbmonitor.domains.topSql.repository;
+package com.sys.dbmonitor.domains.sql.repository;
 
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlRowDTO;
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlTrendRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlTrendRowDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -9,7 +9,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.sql.SQLException;

@@ -1,9 +1,9 @@
-package com.sys.dbmonitor.domains.topSql.controller;
+package com.sys.dbmonitor.domains.sql.controller;
 
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlRowDTO;
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlTrendRowDTO;
-import com.sys.dbmonitor.domains.topSql.service.SqlSnapshotService;
-import com.sys.dbmonitor.domains.topSql.service.TopSqlQueryService;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlTrendRowDTO;
+import com.sys.dbmonitor.domains.sql.service.SqlSnapshotService;
+import com.sys.dbmonitor.domains.sql.service.TopSqlQueryService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +47,7 @@ public class TopSqlController {
                 System.out.println("[TopSQL] 수집 완료: (" + i + "/48)");
 
                 if (i < 48) {
-                    Thread.sleep(30 * 60_000);   // 30분
+                    Thread.sleep(/*30 **/ 60_000);   // 30분
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

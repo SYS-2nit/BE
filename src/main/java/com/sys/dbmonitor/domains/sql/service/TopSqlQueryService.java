@@ -1,8 +1,8 @@
-package com.sys.dbmonitor.domains.topSql.service;
+package com.sys.dbmonitor.domains.sql.service;
 
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlRowDTO;
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlTrendRowDTO;
-import com.sys.dbmonitor.domains.topSql.repository.TopSqlRepository;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlTrendRowDTO;
+import com.sys.dbmonitor.domains.sql.repository.TopSqlRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.topSql.domain;
+package com.sys.dbmonitor.domains.sql.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

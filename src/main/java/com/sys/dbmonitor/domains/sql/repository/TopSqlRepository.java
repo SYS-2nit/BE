@@ -1,7 +1,7 @@
-package com.sys.dbmonitor.domains.topSql.repository;
+package com.sys.dbmonitor.domains.sql.repository;
 
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlRowDTO;
-import com.sys.dbmonitor.domains.topSql.dto.TopSqlTrendRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlRowDTO;
+import com.sys.dbmonitor.domains.sql.dto.TopSqlTrendRowDTO;
 
 import java.time.LocalDateTime;
 import java.util.List;

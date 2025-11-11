@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.topSql.dto;
+package com.sys.dbmonitor.domains.sql.dto;
 
 import lombok.Builder;
 import lombok.Getter;

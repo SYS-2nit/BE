@@ -1,6 +1,6 @@
-package com.sys.dbmonitor.domains.topSql.repository;
+package com.sys.dbmonitor.domains.sql.repository;
 
-import com.sys.dbmonitor.domains.topSql.domain.SqlSnapshot;
+import com.sys.dbmonitor.domains.sql.domain.SqlSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

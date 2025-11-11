@@ -1,7 +1,7 @@
-package com.sys.dbmonitor.domains.topSql.repository;
+package com.sys.dbmonitor.domains.sql.repository;
 
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
-import com.sys.dbmonitor.domains.topSql.dto.SqlSnapshotRawDTO;
+import com.sys.dbmonitor.domains.sql.dto.SqlSnapshotRawDTO;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
