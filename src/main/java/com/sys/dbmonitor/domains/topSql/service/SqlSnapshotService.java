@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -20,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * SQL 스냅샷 수집 및 저장 서비스
@@ -59,12 +59,8 @@ public class SqlSnapshotService {
         // 2. 델타 계산 및 엔티티 변환
         List<SqlSnapshot> entities = new ArrayList<>();
         Instant lastTs = deltaStateStore.getLastTs(instanceId);
-        int windowSec = lastTs != null
-                ? (int) Duration.between(lastTs, now).getSeconds()
-                : 60; // 기본값 60초
-
         for (SqlSnapshotRawDTO raw : rawSnapshots) {
-            SqlSnapshot entity = calculateDeltaAndCreateEntity(instanceId, raw, ts, windowSec);
+            SqlSnapshot entity = calculateDeltaAndCreateEntity(instanceId, raw, ts);
             if (entity != null) {
                 entities.add(entity);
             }
@@ -81,7 +77,7 @@ public class SqlSnapshotService {
     /**
      * 델타 계산 및 엔티티 생성
      */
-    private SqlSnapshot calculateDeltaAndCreateEntity(Long instanceId, SqlSnapshotRawDTO raw, LocalDateTime ts, int windowSec) {
+    private SqlSnapshot calculateDeltaAndCreateEntity(Long instanceId, SqlSnapshotRawDTO raw, LocalDateTime createdAt) {
         // 현재 누적값 맵 생성
         Map<String, Long> currentValues = new HashMap<>();
         currentValues.put("executions", raw.getExecutionsTot());
@@ -115,9 +111,24 @@ public class SqlSnapshotService {
         Long waitPlsqlUsDelta = calculateDelta(prevStateOpt, "plsql_exec_us", currentValues.get("plsql_exec_us"));
         Long waitJavaUsDelta = calculateDelta(prevStateOpt, "java_exec_us", currentValues.get("java_exec_us"));
 
-        // 첫 수집이거나 델타가 모두 0이면 저장하지 않음
-        if (prevStateOpt.isEmpty() && (executionsDelta == null || executionsDelta == 0)) {
-            // 첫 수집이므로 상태만 저장하고 엔티티는 생성하지 않음
+        boolean hasNonZeroDelta = Stream.of(
+                        executionsDelta,
+                        elapsedUsDelta,
+                        cpuUsDelta,
+                        waitTimeUsDelta,
+                        bufferGetsDelta,
+                        diskReadsDelta,
+                        waitUserIoUsDelta,
+                        waitConcurrencyUsDelta,
+                        waitApplicationUsDelta,
+                        waitClusterUsDelta,
+                        waitPlsqlUsDelta,
+                        waitJavaUsDelta
+                )
+                .anyMatch(v -> v != null && v > 0);
+
+        // 첫 수집 또는 모든 델타가 0이면 저장하지 않음
+        if (!hasNonZeroDelta) {
             deltaStateStore.put(instanceId, raw.getSqlId(), raw.getPlanHashValue(), currentValues, Instant.now());
             return null;
         }
@@ -125,7 +136,7 @@ public class SqlSnapshotService {
         // 엔티티 생성
         SqlSnapshot entity = SqlSnapshot.builder()
                 .instanceId(instanceId)
-                .ts(ts)
+                .createdAt(createdAt)
                 .sqlId(raw.getSqlId())
                 .planHashValue(raw.getPlanHashValue())
                 .bufferGetsDelta(bufferGetsDelta)

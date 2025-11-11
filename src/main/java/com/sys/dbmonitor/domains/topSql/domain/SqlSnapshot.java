@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -19,22 +18,27 @@ import java.time.LocalDateTime;
  * 30분마다 수집된 SQL의 델타 값을 저장
  */
 @Entity
-@Table(name = "SQL_SNAPSHOT")
+@Table(name = "SQL_DATA")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SqlSnapshot {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sql_snapshot_seq")
-    @SequenceGenerator(name = "sql_snapshot_seq", sequenceName = "SEQ_SQL_SNAPSHOT_ID", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID")
     private Long id;
 
     @Column(name = "INSTANCE_ID", nullable = false)
     private Long instanceId;
 
-    @Column(name = "TS", nullable = false)
-    private LocalDateTime ts;
+    @Column(name = "CREATED_AT", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "UPDATED_AT", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Column(name = "IS_DELETED", nullable = false)
+    private Integer isDeleted;
 
     @Column(name = "SQL_ID", nullable = false, length = 13)
     private String sqlId;
@@ -83,7 +87,7 @@ public class SqlSnapshot {
 
     @Builder
     public SqlSnapshot(Long instanceId,
-                       LocalDateTime ts,
+                       LocalDateTime createdAt,
                        String sqlId,
                        Long planHashValue,
                        Long bufferGetsDelta,
@@ -100,7 +104,9 @@ public class SqlSnapshot {
                        Long waitJavaUsDelta,
                        String sqlText) {
         this.instanceId = instanceId;
-        this.ts = ts;
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
+        this.isDeleted = 0;
         this.sqlId = sqlId;
         this.planHashValue = planHashValue;
         this.bufferGetsDelta = bufferGetsDelta;

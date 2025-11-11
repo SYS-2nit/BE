@@ -21,7 +21,7 @@ public interface SqlSnapshotRepository extends JpaRepository<SqlSnapshot, Long> 
     /**
      * 특정 기간의 SQL 스냅샷 조회
      */
-    List<SqlSnapshot> findByInstanceIdAndTsBetween(Long instanceId, LocalDateTime start, LocalDateTime end);
+    List<SqlSnapshot> findByInstanceIdAndCreatedAtBetween(Long instanceId, LocalDateTime start, LocalDateTime end);
 
     /**
      * 특정 SQL ID의 스냅샷 조회
