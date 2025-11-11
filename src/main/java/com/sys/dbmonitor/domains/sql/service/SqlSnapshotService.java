@@ -333,17 +333,17 @@ public class SqlSnapshotService {
         String sqlText = raw.getSqlText();
         if (sqlText != null) {
             String upperSql = sqlText.toUpperCase();
-            if (upperSql.startsWith("BEGIN DBMS_")) {
-                return true;
-            }
-            if (upperSql.startsWith("DECLARE") && upperSql.contains("DBMS_")) {
-                return true;
-            }
-            for (String keyword : SYSTEM_SQL_KEYWORDS) {
-                if (upperSql.contains(keyword)) {
-                    return true;
-                }
-            }
+//            if (upperSql.startsWith("BEGIN DBMS_")) {
+//                return true;
+//            }
+//            if (upperSql.startsWith("DECLARE") && upperSql.contains("DBMS_")) {
+//                return true;
+//            }
+//            for (String keyword : SYSTEM_SQL_KEYWORDS) {
+//                if (upperSql.contains(keyword)) {
+//                    return true;
+//                }
+//            }
         }
 
         return false;

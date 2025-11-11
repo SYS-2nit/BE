@@ -21,6 +21,7 @@ WITH S AS (
   FROM gv$sql s
   WHERE s.last_active_time >= SYSDATE - NUMTODSINTERVAL(?1, 'MINUTE')
     AND NVL(s.executions, 0) > 0
+    AND s.parsing_schema_name = 'ADMIN'
   GROUP BY s.sql_id, s.plan_hash_value, s.inst_id
 ),
 G AS (
