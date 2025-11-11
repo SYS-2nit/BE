@@ -56,19 +56,19 @@ public class AlertMetricTemplate extends BaseEntity {
     /**
      * 기본 경고(WARNING) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_WARNING", precision = 5, scale = 2)
+    @Column(name = "DEFAULT_WARNING", columnDefinition = "NUMBER(5,2)")
     private Double defaultWarning;
 
     /**
      * 기본 위험(DANGER) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_DANGER", precision = 5, scale = 2)
+    @Column(name = "DEFAULT_DANGER", columnDefinition = "NUMBER(5,2)")
     private Double defaultDanger;
 
     /**
      * 기본 치명(CRITICAL) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_CRITICAL", precision = 5, scale = 2)
+    @Column(name = "DEFAULT_CRITICAL", columnDefinition = "NUMBER(5,2)")
     private Double defaultCritical;
 
     /**

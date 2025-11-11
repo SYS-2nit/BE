@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.notification.service;
+package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
@@ -34,7 +34,7 @@ public class AlertCheckService {
     private final EventRepository eventRepository;
     private final InstanceRepository instanceRepository;
     private final AlertStateStore alertStateStore;
-    // Phase 3에서 구현 예정: AlertNotificationService alertNotificationService;
+    private final AlertNotificationService alertNotificationService;
 
     /**
      * 알림 체크 수행
@@ -314,8 +314,8 @@ public class AlertCheckService {
         log.info("[AlertCheck] 알림 발생: eventId={}, alertEventId={}, instanceId={}, severity={}, metricValue={}, threshold={}", 
             event.getId(), alertEvent.getId(), instance.getId(), severity, currentValue, thresholdValue);
 
-        // Phase 3에서 구현 예정: 알림 전송
-        // alertNotificationService.sendAlerts(event, alertEvent.getPolicy().getMember().getId());
+        // 알림 전송 (비동기)
+        alertNotificationService.sendAlerts(event, alertEvent.getPolicy().getMember().getId());
     }
 
     /**
