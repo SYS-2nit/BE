@@ -239,3 +239,7 @@ BOOT-INF/**
 /src/main/resources/sql/rename_metric_data_to_test.sql
 /src/api/databases.ts
 /src/api/types.ts
+/src/api/
+/src/components/
+/src/pages/Dashboard/InstanceMap/Dashboard/Dashboard.tsx
+/src/pages/Diagnosis/DiagnosisPage.example.tsx

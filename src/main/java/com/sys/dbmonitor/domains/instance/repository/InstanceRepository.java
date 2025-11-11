@@ -19,6 +19,9 @@ public interface InstanceRepository extends JpaRepository<Instance, Long> {
 
     Optional<Instance> findByIdAndIsDeletedFalse(Long id);
 
+    @org.springframework.data.jpa.repository.Query("SELECT i FROM Instance i JOIN FETCH i.dbInfo WHERE i.id = :id AND i.isDeleted = false")
+    Optional<Instance> findByIdWithDbInfoAndIsDeletedFalse(Long id);
+
     boolean existsByDbInfoIdAndSid(Long dbInfoId, String sid);
 
     Optional<Instance> findByIdAndDbInfoIdAndIsDeletedFalse(Long id, Long dbInfoId);

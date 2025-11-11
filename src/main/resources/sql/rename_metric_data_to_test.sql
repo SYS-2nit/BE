@@ -240,3 +240,6 @@ DBMS_OUTPUT.PUT_LINE('테이블 이름 변경 완료!');
 DBMS_OUTPUT.PUT_LINE('metric_data -> metric_data_test');
 DBMS_OUTPUT.PUT_LINE('===========================================');
 
+
+
+

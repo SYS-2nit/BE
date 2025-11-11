@@ -11,7 +11,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 멤버 위젯 설정 저장 서비스
@@ -31,25 +35,42 @@ public class MemberWidgetCommandService {
     public void saveWidgets(MemberWidgetSaveRequest request) {
         Long memberId = UserIdInterceptor.getCurrentUserId();
 
-        // 기존 위젯 소프트 삭제
-        memberWidgetRepository.deleteAllByMemberId(memberId);
+        // 위치 중복 방지
+        validateDuplicatePositions(request);
 
-        // 2. 새로운 위젯 저장
-        List<MemberWidget> widgets = new ArrayList<>();
+        // 기존 위젯 조회 (소프트 삭제되지 않은 항목만)
+        List<MemberWidget> existingWidgets = memberWidgetRepository.findByMemberIdOrderByPosition(memberId);
+        Map<Integer, MemberWidget> widgetByPosition = existingWidgets.stream()
+                .collect(Collectors.toMap(MemberWidget::getPosition, widget -> widget));
+
+        List<MemberWidget> newWidgets = new ArrayList<>();
+
         for (MemberWidgetSaveRequest.WidgetConfig config : request.widgets()) {
-            MemberWidget widget = MemberWidget.builder()
-                    .memberId(memberId)
-                    .graphId(config.graphId())
-                    .position(config.position())
-                    .build();
-            widgets.add(widget);
+            Integer position = config.position();
+            MemberWidget widget = widgetByPosition.get(position);
+
+            if (widget != null) {
+                widget.updateGraph(config.graphId());
+            } else {
+                MemberWidget newWidget = MemberWidget.builder()
+                        .memberId(memberId)
+                        .graphId(config.graphId())
+                        .position(position)
+                        .build();
+                newWidgets.add(newWidget);
+                widgetByPosition.put(position, newWidget);
+            }
         }
-        memberWidgetRepository.saveAll(widgets);
+
+        if (!newWidgets.isEmpty()) {
+            memberWidgetRepository.saveAll(newWidgets);
+        }
 
         // 3. Redis 캐시 무효화
         invalidateCache(memberId);
 
-        log.info("멤버 {}의 위젯 설정 저장 완료: {}개", memberId, widgets.size());
+        log.info("멤버 {}의 위젯 설정 저장 완료: 업데이트={}, 신규={}", memberId,
+                request.widgets().size() - newWidgets.size(), newWidgets.size());
     }
 
     /**
@@ -59,6 +80,19 @@ public class MemberWidgetCommandService {
         String cacheKey = REDIS_KEY_PREFIX + memberId;
         redisTemplate.delete(cacheKey);
         log.debug("Redis 캐시 무효화: {}", cacheKey);
+    }
+
+    private void validateDuplicatePositions(MemberWidgetSaveRequest request) {
+        Set<Integer> positions = new HashSet<>();
+        for (MemberWidgetSaveRequest.WidgetConfig widget : request.widgets()) {
+            if (!positions.add(widget.position())) {
+                throw new IllegalArgumentException("위젯 위치가 중복되었습니다: " + widget.position());
+            }
+        }
+
+        if (positions.size() > 9) {
+            throw new IllegalArgumentException("위젯 위치는 최대 9개까지 허용됩니다.");
+        }
     }
 }
 

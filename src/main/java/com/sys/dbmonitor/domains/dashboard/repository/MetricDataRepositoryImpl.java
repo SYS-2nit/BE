@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,10 +58,14 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             return new ArrayList<>();
         }
 
-        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}", 
-                instanceId, graphId, intervalType, columnMap.keySet());
+        // 현재 시간 (Asia/Seoul 기준) - 데이터 신선도 확인용
+        LocalDateTime nowSeoul = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        
+        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}", 
+                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul);
 
-        // 쿼리 실행
+        // 쿼리 실행 - 최신 데이터 조회 (시간 필터 없이 항상 최신 데이터, 날짜 경계와 무관)
+        // 파티션 프루닝을 위해 인덱스를 활용하여 최신 데이터 조회
         List<Tuple> results = queryFactory
                 .select(selectFields.toArray(new Expression[0]))
                 .from(metricData)
@@ -75,6 +80,24 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
 
         log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
                 instanceId, graphId, intervalType, results.size());
+        
+        // 최신 데이터의 시간 정보 로깅 및 신선도 확인
+        if (!results.isEmpty()) {
+            LocalDateTime latestCollectedAt = results.get(0).get(metricData.collectedAt);
+            long minutesSinceLatest = java.time.Duration.between(latestCollectedAt, nowSeoul).toMinutes();
+            
+            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}", 
+                    instanceId, graphId, intervalType, latestCollectedAt, nowSeoul, minutesSinceLatest);
+            
+            // 데이터가 너무 오래된 경우 경고 (5분 이상 차이)
+            if (minutesSinceLatest > 5) {
+                log.warn("데이터가 오래됨: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, minutesSinceLatest={}분", 
+                        instanceId, graphId, intervalType, latestCollectedAt, minutesSinceLatest);
+            }
+        } else {
+            log.warn("데이터가 없음: instanceId={}, graphId={}, intervalType={}, currentTime={}", 
+                    instanceId, graphId, intervalType, nowSeoul);
+        }
 
         // GraphDataPoint로 변환 (역순으로 정렬하여 오래된 순서로)
         List<GraphDataPoint> dataPoints = new ArrayList<>();
@@ -134,6 +157,8 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             
             // MEMORY 관련
             case "workarea_spill_rate_pct" -> metricData.workareaSpillRatePct;
+            case "library_cache_reloads_per_sec" -> metricData.libraryCacheReloadsPerSec;
+            case "libcache_reload_per_s" -> metricData.libraryCacheReloadsPerSec;
             case "libcache_reload_per_sec" -> metricData.libraryCacheReloadsPerSec;
             case "hard_parses_per_sec" -> metricData.hardParsesPerSec;
             case "spill_mb_per_min" -> metricData.spillMbPerMin;
@@ -154,6 +179,144 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "smon_active" -> metricData.smonActive;
             case "ckpt_active" -> metricData.ckptActive;
             case "arcn_active" -> metricData.arcnActive;
+            
+            // CPU 추가 컬럼
+            case "cpu_saturation_pct" -> metricData.cpuSaturationPct;
+            case "run_q_per_core_load_proxy" -> metricData.runQPerCoreLoadProxy;
+            case "tps_per_sec" -> metricData.tpsPerSec;
+            case "execs_per_sec" -> metricData.execsPerSec;
+            case "user_calls_per_sec" -> metricData.userCallsPerSec;
+            case "cpu_per_commit_ms" -> metricData.cpuPerCommitMs;
+            case "cpu_per_exec_ms" -> metricData.cpuPerExecMs;
+            case "aas_fg_sessions" -> metricData.aasFgSessions;
+            case "aas_bg_sessions" -> metricData.aasBgSessions;
+            case "aas_oncpu_sessions" -> metricData.aasOncpuSessions;
+            case "aas_wait_sessions" -> metricData.aasWaitSessions;
+            
+            // CPU Top SQL
+            case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
+            case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
+            case "top_sql_by_cpu_sql_id_03" -> metricData.topSqlByCpuSqlId03;
+            case "top_sql_by_cpu_sql_id_04" -> metricData.topSqlByCpuSqlId04;
+            case "top_sql_by_cpu_sql_id_05" -> metricData.topSqlByCpuSqlId05;
+            case "top_sql_by_cpu_value_01" -> metricData.topSqlByCpuValue01;
+            case "top_sql_by_cpu_value_02" -> metricData.topSqlByCpuValue02;
+            case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
+            case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
+            case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
+            
+            // MEMORY 추가 컬럼
+            case "pga_used_bytes" -> metricData.pgaUsedBytes;
+            case "pga_target_bytes" -> metricData.pgaTargetBytes;
+            case "pga_util_pct" -> metricData.pgaUtilPct;
+            case "memory_sort_pct" -> metricData.memorySortPct;
+            case "dedicated_sess_cnt" -> metricData.dedicatedSessCnt;
+            case "parallel_proc_cnt" -> metricData.parallelProcCnt;
+            case "shared_server_proc_cnt" -> metricData.sharedServerProcCnt;
+            case "dispatcher_proc_cnt" -> metricData.dispatcherProcCnt;
+            case "job_proc_cnt" -> metricData.jobProcCnt;
+            case "sga_util_pct" -> metricData.sgaUtilPct;
+            case "sga_total_bytes" -> metricData.sgaTotalBytes;
+            case "sga_used_bytes" -> metricData.sgaUsedBytes;
+            case "shared_pool_free_pct" -> metricData.sharedPoolFreePct;
+            case "shared_pool_bytes" -> metricData.sharedPoolBytes;
+            case "library_cache_mb" -> metricData.libraryCacheMb;
+            case "dictionary_cache_mb" -> metricData.dictionaryCacheMb;
+            case "large_pool_mb" -> metricData.largePoolMb;
+            case "java_pool_mb" -> metricData.javaPoolMb;
+            case "log_buffer_mb" -> metricData.logBufferMb;
+            case "buffer_cache_mb" -> metricData.bufferCacheMb;
+            case "buffer_miss_pct" -> metricData.bufferMissPct;
+            case "buffer_cache_hit_pct" -> metricData.bufferCacheHitPct;
+            case "library_cache_hit_pct" -> metricData.libraryCacheHitPct;
+            case "dictionary_cache_hit_pct" -> metricData.dictionaryCacheHitPct;
+            case "latch_hit_pct" -> metricData.latchHitPct;
+            case "redo_buffer_wait_pct" -> metricData.redoBufferWaitPct;
+            
+            // MEMORY Top SQL
+            case "top_sql_by_shared_pool_sql_id_01" -> metricData.topSqlBySharedPoolSqlId01;
+            case "top_sql_by_shared_pool_sql_id_02" -> metricData.topSqlBySharedPoolSqlId02;
+            case "top_sql_by_shared_pool_sql_id_03" -> metricData.topSqlBySharedPoolSqlId03;
+            case "top_sql_by_shared_pool_sql_id_04" -> metricData.topSqlBySharedPoolSqlId04;
+            case "top_sql_by_shared_pool_sql_id_05" -> metricData.topSqlBySharedPoolSqlId05;
+            case "top_sql_by_shared_pool_value_01" -> metricData.topSqlBySharedPoolValue01;
+            case "top_sql_by_shared_pool_value_02" -> metricData.topSqlBySharedPoolValue02;
+            case "top_sql_by_shared_pool_value_03" -> metricData.topSqlBySharedPoolValue03;
+            case "top_sql_by_shared_pool_value_04" -> metricData.topSqlBySharedPoolValue04;
+            case "top_sql_by_shared_pool_value_05" -> metricData.topSqlBySharedPoolValue05;
+            
+            // SESSION 추가 컬럼
+            case "active_user_sessions_now" -> metricData.activeUserSessionsNow;
+            case "inactive_user_sessions_now" -> metricData.inactiveUserSessionsNow;
+            case "total_user_sessions_now" -> metricData.totalUserSessionsNow;
+            case "lock_wait_tx" -> metricData.lockWaitTx;
+            case "lock_wait_tm" -> metricData.lockWaitTm;
+            case "lock_wait_total" -> metricData.lockWaitTotal;
+            case "logons_per_sec" -> metricData.logonsPerSec;
+            case "disconnects_per_sec" -> metricData.disconnectsPerSec;
+            case "processes_limit_util_pct" -> metricData.processesLimitUtilPct;
+            case "blockers_now" -> metricData.blockersNow;
+            case "blocked_now" -> metricData.blockedNow;
+            
+            // SESSION Top Blocker
+            case "top_blocker_session_sid_01" -> metricData.topBlockerSessionSid01;
+            case "top_blocker_session_sid_02" -> metricData.topBlockerSessionSid02;
+            case "top_blocker_session_sid_03" -> metricData.topBlockerSessionSid03;
+            case "top_blocker_session_sid_04" -> metricData.topBlockerSessionSid04;
+            case "top_blocker_session_sid_05" -> metricData.topBlockerSessionSid05;
+            case "top_blocker_session_victims_01" -> metricData.topBlockerSessionVictims01;
+            case "top_blocker_session_victims_02" -> metricData.topBlockerSessionVictims02;
+            case "top_blocker_session_victims_03" -> metricData.topBlockerSessionVictims03;
+            case "top_blocker_session_victims_04" -> metricData.topBlockerSessionVictims04;
+            case "top_blocker_session_victims_05" -> metricData.topBlockerSessionVictims05;
+            
+            // I/O 추가 컬럼
+            case "hard_parse_ratio_pct" -> metricData.hardParseRatioPct;
+            case "db_files_usage_pct" -> metricData.dbFilesUsagePct;
+            case "redo_generation_mbps" -> metricData.redoGenerationMbps;
+            case "physical_reads_per_sec" -> metricData.physicalReadsPerSec;
+            case "logical_reads_per_sec" -> metricData.logicalReadsPerSec;
+            case "direct_path_io_per_sec" -> metricData.directPathIoPerSec;
+            case "physical_reads_direct_per_sec" -> metricData.physicalReadsDirectPerSec;
+            case "physical_writes_direct_per_sec" -> metricData.physicalWritesDirectPerSec;
+            case "parser_request_per_sec" -> metricData.parserRequestPerSec;
+            case "sql_execute_per_sec" -> metricData.sqlExecutePerSec;
+            case "avg_wait_time_ms" -> metricData.avgWaitTimeMs;
+            case "dbwr_write_count_per_min" -> metricData.dbwrWriteCountPerMin;
+            case "dbwr_write_volume_mb_per_min" -> metricData.dbwrWriteVolumeMbPerMin;
+            
+            // I/O 데이터파일 Top 5
+            case "1_data_file_name" -> metricData.dataFileName01;
+            case "2_data_file_name" -> metricData.dataFileName02;
+            case "3_data_file_name" -> metricData.dataFileName03;
+            case "4_data_file_name" -> metricData.dataFileName04;
+            case "5_data_file_name" -> metricData.dataFileName05;
+            case "1_data_io_share_pct" -> metricData.dataIoSharePct01;
+            case "2_data_io_share_pct" -> metricData.dataIoSharePct02;
+            case "3_data_io_share_pct" -> metricData.dataIoSharePct03;
+            case "4_data_io_share_pct" -> metricData.dataIoSharePct04;
+            case "5_data_io_share_pct" -> metricData.dataIoSharePct05;
+            
+            // STORAGE 추가 컬럼
+            case "max_ts_usage_pct" -> metricData.maxTsUsagePct;
+            case "total_db_usage_pct" -> metricData.totalDbUsagePct;
+            case "temp_active_usage_gb" -> metricData.tempActiveUsageGb;
+            case "system_used_space_gb_inc" -> metricData.systemUsedSpaceGbInc;
+            case "sysaux_used_space_gb_inc" -> metricData.sysauxUsedSpaceGbInc;
+            case "undotbs1_used_space_gb_inc" -> metricData.undotbs1UsedSpaceGbInc;
+            case "users_used_space_gb_inc" -> metricData.usersUsedSpaceGbInc;
+            
+            // STORAGE 대용량 세그먼트 Top 5
+            case "1_owner_seg" -> metricData.ownerSeg01;
+            case "2_owner_seg" -> metricData.ownerSeg02;
+            case "3_owner_seg" -> metricData.ownerSeg03;
+            case "4_owner_seg" -> metricData.ownerSeg04;
+            case "5_owner_seg" -> metricData.ownerSeg05;
+            case "1_size_gb_seg" -> metricData.sizeGbSeg01;
+            case "2_size_gb_seg" -> metricData.sizeGbSeg02;
+            case "3_size_gb_seg" -> metricData.sizeGbSeg03;
+            case "4_size_gb_seg" -> metricData.sizeGbSeg04;
+            case "5_size_gb_seg" -> metricData.sizeGbSeg05;
             
             default -> null;
         };

@@ -4,6 +4,8 @@ import com.sys.dbmonitor.domains.dashboard.dto.response.DashboardDataResponse;
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataPoint;
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataResponse;
 import com.sys.dbmonitor.domains.dashboard.dto.response.MemberWidgetResponse;
+import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRegistry;
+import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRule;
 import com.sys.dbmonitor.domains.dashboard.repository.MetricDataRepository;
 import com.sys.dbmonitor.domains.graph.domain.Graph;
 import com.sys.dbmonitor.domains.graph.domain.GraphCategory;
@@ -35,21 +37,16 @@ public class DashboardQueryService {
      * 
      * @param instanceId 인스턴스 ID
      * @param timeUnit 시간 단위 (1m, 10m, 1h, 1d)
-     * @param category 카테고리 (CUSTOM만 처리)
+     * @param category 카테고리 (CUSTOM, CPU, MEMORY, SESSION, IO, STORAGE)
      * @return 대시보드 데이터 응답
      */
     public DashboardDataResponse getDashboardData(Long instanceId, String timeUnit, GraphCategory category) {
-        // 인스턴스 존재 확인 (추후 실제 DB 쿼리 시 사용)
+        // 인스턴스 존재 확인
         instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
 
-        // 현재는 CUSTOM 카테고리만 처리
-        if (category != GraphCategory.CUSTOM) {
-            throw new IllegalArgumentException("현재는 CUSTOM 카테고리만 지원합니다.");
-        }
-
-        // 멤버의 위젯 설정에 따라 그래프 목록 조회
-        List<Graph> graphs = getGraphsByMemberWidget();
+        // 카테고리별 그래프 목록 조회
+        List<Graph> graphs = getGraphsByCategory(category);
 
         // 각 그래프별 데이터 조회 (DB에서 조회)
         List<GraphDataResponse> graphDataList = graphs.stream()
@@ -93,13 +90,15 @@ public class DashboardQueryService {
             return Collections.emptyList();
         }
         
+        int registryGraphId = resolveGraphRegistryId(graph);
+        
         log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}", 
                 graph.getId(), graph.getName(), instanceId, timeUnit, columns);
         
         // Repository를 통해 QueryDSL로 데이터 조회
         List<GraphDataPoint> dataPoints = metricDataRepository.findGraphDataPoints(
                 instanceId,
-                graph.getId(),
+                (long) registryGraphId,
                 timeUnit,
                 columns
         );
@@ -115,6 +114,16 @@ public class DashboardQueryService {
         return dataPoints;
     }
 
+    private int resolveGraphRegistryId(Graph graph) {
+        return GraphRegistry.findByName(graph.getName())
+                .map(GraphRule::graphId)
+                .orElseGet(() -> {
+                    log.warn("GraphRegistry에서 그래프 이름 '{}'을 찾을 수 없어 DB ID를 사용합니다. (graphId={})",
+                            graph.getName(), graph.getId());
+                    return graph.getId().intValue();
+                });
+    }
+
     /**
      * 그래프별 필요한 컬럼 리스트 반환
      */
@@ -126,7 +135,7 @@ public class DashboardQueryService {
         if (graphName.contains("PGA / SGA 압박률")) {
             // Tile (type=7) - 4개 컬럼
             columns.add("workarea_spill_rate_pct");
-            columns.add("libcache_reload_per_s");
+            columns.add("library_cache_reloads_per_sec");
             columns.add("hard_parses_per_sec");
             columns.add("spill_mb_per_min");
             
@@ -137,7 +146,7 @@ public class DashboardQueryService {
         } else if (graphName.contains("SGA 압박")) {
             // Line (type=1) - 2개 컬럼
             columns.add("shared_pool_free_bytes");
-            columns.add("libcache_reload_per_s");
+            columns.add("library_cache_reloads_per_sec");
             
         } else if (graphName.contains("Wait Class 분포")) {
             // Line (type=1) - 5개 컬럼 (Stack으로도 표시 가능)
@@ -193,13 +202,282 @@ public class DashboardQueryService {
             columns.add("processes_usage_pct");
             columns.add("sessions_usage_pct");
             columns.add("open_cursors_max_session_pct");
+            
+        // === CPU 카테고리 ===
+        } else if (graphName.contains("CPU Activity Overview Tiles")) {
+            // Tile (type=7) - 7개 컬럼
+            columns.add("host_cpu_util_pct");
+            columns.add("cpu_saturation_pct");
+            columns.add("db_of_host_share_pct");
+            columns.add("run_q_per_core_load_proxy");
+            columns.add("tps_per_sec");
+            columns.add("execs_per_sec");
+            columns.add("user_calls_per_sec");
+            
+        } else if (graphName.contains("DB CPU Saturation") && graphName.contains("AAS vs Core")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("cpu_saturation_pct");
+            columns.add("aas_total");
+            
+        } else if (graphName.contains("Host CPU Utilization") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("host_cpu_util_pct");
+            
+        } else if (graphName.contains("DB CPU Share of Host") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("db_of_host_share_pct");
+            
+        } else if (graphName.contains("Run Queue per Core") || graphName.contains("Scheduler Load")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("run_q_per_core_load_proxy");
+            
+        } else if (graphName.contains("CPU Cost per Commit") || graphName.contains("CPU Cost per Exec")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("cpu_per_commit_ms");
+            columns.add("cpu_per_exec_ms");
+            
+        } else if (graphName.contains("Foreground vs Background CPU") || graphName.contains("AAS Trend")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("aas_fg_sessions");
+            columns.add("aas_bg_sessions");
+            
+        } else if (graphName.contains("Top SQL by CPU")) {
+            // Bar (type=5) - 10개 컬럼 (SQL_ID 5개 + VALUE 5개)
+            columns.add("top_sql_by_cpu_sql_id_01");
+            columns.add("top_sql_by_cpu_sql_id_02");
+            columns.add("top_sql_by_cpu_sql_id_03");
+            columns.add("top_sql_by_cpu_sql_id_04");
+            columns.add("top_sql_by_cpu_sql_id_05");
+            columns.add("top_sql_by_cpu_value_01");
+            columns.add("top_sql_by_cpu_value_02");
+            columns.add("top_sql_by_cpu_value_03");
+            columns.add("top_sql_by_cpu_value_04");
+            columns.add("top_sql_by_cpu_value_05");
+            
+        // === MEMORY 카테고리 ===
+        } else if (graphName.contains("PGA Execution Memory") && graphName.contains("Processes")) {
+            // Tile (type=7) - 여러 컬럼
+            columns.add("pga_used_bytes");
+            columns.add("pga_target_bytes");
+            columns.add("pga_util_pct");
+            columns.add("memory_sort_pct");
+            columns.add("dedicated_sess_cnt");
+            columns.add("parallel_proc_cnt");
+            columns.add("shared_server_proc_cnt");
+            columns.add("dispatcher_proc_cnt");
+            columns.add("job_proc_cnt");
+            
+        } else if (graphName.contains("SGA Efficiency") && graphName.contains("Memory Pools")) {
+            // Tile (type=7) - 여러 컬럼
+            columns.add("sga_util_pct");
+            columns.add("sga_total_bytes");
+            columns.add("sga_used_bytes");
+            columns.add("shared_pool_free_pct");
+            columns.add("shared_pool_bytes");
+            columns.add("library_cache_mb");
+            columns.add("dictionary_cache_mb");
+            columns.add("large_pool_mb");
+            columns.add("java_pool_mb");
+            columns.add("log_buffer_mb");
+            columns.add("buffer_cache_mb");
+            columns.add("buffer_cache_hit_pct");
+            columns.add("library_cache_hit_pct");
+            columns.add("dictionary_cache_hit_pct");
+            columns.add("latch_hit_pct");
+            columns.add("redo_buffer_wait_pct");
+            
+        } else if (graphName.contains("PGA Utilization") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("pga_util_pct");
+            
+        } else if (graphName.contains("SGA Utilization") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("sga_util_pct");
+            
+        } else if (graphName.contains("Workarea Spill Rate") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("workarea_spill_rate_pct");
+            
+        } else if (graphName.contains("Library Cache Reloads per Second") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("library_cache_reloads_per_sec");
+            
+        } else if (graphName.contains("Buffer Cache Miss Rate") && graphName.contains("Proxy")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("buffer_miss_pct");
+            
+        } else if (graphName.contains("Top SQL by Shared Pool Memory")) {
+            // Bar (type=5) - 10개 컬럼
+            columns.add("top_sql_by_shared_pool_sql_id_01");
+            columns.add("top_sql_by_shared_pool_sql_id_02");
+            columns.add("top_sql_by_shared_pool_sql_id_03");
+            columns.add("top_sql_by_shared_pool_sql_id_04");
+            columns.add("top_sql_by_shared_pool_sql_id_05");
+            columns.add("top_sql_by_shared_pool_value_01");
+            columns.add("top_sql_by_shared_pool_value_02");
+            columns.add("top_sql_by_shared_pool_value_03");
+            columns.add("top_sql_by_shared_pool_value_04");
+            columns.add("top_sql_by_shared_pool_value_05");
+            
+        // === SESSION 카테고리 ===
+        } else if (graphName.contains("Active vs Inactive Sessions") && graphName.contains("Trend")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("active_user_sessions_now");
+            columns.add("inactive_user_sessions_now");
+            
+        } else if (graphName.contains("On-CPU vs Wait") && graphName.contains("AAS 분해")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("aas_oncpu_sessions");
+            columns.add("aas_wait_sessions");
+            
+        } else if (graphName.contains("Lock Wait Sessions") && (graphName.contains("TX") || graphName.contains("TM"))) {
+            // Line (type=1) - 3개 컬럼
+            columns.add("lock_wait_tx");
+            columns.add("lock_wait_tm");
+            columns.add("lock_wait_total");
+            
+        } else if (graphName.contains("TPS") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("tps_per_sec");
+            
+        } else if (graphName.contains("Exec/s") && graphName.contains("Trend")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("execs_per_sec");
+            
+        } else if (graphName.contains("Logons/sec") || graphName.contains("Disconnects/sec")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("logons_per_sec");
+            columns.add("disconnects_per_sec");
+            
+        } else if (graphName.contains("Session Activity") && graphName.contains("Resource Summary")) {
+            // Tile (type=7) - 여러 컬럼
+            columns.add("active_user_sessions_now");
+            columns.add("total_user_sessions_now");
+            columns.add("sessions_limit_util_pct");
+            columns.add("processes_limit_util_pct");
+            columns.add("blockers_now");
+            columns.add("blocked_now");
+            
+        } else if (graphName.contains("Top Blocker Sessions")) {
+            // Bar (type=5) - 10개 컬럼
+            columns.add("top_blocker_session_sid_01");
+            columns.add("top_blocker_session_sid_02");
+            columns.add("top_blocker_session_sid_03");
+            columns.add("top_blocker_session_sid_04");
+            columns.add("top_blocker_session_sid_05");
+            columns.add("top_blocker_session_victims_01");
+            columns.add("top_blocker_session_victims_02");
+            columns.add("top_blocker_session_victims_03");
+            columns.add("top_blocker_session_victims_04");
+            columns.add("top_blocker_session_victims_05");
+            
+        // === I/O 카테고리 ===
+        } else if (graphName.contains("I/O Performance Dashboard")) {
+            // Tile (type=7) - 여러 컬럼
+            columns.add("buffer_cache_hit_pct");
+            columns.add("single_block_read_latency_ms");
+            columns.add("physical_read_mb_per_sec");
+            columns.add("physical_write_mb_per_sec");
+            columns.add("hard_parse_ratio_pct");
+            columns.add("direct_path_read_latency_ms");
+            
+        } else if (graphName.contains("Direct Path I/O")) {
+            // Line (type=1) - 3개 컬럼
+            columns.add("direct_path_read_latency_ms");
+            columns.add("direct_path_write_latency_ms");
+            columns.add("direct_path_read_latency_ms"); // 추가 확인 필요
+            
+        } else if (graphName.contains("SQL Parsing") && graphName.contains("Execution")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("hard_parses_per_sec");
+            columns.add("execs_per_sec");
+            
+        } else if (graphName.contains("Physical Reads vs Logical Reads")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("physical_read_mb_per_sec");
+            columns.add("buffer_cache_hit_pct"); // Logical reads는 계산 필요
+            
+        } else if (graphName.contains("Average I/O Wait Time")) {
+            // Line (type=1) - 2개 컬럼
+            columns.add("single_block_read_latency_ms");
+            columns.add("direct_path_read_latency_ms");
+            
+        } else if (graphName.contains("Redo Generation Rate")) {
+            // Line (type=1) - 1개 컬럼 (redo 관련 컬럼 확인 필요)
+            columns.add("physical_write_mb_per_sec"); // 임시
+            
+        } else if (graphName.contains("DBWR Checkpoint Activity")) {
+            // Mixed (type=8) - 여러 컬럼
+            columns.add("dbwr_active");
+            columns.add("physical_write_mb_per_sec");
+            
+        } else if (graphName.contains("데이터파일별 I/O 통계") || graphName.contains("Top 5")) {
+            // Bar (type=5) - 여러 컬럼 (데이터파일별 통계는 별도 테이블일 수 있음)
+            columns.add("db_files_usage_pct");
+            
+        // === STORAGE 카테고리 ===
+        } else if (graphName.contains("Storage Health Dashboard")) {
+            // Tile (type=7) - 여러 컬럼
+            columns.add("fra_usage_pct");
+            columns.add("undo_ts_usage_pct");
+            columns.add("temp_ts_usage_pct");
+            columns.add("users_ts_usage_pct");
+            columns.add("system_ts_usage_pct");
+            columns.add("sysaux_ts_usage_pct");
+            
+        } else if (graphName.contains("Temp Tablespace Active Usage")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("temp_ts_usage_pct");
+            
+        } else if (graphName.contains("테이블스페이스 사용률 추세")) {
+            // Line (type=1) - 5개 컬럼
+            columns.add("system_ts_usage_pct");
+            columns.add("sysaux_ts_usage_pct");
+            columns.add("users_ts_usage_pct");
+            columns.add("undo_ts_usage_pct");
+            columns.add("temp_ts_usage_pct");
+            
+        } else if (graphName.contains("테이블스페이스 증가 추세")) {
+            // Stack (type=2) - 5개 컬럼
+            columns.add("system_ts_usage_pct");
+            columns.add("sysaux_ts_usage_pct");
+            columns.add("users_ts_usage_pct");
+            columns.add("undo_ts_usage_pct");
+            columns.add("temp_ts_usage_pct");
+            
+        } else if (graphName.contains("FRA 사용률 추세")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("fra_usage_pct");
+            
+        } else if (graphName.contains("Undo 사용률 추세")) {
+            // Line (type=1) - 1개 컬럼
+            columns.add("undo_ts_usage_pct");
+            
+        } else if (graphName.contains("Total Database Usage Trend")) {
+            // Line (type=1) - 1개 컬럼 (전체 사용률 계산 필요)
+            columns.add("system_ts_usage_pct");
+            
+        } else if (graphName.contains("대용량 세그먼트") || graphName.contains("Top 5")) {
+            // Bar (type=5) - 여러 컬럼 (세그먼트 정보는 별도 테이블일 수 있음)
+            columns.add("users_ts_usage_pct"); // 임시
         }
         
         return columns;
     }
 
     /**
-     * 멤버 위젯 설정에 따라 그래프 목록 조회
+     * 카테고리별 그래프 목록 조회
+     */
+    private List<Graph> getGraphsByCategory(GraphCategory category) {
+        if (category == GraphCategory.CUSTOM) {
+            return getGraphsByMemberWidget();
+        }
+        // CUSTOM 외 카테고리는 카테고리별로 모든 그래프 반환 (고정 순서)
+        return graphRepository.findByCategory(category);
+    }
+
+    /**
+     * 멤버 위젯 설정에 따라 그래프 목록 조회 (CUSTOM 카테고리 전용)
      * - 위젯 설정이 있으면: 설정된 순서대로 그래프 반환 (Redis 캐싱 활용)
      * - 위젯 설정이 없으면: CUSTOM 카테고리의 모든 그래프 반환
      */
