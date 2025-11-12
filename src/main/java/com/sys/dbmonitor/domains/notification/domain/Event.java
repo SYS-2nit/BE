@@ -69,13 +69,13 @@ public class Event extends BaseEntity {
     /**
      * 알림 발생 시점의 메트릭 현재 값
      */
-    @Column(name = "CURRENT_VALUE", nullable = false, columnDefinition = "NUMBER(10,2)")
+    @Column(name = "CURRENT_VALUE", nullable = false, precision = 10, scale = 2)
     private Double currentValue;
 
     /**
      * 초과한 임계값
      */
-    @Column(name = "THRESHOLD_VALUE", nullable = false, columnDefinition = "NUMBER(5,2)")
+    @Column(name = "THRESHOLD_VALUE", nullable = false, precision = 5, scale = 2)
     private Double thresholdValue;
 
     /**
