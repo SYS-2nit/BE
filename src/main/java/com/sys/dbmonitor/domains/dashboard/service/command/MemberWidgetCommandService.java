@@ -75,11 +75,18 @@ public class MemberWidgetCommandService {
 
     /**
      * Redis 캐시 무효화
+     * Redis 연결 실패 시에도 위젯 저장은 정상적으로 완료되도록 예외 처리
      */
     private void invalidateCache(Long memberId) {
-        String cacheKey = REDIS_KEY_PREFIX + memberId;
-        redisTemplate.delete(cacheKey);
-        log.debug("Redis 캐시 무효화: {}", cacheKey);
+        try {
+            String cacheKey = REDIS_KEY_PREFIX + memberId;
+            redisTemplate.delete(cacheKey);
+            log.debug("Redis 캐시 무효화: {}", cacheKey);
+        } catch (Exception e) {
+            log.warn("Redis 캐시 무효화 실패 (위젯 저장은 정상 완료): memberId={}, error={}", 
+                    memberId, e.getMessage());
+            // Redis 연결 실패해도 위젯 저장은 정상적으로 완료되므로 예외를 던지지 않음
+        }
     }
 
     private void validateDuplicatePositions(MemberWidgetSaveRequest request) {
