@@ -114,14 +114,21 @@ public class DiagnosisRunner implements Runnable {
             boolean finished = currentProcess.waitFor(durationSec, TimeUnit.SECONDS);
             
             if (finished) {
-                // 프로세스가 설정 시간 전에 종료된 경우, 남은 시간만큼 대기
+                // 프로세스가 설정 시간 전에 종료된 경우
                 int exitCode = currentProcess.exitValue();
-                log.warn("[Diagnosis] SwingBench가 조기 종료됨 (exit code: {})", exitCode);
+                if (exitCode == 0) {
+                    // 정상 종료인 경우 INFO 레벨로 로그
+                    log.info("[Diagnosis] SwingBench가 정상 종료됨 (exit code: 0). 설정된 시간({}초)까지 대기합니다.", durationSec);
+                } else {
+                    // 비정상 종료인 경우 WARN 레벨로 로그
+                    log.warn("[Diagnosis] SwingBench가 비정상 종료됨 (exit code: {}). 설정된 시간({}초)까지 대기합니다.", exitCode, durationSec);
+                }
                 // countdownThread가 남은 시간을 처리하므로 추가 대기 불필요
             } else {
                 // 설정 시간 동안 실행 중이면 강제 종료
                 currentProcess.destroy();
                 remainSec.set(0);
+                log.info("[Diagnosis] SwingBench가 설정 시간({}초) 동안 실행되어 강제 종료합니다.", durationSec);
             }
             
             // countdownThread가 남은 시간을 카운트다운하도록 대기

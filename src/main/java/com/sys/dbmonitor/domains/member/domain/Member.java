@@ -16,35 +16,62 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Member extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "member_seq")
-    @SequenceGenerator(name = "member_seq", sequenceName = "SEQ_MEMBER_ID", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * 사용자명
+     */
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
+    /**
+     * 비밀번호 (BCrypt 해시)
+     */
+    @Column(nullable = false, length = 500)
+    private String password;
+
+    /**
+     * 이메일
+     */
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
+    /**
+     * 회사명
+     */
     @Column(nullable = false, length = 100)
     private String company;
 
+    /**
+     * Slack 주소 (nullable)
+     */
     @Column(length = 500)
     private String slackAddress;
 
+    /**
+     * 경고 채널 (nullable)
+     */
     @Column(length = 200)
     private String warningChannel;
 
+    /**
+     * 심각 채널 (nullable)
+     */
     @Column(length = 200)
     private String criticalChannel;
 
     @Builder
-    public Member(String username, String email, String company) {
+    public Member(String username, String password, String email, String company) {
         this.username = username;
+        this.password = password;
         this.email = email;
         this.company = company;
     }
 
+    /**
+     * 기본 정보 수정 (username, email, company)
+     */
     public void update(String username, String email, String company) {
         if (username != null) this.username = username;
         if (email != null) this.email = email;

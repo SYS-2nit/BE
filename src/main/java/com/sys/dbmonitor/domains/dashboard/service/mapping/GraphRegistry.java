@@ -30,7 +30,7 @@ public final class GraphRegistry {
         put(7,  CUSTOM, "SGA 압박(FreeMB/Reloads)",
             "LIBRARY_CACHE_HIT_PCT","DICTIONARY_CACHE_HIT_PCT","HARD_PARSE_RATIO_PCT");
         put(8,  CUSTOM, "세션 한도/급증",
-            "session_usage_pct","session_headroom","session_growth_rate_per_min","session_breach_eta_min");
+            "session_usage_pct");
         put(9,  CUSTOM, "아카이브 로그 적체/목적지 FULL",
             "fra_usage_pct");
         put(10, CUSTOM, "핵심 테이블스페이스 여유율",
@@ -156,6 +156,15 @@ public final class GraphRegistry {
 
     public static Collection<GraphRule> all() { return RULES.values(); }
     public static Optional<GraphRule> of(int id) { return Optional.ofNullable(RULES.get(id)); }
+
+    public static Optional<GraphRule> findByName(String name) {
+        if (name == null) {
+            return Optional.empty();
+        }
+        return RULES.values().stream()
+                .filter(rule -> rule.name().equalsIgnoreCase(name))
+                .findFirst();
+    }
 
     /**
      * finals(Map<String,Object>)에서 해당 그래프에 필요한 컬럼만 뽑아

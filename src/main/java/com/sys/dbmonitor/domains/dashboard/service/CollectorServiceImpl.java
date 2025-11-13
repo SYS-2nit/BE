@@ -491,16 +491,16 @@ public class CollectorServiceImpl implements CollectorService {
             for (Map<String, Object> r : topSqlRows) {
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 if (sqlId == null || sqlId.isBlank()) continue;
-                
+
                 // 필터링: parsing_schema_name과 module 추출
                 String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
                 String module = str(anyObj(r, "MODULE", "module"));
-                
+
                 // System SQL 필터링 (SQL 페이지와 동일한 로직)
                 if (isSystemSql(sqlId, schema, module)) {
                     continue;
                 }
-                
+
                 double curUs = num(anyObj(r, "VALUE_NUM", "value_num", "CPU_US", "cpu_us"));
                 String k = "TOPSQL_CPU|" + sqlId;
                 double dUs = deltaByKey(instanceId, -1, k, curUs, now); // Δμs (음수 방지)
@@ -622,12 +622,12 @@ public class CollectorServiceImpl implements CollectorService {
                 String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
                 String module = str(anyObj(r, "MODULE", "module"));
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
-                
+
                 // System SQL 필터링 (SQL 페이지와 동일한 로직)
                 if (isSystemSql(sqlId, schema, module)) {
                     continue;
                 }
-                
+
                 filteredTopShared.add(r);
             }
             // 필터링된 리스트 정렬
