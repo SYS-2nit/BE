@@ -45,6 +45,11 @@ public class CollectorServiceImpl implements CollectorService {
             "STREAMS AQ", "GG", "SQL DEVELOPER", "PL/SQL DEVELOPER", "TOAD", "SYS.", "ORA$"
     );
 
+    private static final java.util.Set<String> SQL_ID_BLACKLIST = java.util.Set.of(
+            "9BABJV8YQ8RU3", "5T10UU7V11S5T","G4Y6NW3TTS7CC","5QGZ1P0CUT7MX","6U5ZQZZ2NM55C"
+
+    );
+
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
     public CollectorRawDTO collectRaw(Long instanceId) { return repo.collectSnapshot(instanceId); }
 
@@ -477,7 +482,7 @@ public class CollectorServiceImpl implements CollectorService {
                 String module = str(anyObj(r, "MODULE", "module"));
                 
                 // System SQL 필터링 (SQL 페이지와 동일한 로직)
-                if (isSystemSql(schema, module)) {
+                if (isSystemSql(sqlId, schema, module)) {
                     continue;
                 }
                 
@@ -592,9 +597,10 @@ public class CollectorServiceImpl implements CollectorService {
                 // 필터링: parsing_schema_name과 module 추출
                 String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
                 String module = str(anyObj(r, "MODULE", "module"));
+                String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 
                 // System SQL 필터링 (SQL 페이지와 동일한 로직)
-                if (isSystemSql(schema, module)) {
+                if (isSystemSql(sqlId, schema, module)) {
                     continue;
                 }
                 
@@ -1487,7 +1493,12 @@ public class CollectorServiceImpl implements CollectorService {
      * @param module module
      * @return System SQL이면 true
      */
-    private boolean isSystemSql(String schema, String module) {
+    private boolean isSystemSql(String sqlId, String schema, String module) {
+        String upperSqlId = upper(sqlId);
+        if (upperSqlId != null && SQL_ID_BLACKLIST.contains(upperSqlId)) {
+            return true;
+        }
+
         String upperSchema = upper(schema);
         if (upperSchema != null) {
             if (SYSTEM_SCHEMA_BLACKLIST.contains(upperSchema)) {

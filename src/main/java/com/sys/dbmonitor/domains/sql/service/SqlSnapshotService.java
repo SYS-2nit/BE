@@ -66,6 +66,10 @@ public class SqlSnapshotService {
             "DBMS_SYSTEM", "DBMS_LOCK", "DBMS_ALERT", "X$"
     );
 
+    private static final Set<String> SQL_ID_BLACKLIST = Set.of(
+            "9BABJV8YQ8RU3", "5T10UU7V11S5T","G4Y6NW3TTS7CC","5QGZ1P0CUT7MX","6U5ZQZZ2NM55C"
+    );
+
     /**
      * 1회 수집 실행: 수집 → 델타 계산 → 저장
      * @param instanceId 인스턴스 ID
@@ -310,6 +314,11 @@ public class SqlSnapshotService {
     }
 
     private boolean isSystemSql(SqlSnapshotRawDTO raw) {
+        String sqlId = upper(raw.getSqlId());
+        if (sqlId != null && SQL_ID_BLACKLIST.contains(sqlId)) {
+            return true;
+        }
+
         String schema = upper(raw.getParsingSchemaNameAny());
         if (schema != null) {
             if (SYSTEM_SCHEMA_BLACKLIST.contains(schema)) {

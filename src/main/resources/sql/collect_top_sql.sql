@@ -79,6 +79,18 @@ B_DISK AS (
   SELECT sql_id, plan_hash_value FROM G_EXT
   ORDER BY disk_reads_tot DESC NULLS LAST FETCH FIRST ?2 ROWS ONLY
 ),
+CHILD_INFO AS (
+  SELECT
+      s.sql_id,
+      s.plan_hash_value,
+      MIN(s.child_number)
+          KEEP (DENSE_RANK LAST ORDER BY s.last_active_time) AS child_number_recent
+  FROM gv$sql s
+  WHERE s.last_active_time >= SYSDATE - NUMTODSINTERVAL(?1, 'MINUTE')
+    AND NVL(s.executions, 0) > 0
+    AND s.parsing_schema_name = 'ADMIN'
+  GROUP BY s.sql_id, s.plan_hash_value
+),
 U AS (
   /* 5) 버킷 합집합 → 중복 제거 */
   SELECT DISTINCT sql_id, plan_hash_value FROM (
@@ -132,13 +144,16 @@ SELECT
      FROM TABLE(
               DBMS_XPLAN.DISPLAY_CURSOR(
                   sql_id          => g.sql_id,
-                  cursor_child_no => NULL,
+                  cursor_child_no => ci.child_number_recent,
                   format          => 'ADVANCED'
               )
           )
     ) AS plan_text_clob
 FROM G_EXT g
 JOIN U  ON U.sql_id = g.sql_id AND U.plan_hash_value = g.plan_hash_value
+LEFT JOIN CHILD_INFO ci
+       ON ci.sql_id = g.sql_id
+      AND ci.plan_hash_value = g.plan_hash_value
 LEFT JOIN A a ON a.sql_id = g.sql_id
 ORDER BY g.elapsed_time_us_tot DESC NULLS LAST
 FETCH FIRST ?3 ROWS ONLY

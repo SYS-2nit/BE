@@ -1,7 +1,7 @@
 DECLARE
 /* ===== Local defaults from binds (client may bind these) ===== */
 v_lookback_min   NUMBER := NVL(1, 1);   -- minutes for candidate pools (e.g., Top SQL)
-  v_top_n          NUMBER := NVL(5, 5);          -- Top-N rows for snapshot tables
+  v_top_n          NUMBER := NVL(30, 5);          -- Top-N rows for snapshot tables
   v_max_candidates NUMBER := NVL(50, 200);
 
   v_inst_filter    VARCHAR2(4000) := 'ALL';-- :inst_filter;  -- 'ALL' | NULL | '1,2,3' | '2'
