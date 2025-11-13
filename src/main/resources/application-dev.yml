@@ -49,3 +49,8 @@ logging:
 server:
   ssl:
     enabled: false
+
+app:
+  metric:
+    # 개발 환경에서는 metric_data 저장 방지 (통합 테스트 전용)
+    persist: false

@@ -3,6 +3,7 @@ package com.sys.dbmonitor.domains.notification.dto.response;
 import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.domain.DelayTime;
 import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,6 +25,11 @@ public class AlertEventResponse {
     private Double warning;
     private Double danger;
     private Double critical;
+    private Double thresholdValue;
+    private String formattedWarning;
+    private String formattedDanger;
+    private String formattedCritical;
+    private String formattedThresholdValue;
     private DelayTime delayTime;
     private Integer days;
     private String startTime;
@@ -45,6 +51,11 @@ public class AlertEventResponse {
             .warning(alertEvent.getWarning())
             .danger(alertEvent.getDanger())
             .critical(alertEvent.getCritical())
+            .thresholdValue(alertEvent.getCritical())
+            .formattedWarning(ThresholdFormatUtils.formatValue(alertEvent.getWarning(), alertEvent.getThresholdFormat()))
+            .formattedDanger(ThresholdFormatUtils.formatValue(alertEvent.getDanger(), alertEvent.getThresholdFormat()))
+            .formattedCritical(ThresholdFormatUtils.formatValue(alertEvent.getCritical(), alertEvent.getThresholdFormat()))
+            .formattedThresholdValue(ThresholdFormatUtils.formatValue(alertEvent.getCritical(), alertEvent.getThresholdFormat()))
             .delayTime(alertEvent.getDelayTime())
             .days(alertEvent.getDays())
             .startTime(alertEvent.getStartTime())
