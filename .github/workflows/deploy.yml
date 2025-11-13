@@ -397,21 +397,59 @@ jobs:
             echo ""
             echo "--- Redis 컨테이너 및 네트워크 확인 ---"
             
+            cd ${DEPLOY_DIR}
+            
             # docker-compose.yml이 있는지 확인하고 없으면 생성
             if [ ! -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
               echo "⚠️  docker-compose.yml이 없습니다. 생성합니다..."
               sudo bash -c 'printf "%s\n" "version: \"3.8\"" "services:" "  redis:" "    image: redis:7-alpine" "    container_name: 2nit_redis" "    ports:" "      - \"6379:6379\"" "    restart: unless-stopped" "    command: redis-server --appendonly yes" "    volumes:" "      - redis_data:/data" "    networks:" "      - dbmonitor-network" "    healthcheck:" "      test: [\"CMD\", \"redis-cli\", \"ping\"]" "      interval: 10s" "      timeout: 3s" "      retries: 3" "networks:" "  dbmonitor-network:" "    driver: bridge" "volumes:" "  redis_data:" > '"${DEPLOY_DIR}"'/docker-compose.yml'
               echo "✅ docker-compose.yml 생성 완료"
+              
+              # 생성된 파일 확인
+              echo "--- 생성된 docker-compose.yml 확인 ---"
+              sudo cat ${DEPLOY_DIR}/docker-compose.yml | head -10
+            else
+              echo "✅ docker-compose.yml 이미 존재"
             fi
-            
-            cd ${DEPLOY_DIR}
             
             # Redis 컨테이너가 실행 중인지 확인
             REDIS_CONTAINER=$(sudo docker ps --filter "name=2nit_redis" --format "{{.Names}}" | head -1)
             
             if [ -z "$REDIS_CONTAINER" ]; then
               echo "⚠️  Redis 컨테이너가 실행 중이 아닙니다. 시작합니다..."
-              sudo docker-compose up -d redis
+              
+              # 기존 Redis 컨테이너가 중지된 상태로 있는지 확인하고 제거
+              STOPPED_REDIS=$(sudo docker ps -a --filter "name=2nit_redis" --format "{{.Names}}" | head -1)
+              if [ -n "$STOPPED_REDIS" ]; then
+                echo "기존 중지된 Redis 컨테이너 제거 중..."
+                sudo docker rm -f 2nit_redis 2>/dev/null || true
+              fi
+              
+              # dbmonitor-network가 존재하는지 확인하고 없으면 생성
+              if ! sudo docker network ls | grep -q "dbmonitor-network"; then
+                echo "📦 dbmonitor-network 생성 중..."
+                sudo docker network create dbmonitor-network 2>/dev/null || true
+              fi
+              
+              # docker run으로 Redis 컨테이너 직접 시작
+              echo "--- Redis 컨테이너 시작 (docker run) ---"
+              sudo docker run -d \
+                --name 2nit_redis \
+                --restart unless-stopped \
+                -p 6379:6379 \
+                --network dbmonitor-network \
+                -v redis_data:/data \
+                redis:7-alpine \
+                redis-server --appendonly yes
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Redis 컨테이너 시작 명령 실행 완료"
+              else
+                echo "❌ Redis 컨테이너 시작 실패"
+                echo "❌ Redis는 필수 서비스이므로 배포를 중단합니다."
+                exit 1
+              fi
+              
               echo "⏳ Redis 컨테이너 시작 대기 중..."
               sleep 10  # Redis 시작 대기
               
@@ -420,6 +458,8 @@ jobs:
                 echo "✅ Redis 컨테이너 시작 완료"
               else
                 echo "❌ Redis 컨테이너 시작 실패"
+                echo "--- 모든 컨테이너 상태 확인 ---"
+                sudo docker ps -a | grep redis || echo "Redis 컨테이너가 없습니다"
                 sudo docker logs 2nit_redis 2>/dev/null || echo "Redis 컨테이너 로그를 가져올 수 없습니다"
                 echo "❌ Redis는 필수 서비스이므로 배포를 중단합니다."
                 exit 1
