@@ -4,6 +4,7 @@ import com.sys.dbmonitor.domains.sql.domain.Sql;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlCreateRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
+import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlStatsPageResponse;
@@ -57,7 +58,7 @@ public class SqlCommandController {
         return ApiResponse.ok(200, response, "SQL 통계 목록 조회 성공");
     }
 
-    /* 5. SQL 그래프 데이터 조회 */
+    // 5. SQL 그래프 데이터 조회
     @Operation(summary = "SQL 그래프 데이터 조회")
     @GetMapping("/graph")
     public ApiResponse<SqlGraphSeriesResponse> graph(@Valid SqlGraphRequest request) {
@@ -67,4 +68,18 @@ public class SqlCommandController {
                 "그래프 데이터 조회 성공"
         );
     }
+
+    // 6. SQL 상세 탭 조회
+    @Operation(summary = "SQL 상세 탭 데이터 조회")
+    @GetMapping("/detail/{sqlId}")
+    public ApiResponse<SqlDetailResponse> getSqlDetail(
+            @PathVariable String sqlId,
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) Integer intervalMinutes
+    ) {
+        SqlDetailResponse response = sqlStatsQueryService.getSqlDetail(sqlId, startDate, endDate, intervalMinutes);
+        return ApiResponse.ok(200, response, "SQL 상세 조회 성공");
+    }
+
 }

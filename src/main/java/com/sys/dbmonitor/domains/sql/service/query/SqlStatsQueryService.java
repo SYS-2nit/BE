@@ -3,11 +3,14 @@ package com.sys.dbmonitor.domains.sql.service.query;
 import com.sys.dbmonitor.domains.sql.domain.Sql;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
+import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlStatsPageResponse;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +27,7 @@ import java.util.stream.Collectors;
 public class SqlStatsQueryService {
 
     private final SqlRepository sqlRepository;
+
 
     /* ============== SQL 통계 목록 조회 API ============== */
     @Transactional(readOnly = true)
@@ -131,8 +135,7 @@ public class SqlStatsQueryService {
                 endAt
         );
 
-        // 2) interval 단위 bucket 초기 생성 (빈 버킷은 0으로 유지)
-        // --------------------------------------------------------
+        // interval 단위 bucket 초기 생성 (빈 버킷은 0으로 유지)
         Map<Long, Long> bucketMap = new TreeMap<>();
 
         long totalMinutes = Duration.between(startAt, endAt).toMinutes();
@@ -142,8 +145,7 @@ public class SqlStatsQueryService {
             bucketMap.put(i, 0L); // 기본값 0 세팅
         }
 
-        // 3) metric getter
-        // --------------------------------------------------------
+        // metric getter
         Function<Sql, Long> metricGetter = switch (request.metric().toLowerCase()) {
             case "elapsed" -> s -> nvl(s.getElapsedUsDelta());
             case "avg" -> s -> nvl(s.getAvgElapsed());
@@ -155,8 +157,7 @@ public class SqlStatsQueryService {
             default -> s -> 0L;
         };
 
-        // 4) Row → bucket 매핑해서 누적 계산
-        // --------------------------------------------------------
+        // Row → bucket 매핑해서 누적 계산
         for (Sql s : list) {
 
             long minutes = Duration.between(startAt, s.getCreatedAt()).toMinutes();
@@ -170,8 +171,7 @@ public class SqlStatsQueryService {
             }
         }
 
-        // 5) bucket → 응답 변환
-        // --------------------------------------------------------
+        // bucket → 응답 변환
         List<SqlGraphSeriesResponse.Bucket> buckets = new ArrayList<>();
 
         for (Map.Entry<Long, Long> entry : bucketMap.entrySet()) {
@@ -218,6 +218,119 @@ public class SqlStatsQueryService {
 
     private Long nvl(Long v) {
         return v == null ? 0L : v;
+    }
+
+    /* ============== SQL 상세 탭 데이터 조회 API ============== */
+    @Transactional(readOnly = true)
+    public SqlDetailResponse getSqlDetail(String sqlId, String startDate, String endDate, Integer intervalMinutes) {
+
+        // 1) 날짜 파싱
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        LocalDateTime startAt = start.atStartOfDay();
+        LocalDateTime endAt = end.plusDays(1).atStartOfDay();
+
+        int interval = intervalMinutes == null ? 30 : intervalMinutes;
+
+        // 모든 행 조회 (해당 SQL ID)
+        List<Sql> list = sqlRepository.findBySqlIdAndDateRange(sqlId, startAt, endAt);
+
+        if (list.isEmpty()) {
+            throw new RuntimeException("SQL 데이터가 존재하지 않습니다.");
+        }
+
+        // 누적값 계산
+        long totalElapsed = list.stream().mapToLong(s -> nvl(s.getElapsedUsDelta())).sum();
+        long totalCpu = list.stream().mapToLong(s -> nvl(s.getCpuUsDelta())).sum();
+        long totalExec = list.stream().mapToLong(s -> nvl(s.getExecutionsDelta())).sum();
+        long totalBuffer = list.stream().mapToLong(s -> nvl(s.getBufferGetsDelta())).sum();
+        long totalDisk = list.stream().mapToLong(s -> nvl(s.getDiskReadsDelta())).sum();
+        long totalWait = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
+
+        long avgElapsed = (totalExec == 0 ? 0 : totalElapsed / totalExec);
+
+        // 시간대 버킷 생성
+        Map<Long, Long> elapsedTrend = makeTrend(list, startAt, interval, Sql::getElapsedUsDelta);
+        Map<Long, Long> cpuTrend = makeTrend(list, startAt, interval, Sql::getCpuUsDelta);
+        Map<Long, Long> execTrend = makeTrend(list, startAt, interval, Sql::getExecutionsDelta);
+        Map<Long, Long> bufferTrend = makeTrend(list, startAt, interval, Sql::getBufferGetsDelta);
+        Map<Long, Long> diskTrend = makeTrend(list, startAt, interval, Sql::getDiskReadsDelta);
+        Map<Long, Long> waitTrend = makeTrend(list, startAt, interval, Sql::getWaitTimeUsDelta);
+
+        // 순위 및 비중 계산
+        long totalElapsedAll = sqlRepository.sumElapsedForRange(startAt, endAt);
+        double ratio = (totalElapsed == 0 || totalElapsedAll == 0)
+                ? 0
+                : (double) totalElapsed / totalElapsedAll;
+
+        int rank = sqlRepository.findRankByElapsed(sqlId, startAt, endAt);
+
+        return new SqlDetailResponse(
+                list.get(0).getId(),
+                list.get(0).getInstanceId(),
+                sqlId,
+                list.get(0).getSqlText(),
+                totalElapsed,
+                totalCpu,
+                totalExec,
+                totalBuffer,
+                totalDisk,
+                totalWait,
+                avgElapsed,
+                convert(elapsedTrend, startAt, interval),
+                convert(cpuTrend, startAt, interval),
+                convert(execTrend, startAt, interval),
+                convert(bufferTrend, startAt, interval),
+                convert(diskTrend, startAt, interval),
+                convert(waitTrend, startAt, interval),
+                rank,
+                ratio
+        );
+    }
+
+    /* ====== Trend 변환 메서드 (상세 탭 그래프용) ====== */
+    private List<SqlDetailResponse.TrendPoint> convert(
+            Map<Long, Long> trend,
+            LocalDateTime startAt,
+            int interval
+    ) {
+        List<SqlDetailResponse.TrendPoint> result = new ArrayList<>();
+
+        for (Map.Entry<Long, Long> entry : trend.entrySet()) {
+            long idx = entry.getKey();
+            long value = entry.getValue();
+
+            LocalDateTime time = startAt.plusMinutes(idx * interval);
+            String label = time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+            result.add(new SqlDetailResponse.TrendPoint(label, value));
+        }
+
+        return result;
+    }
+
+
+    /* ====== 시간대 단위 bucket 집계 ====== */
+    private Map<Long, Long> makeTrend(
+            List<Sql> list,
+            LocalDateTime startAt,
+            int interval,
+            Function<Sql, Long> getter
+    ) {
+        Map<Long, Long> trend = new TreeMap<>();
+
+        for (Sql s : list) {
+            long minutes = Duration.between(startAt, s.getCreatedAt()).toMinutes();
+            if (minutes < 0) continue;
+
+            long bucketIndex = minutes / interval;
+
+            trend.put(bucketIndex,
+                    trend.getOrDefault(bucketIndex, 0L) + nvl(getter.apply(s))
+            );
+        }
+
+        return trend;
     }
 
 }

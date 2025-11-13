@@ -16,7 +16,7 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
     /** soft delete 되지 않은 데이터 전체 조회용 */
     List<Sql> findByIsDeletedFalse();
 
-    /** 통계 필터 조회용 */
+    /** ===== 통계 필터 조회용 ===== */
     @Query("""
         SELECT s 
         FROM Sql s
@@ -32,7 +32,7 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
                                    LocalDateTime end,
                                    Pageable pageable);
     
-    /* 통계 그래프 조회용 */
+    /** ===== 통계 그래프 조회용 ===== */
     @Query("""
     SELECT s 
     FROM Sql s
@@ -49,4 +49,52 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
                 LocalDateTime end
         );
 
+    /** ===== 통계 상세 탭 조회용 ===== */
+    @Query("""
+        SELECT s
+        FROM Sql s
+        WHERE s.isDeleted = false
+          AND s.sqlId = :sqlId
+          AND s.createdAt >= :start
+          AND s.createdAt < :end
+        """)
+    List<Sql> findBySqlIdAndDateRange(
+            String sqlId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    /** 전체 elapsed 합계 (비중 계산용) */
+    @Query("""
+        SELECT COALESCE(SUM(s.elapsedUsDelta), 0)
+        FROM Sql s
+        WHERE s.isDeleted = false
+          AND s.createdAt >= :start
+          AND s.createdAt < :end
+        """)
+    Long sumElapsedForRange(
+            LocalDateTime start,
+            LocalDateTime end
+    );
+
+    /** 특정 SQL의 랭킹 조회: elapsed 기준으로 몇 등인지 */
+    @Query("""
+        SELECT COUNT(s) + 1
+        FROM Sql s
+        WHERE s.isDeleted = false
+          AND s.createdAt >= :start
+          AND s.createdAt < :end
+          AND s.elapsedUsDelta > (
+                SELECT COALESCE(SUM(x.elapsedUsDelta), 0)
+                FROM Sql x
+                WHERE x.sqlId = :sqlId
+                  AND x.createdAt >= :start
+                  AND x.createdAt < :end
+          )
+        """)
+    Integer findRankByElapsed(
+            String sqlId,
+            LocalDateTime start,
+            LocalDateTime end
+    );
 }
