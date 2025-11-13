@@ -11,13 +11,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,46 +25,34 @@ public class SqlStatsQueryService {
 
     private final SqlRepository sqlRepository;
 
-    /* SQL 통계 목록 조회 API */
+    /* ============== SQL 통계 목록 조회 API ============== */
     @Transactional(readOnly = true)
     public SqlStatsPageResponse getSqlStats(SqlStatsQueryRequest request) {
 
-        // 날짜 처리 수정: endDate 하루 전체 포함
         LocalDateTime start = request.startDate() != null
                 ? request.startDate().atStartOfDay()
                 : LocalDateTime.now().minusDays(1);
 
         LocalDateTime end = request.endDate() != null
-                ? request.endDate().plusDays(1).atStartOfDay()     // ⭐ 하루 전체 포함시키는 수정
+                ? request.endDate().plusDays(1).atStartOfDay()
                 : LocalDateTime.now();
 
-        // 정렬 설정
-        Sort sort = Sort.by(
-                Sort.Direction.fromString(
-                        request.direction() != null ? request.direction() : "DESC"
-                ),
-                switch (request.orderBy() == null ? "elapsed" : request.orderBy()) {
-                    case "cpu" -> "cpuUsDelta";
-                    case "exec" -> "executionsDelta";
-                    case "wait" -> "waitTimeUsDelta";
-                    case "buffer" -> "bufferGetsDelta";
-                    case "disk" -> "diskReadsDelta";
-                    default -> "elapsedUsDelta";
-                }
-        );
+        Sort sort = Sort.by(Sort.Direction.fromString(
+                request.direction() != null ? request.direction() : "DESC"
+        ), switch (request.orderBy() == null ? "elapsed" : request.orderBy()) {
+            case "cpu" -> "cpuUsDelta";
+            case "exec" -> "executionsDelta";
+            default -> "elapsedUsDelta";
+        });
 
-        // 페이지 설정
         Pageable pageable = PageRequest.of(
                 request.page() != null ? request.page() : 0,
                 request.size() != null ? request.size() : 20,
                 sort
         );
 
-        Integer minExec = request.minExecCount() != null ? request.minExecCount() : 0;
-        Integer maxExec = request.maxExecCount() != null ? request.maxExecCount() : Integer.MAX_VALUE;
-
-        // 기존 JPA Query + 메모리 필터 조합
-        Page<Sql> rawPage = sqlRepository.findFilteredSqlStats(
+        // 기존 DB 조회
+        Page<Sql> result = sqlRepository.findFilteredSqlStats(
                 request.instanceId(),
                 request.keyword(),
                 start,
@@ -72,22 +60,58 @@ public class SqlStatsQueryService {
                 pageable
         );
 
-        // 실행 횟수 필터 적용 (그래프와 조건 통일)
-        List<Sql> filtered = rawPage.getContent().stream()
-                .filter(s -> {
-                    long exec = s.getExecutionsDelta() != null ? s.getExecutionsDelta() : 0;
-                    return exec >= minExec && exec <= maxExec;
+        //  SQL TEXT 기준 그룹핑
+        Map<String, List<Sql>> grouped = result.getContent()
+                .stream()
+                .collect(Collectors.groupingBy(Sql::getSqlText));
+
+        // 그룹별 합산 / 평균 계산
+        List<SqlResponse> groupedList = grouped.entrySet()
+                .stream()
+                .map(entry -> {
+                    List<Sql> list = entry.getValue();
+
+                    long elapsedSum = list.stream().mapToLong(s -> nvl(s.getElapsedUsDelta())).sum();
+                    long execSum = list.stream().mapToLong(s -> nvl(s.getExecutionsDelta())).sum();
+
+                    long avgElapsed = execSum == 0 ? 0 : elapsedSum / execSum;
+
+                    long waitSum = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
+                    long bufferSum = list.stream().mapToLong(s -> nvl(s.getBufferGetsDelta())).sum();
+                    long diskSum = list.stream().mapToLong(s -> nvl(s.getDiskReadsDelta())).sum();
+                    long cpuSum = list.stream().mapToLong(s -> nvl(s.getCpuUsDelta())).sum();
+
+                    // 대표 필드 선택
+                    Sql base = list.get(0);
+
+                    return new SqlResponse(
+                            base.getId(),
+                            base.getInstanceId(),
+                            base.getSqlId(),
+                            base.getSqlText(),
+                            elapsedSum,
+                            avgElapsed,
+                            waitSum,
+                            execSum,
+                            bufferSum,
+                            diskSum,
+                            cpuSum
+                    );
                 })
                 .toList();
 
-        // 필터 후 페이징 재적용
-        Page<Sql> finalPage = new PageImpl<>(filtered, pageable, rawPage.getTotalElements());
+        // Page 로 다시 변환해서 반환
+        Page<SqlResponse> page = new PageImpl<>(
+                groupedList,
+                pageable,
+                groupedList.size()
+        );
 
-        return SqlStatsPageResponse.from(finalPage.map(SqlResponse::from));
+        return SqlStatsPageResponse.from(page);
     }
 
 
-    /* SQL 그래프 데이터 조회 API */
+    /* ============== SQL 그래프 데이터 조회 API ============== */
     @Transactional(readOnly = true)
     public SqlGraphSeriesResponse getSqlGraphData(SqlGraphRequest request) {
 
