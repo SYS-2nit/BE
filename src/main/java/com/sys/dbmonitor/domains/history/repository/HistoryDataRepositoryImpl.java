@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.repository;
+package com.sys.dbmonitor.domains.history.repository;
 
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Expression;
@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,19 +17,25 @@ import java.util.Map;
 
 import static com.sys.dbmonitor.domains.dashboard.domain.QMetricData.metricData;
 
-
 @Repository
 @Slf4j
-public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
+public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 
-    public MetricDataRepositoryImpl(EntityManager entityManager) {
+    public HistoryDataRepositoryImpl(EntityManager entityManager) {
         this.queryFactory = new JPAQueryFactory(entityManager);
     }
 
     @Override
-    public List<GraphDataPoint> findGraphDataPoints(Long instanceId, Long graphId, String intervalType, List<String> columns) {
+    public List<GraphDataPoint> findHistoryDataPoints(
+            Long instanceId,
+            Long graphId,
+            String intervalType,
+            List<String> columns,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTime
+    ) {
         if (columns == null || columns.isEmpty()) {
             log.warn("컬럼 리스트가 비어있습니다. instanceId={}, graphId={}, intervalType={}", 
                     instanceId, graphId, intervalType);
@@ -58,58 +63,58 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             return new ArrayList<>();
         }
 
-        LocalDateTime nowSeoul = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        log.debug("히스토리 데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, startDateTime={}, endDateTime={}", 
+                instanceId, graphId, intervalType, columnMap.keySet(), startDateTime, endDateTime);
 
-        // 실시간 모드: 현재 시간 기준 최근 10분의 데이터 조회
-        LocalDateTime tenMinutesAgo = nowSeoul.minusMinutes(9); // 최근 10개 데이터 (현재 포함)
-
-        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}",
-                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, tenMinutesAgo);
-
-        // 쿼리 실행 - 실시간 모드: 현재 시간 기준 최근 10분의 데이터만 조회
-        // 파티션 프루닝을 위해 인덱스를 활용하여 최신 데이터 조회
-        List<Tuple> results = queryFactory
-                .select(selectFields.toArray(new Expression[0]))
-                .from(metricData)
-                .where(
-                        instanceIdEq(instanceId),
-                        graphIdEq(graphId),
-                        intervalTypeEq(intervalType),
-                        collectedAtBetween(tenMinutesAgo, nowSeoul)
-                )
-                .orderBy(metricData.collectedAt.desc())
-                .limit(10)
-                .fetch();
-
-        log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
-                instanceId, graphId, intervalType, results.size());
-
-        // 최신 데이터의 시간 정보 로깅 및 신선도 확인
-        if (!results.isEmpty()) {
-            LocalDateTime latestCollectedAt = results.get(0).get(metricData.collectedAt);
-            long minutesSinceLatest = java.time.Duration.between(latestCollectedAt, nowSeoul).toMinutes();
-
-            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}",
-                    instanceId, graphId, intervalType, latestCollectedAt, nowSeoul, minutesSinceLatest);
-
-            // 데이터가 너무 오래된 경우 경고 (5분 이상 차이)
-            if (minutesSinceLatest > 5) {
-                log.warn("데이터가 오래됨: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, minutesSinceLatest={}분",
-                        instanceId, graphId, intervalType, latestCollectedAt, minutesSinceLatest);
-            }
-        } else {
-            log.warn("데이터가 없음: instanceId={}, graphId={}, intervalType={}, currentTime={}",
-                    instanceId, graphId, intervalType, nowSeoul);
+        // 쿼리 실행 - 시간 범위 기반 조회
+        // 조건들을 리스트로 수집하여 null이 아닌 것만 사용
+        List<BooleanExpression> conditions = new ArrayList<>();
+        if (instanceId != null) {
+            conditions.add(instanceIdEq(instanceId));
+        }
+        if (graphId != null) {
+            conditions.add(graphIdEq(graphId));
+        }
+        if (intervalType != null) {
+            conditions.add(intervalTypeEq(intervalType));
+        }
+        BooleanExpression dateCondition = collectedAtBetween(startDateTime, endDateTime);
+        if (dateCondition != null) {
+            conditions.add(dateCondition);
         }
 
-        // GraphDataPoint로 변환 (역순으로 정렬하여 오래된 순서로)
+        // 조건 조합
+        BooleanExpression whereCondition = null;
+        for (BooleanExpression condition : conditions) {
+            if (condition != null) {
+                whereCondition = whereCondition == null ? condition : whereCondition.and(condition);
+            }
+        }
+
+        List<Tuple> results;
+        if (whereCondition != null) {
+            results = queryFactory
+                    .select(selectFields.toArray(new Expression[0]))
+                    .from(metricData)
+                    .where(whereCondition)
+                    .orderBy(metricData.collectedAt.asc()) // 시간순 정렬 (오래된 것부터)
+                    .fetch();
+        } else {
+            // 조건이 없으면 빈 결과 반환
+            log.warn("히스토리 데이터 조회: 필수 조건이 없습니다. instanceId={}, graphId={}, intervalType={}", 
+                    instanceId, graphId, intervalType);
+            return new ArrayList<>();
+        }
+
+        log.debug("히스토리 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
+                instanceId, graphId, intervalType, results.size());
+
+        // GraphDataPoint로 변환
         List<GraphDataPoint> dataPoints = new ArrayList<>();
-        for (int i = results.size() - 1; i >= 0; i--) {
-            Tuple tuple = results.get(i);
-            
+        for (Tuple tuple : results) {
             LocalDateTime collectedAt = tuple.get(metricData.collectedAt);
             if (collectedAt == null) {
-                collectedAt = LocalDateTime.now();
+                continue;
             }
 
             Map<String, Object> values = new HashMap<>();
@@ -130,6 +135,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
 
     /**
      * 컬럼명에 해당하는 QueryDSL 필드 반환
+     * (MetricDataRepositoryImpl과 동일한 로직 사용)
      */
     private Expression<?> getFieldByColumnName(String columnName) {
         return switch (columnName.toLowerCase()) {
@@ -144,7 +150,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "load_threshold" -> metricData.loadThreshold;
             case "load_threshold_min" -> metricData.loadThresholdMin;
             case "load_threshold_max" -> metricData.loadThresholdMax;
-
+            
             // SESSION 관련
             case "sessions_limit_util_pct" -> metricData.sessionsLimitUtilPct;
             case "processes_usage_pct" -> metricData.processesUsagePct;
@@ -180,6 +186,50 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             
             // STORAGE 관련
             case "fra_usage_pct" -> metricData.fraUsagePct;
+            case "fra_usage_percent" -> metricData.fraUsagePercent;
+            case "fra_free_gb" -> metricData.fraFreeGb;
+            case "undo_usage_pct" -> metricData.undoUsagePct;
+            case "undo_usage_percent" -> metricData.undoUsagePct;
+            case "undo_tablespace_name" -> metricData.undoTablespaceName;
+            case "long_transaction_count" -> metricData.longTransactionCount;
+            case "long_transaction_undo_mb" -> metricData.longTransactionUndoMb;
+            case "undo_retention_sec" -> metricData.undoRetentionSec;
+            case "temp_usage_pct" -> metricData.tempUsagePct;
+            case "temp_usage_percent" -> metricData.tempUsagePercent;
+            case "max_ts_name" -> metricData.maxTsName;
+            case "system_ts_usage_pct" -> metricData.systemTsUsagePct;
+            case "system_ts_used_mb" -> metricData.systemTsUsedMb;
+            case "system_ts_free_mb" -> metricData.systemTsFreeMb;
+            case "sysaux_ts_usage_pct" -> metricData.sysauxTsUsagePct;
+            case "sysaux_ts_used_mb" -> metricData.sysauxTsUsedMb;
+            case "sysaux_ts_free_mb" -> metricData.sysauxTsFreeMb;
+            case "users_ts_usage_pct" -> metricData.usersTsUsagePct;
+            case "users_ts_used_mb" -> metricData.usersTsUsedMb;
+            case "users_ts_free_mb" -> metricData.usersTsFreeMb;
+            case "undo_ts_usage_pct" -> metricData.undoTsUsagePct;
+            case "undo_ts_used_mb" -> metricData.undoTsUsedMb;
+            case "undo_ts_free_mb" -> metricData.undoTsFreeMb;
+            case "temp_ts_usage_pct" -> metricData.tempTsUsagePct;
+            case "temp_ts_used_mb" -> metricData.tempTsUsedMb;
+            case "temp_ts_free_mb" -> metricData.tempTsFreeMb;
+            case "system_tablespace_name" -> metricData.systemTablespaceName;
+            case "sysaux_tablespace_name" -> metricData.sysauxTablespaceName;
+            case "undotbs1_tablespace_name" -> metricData.undotbs1TablespaceName;
+            case "users_tablespace_name" -> metricData.usersTablespaceName;
+            case "system_used_percent" -> metricData.systemUsedPercent;
+            case "sysaux_used_percent" -> metricData.sysauxUsedPercent;
+            case "undotbs1_used_percent" -> metricData.undotbs1UsedPercent;
+            case "users_used_percent" -> metricData.usersUsedPercent;
+            case "system_tablespace_name_inc" -> metricData.systemTablespaceNameInc;
+            case "sysaux_tablespace_name_inc" -> metricData.sysauxTablespaceNameInc;
+            case "undotbs1_tablespace_name_inc" -> metricData.undotbs1TablespaceNameInc;
+            case "users_tablespace_name_inc" -> metricData.usersTablespaceNameInc;
+            case "space_limit_gb" -> metricData.spaceLimitGb;
+            case "space_used_gb" -> metricData.spaceUsedGb;
+            case "space_reclaimable_gb" -> metricData.spaceReclaimableGb;
+            case "usage_pct" -> metricData.usagePct;
+            case "hourly_growth_pct" -> metricData.hourlyGrowthPct;
+            case "time_to_95_pct_hours" -> metricData.timeTo95PctHours;
             
             // Background Process 관련
             case "lgwr_active" -> metricData.lgwrActive;
@@ -202,19 +252,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "aas_bg_sessions" -> metricData.aasBgSessions;
             case "aas_oncpu_sessions" -> metricData.aasOncpuSessions;
             case "aas_wait_sessions" -> metricData.aasWaitSessions;
-
-            // CPU Top SQL
-            case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
-            case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
-            case "top_sql_by_cpu_sql_id_03" -> metricData.topSqlByCpuSqlId03;
-            case "top_sql_by_cpu_sql_id_04" -> metricData.topSqlByCpuSqlId04;
-            case "top_sql_by_cpu_sql_id_05" -> metricData.topSqlByCpuSqlId05;
-            case "top_sql_by_cpu_value_01" -> metricData.topSqlByCpuValue01;
-            case "top_sql_by_cpu_value_02" -> metricData.topSqlByCpuValue02;
-            case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
-            case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
-            case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
-
+            
             // MEMORY 추가 컬럼
             case "pga_used_bytes" -> metricData.pgaUsedBytes;
             case "pga_target_bytes" -> metricData.pgaTargetBytes;
@@ -242,7 +280,19 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "dictionary_cache_hit_pct" -> metricData.dictionaryCacheHitPct;
             case "latch_hit_pct" -> metricData.latchHitPct;
             case "redo_buffer_wait_pct" -> metricData.redoBufferWaitPct;
-
+            
+            // CPU Top SQL
+            case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
+            case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
+            case "top_sql_by_cpu_sql_id_03" -> metricData.topSqlByCpuSqlId03;
+            case "top_sql_by_cpu_sql_id_04" -> metricData.topSqlByCpuSqlId04;
+            case "top_sql_by_cpu_sql_id_05" -> metricData.topSqlByCpuSqlId05;
+            case "top_sql_by_cpu_value_01" -> metricData.topSqlByCpuValue01;
+            case "top_sql_by_cpu_value_02" -> metricData.topSqlByCpuValue02;
+            case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
+            case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
+            case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
+            
             // MEMORY Top SQL
             case "top_sql_by_shared_pool_sql_id_01" -> metricData.topSqlBySharedPoolSqlId01;
             case "top_sql_by_shared_pool_sql_id_02" -> metricData.topSqlBySharedPoolSqlId02;
@@ -254,7 +304,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "top_sql_by_shared_pool_value_03" -> metricData.topSqlBySharedPoolValue03;
             case "top_sql_by_shared_pool_value_04" -> metricData.topSqlBySharedPoolValue04;
             case "top_sql_by_shared_pool_value_05" -> metricData.topSqlBySharedPoolValue05;
-
+            
             // SESSION 추가 컬럼
             case "active_user_sessions_now" -> metricData.activeUserSessionsNow;
             case "inactive_user_sessions_now" -> metricData.inactiveUserSessionsNow;
@@ -276,7 +326,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "session_headroom" -> metricData.sessionHeadroom;
             case "session_growth_rate_per_min" -> metricData.sessionGrowthRatePerMin;
             case "session_breach_eta_min" -> metricData.sessionBreachEtaMin;
-
+            
             // SESSION Top Blocker
             case "top_blocker_session_sid_01" -> metricData.topBlockerSessionSid01;
             case "top_blocker_session_sid_02" -> metricData.topBlockerSessionSid02;
@@ -288,13 +338,14 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "top_blocker_session_victims_03" -> metricData.topBlockerSessionVictims03;
             case "top_blocker_session_victims_04" -> metricData.topBlockerSessionVictims04;
             case "top_blocker_session_victims_05" -> metricData.topBlockerSessionVictims05;
-
+            
             // I/O 추가 컬럼
             case "hard_parse_ratio_pct" -> metricData.hardParseRatioPct;
             case "db_files_usage_pct" -> metricData.dbFilesUsagePct;
             case "redo_generation_mbps" -> metricData.redoGenerationMbps;
             case "redo_generation_mbps_total" -> metricData.redoGenerationMbpsTotal;
             case "redo_generation_24h_avg" -> metricData.redoGeneration24hAvg;
+            case "redo_generation_mb_per_sec" -> metricData.redoGenerationMbps;
             case "redo_size_mb_per_sec" -> metricData.redoSizeMbPerSec;
             case "physical_reads_per_sec" -> metricData.physicalReadsPerSec;
             case "physical_reads_per_diff_sec" -> metricData.physicalReadsPerDiffSec;
@@ -338,19 +389,8 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "3_data_io_share_pct" -> metricData.dataIoSharePct03;
             case "4_data_io_share_pct" -> metricData.dataIoSharePct04;
             case "5_data_io_share_pct" -> metricData.dataIoSharePct05;
-
+            
             // STORAGE 추가 컬럼
-            case "fra_usage_percent" -> metricData.fraUsagePercent;
-            case "fra_free_gb" -> metricData.fraFreeGb;
-            case "undo_usage_pct" -> metricData.undoUsagePct;
-            case "undo_usage_percent" -> metricData.undoUsagePct;
-            case "undo_tablespace_name" -> metricData.undoTablespaceName;
-            case "long_transaction_count" -> metricData.longTransactionCount;
-            case "long_transaction_undo_mb" -> metricData.longTransactionUndoMb;
-            case "undo_retention_sec" -> metricData.undoRetentionSec;
-            case "temp_usage_pct" -> metricData.tempUsagePct;
-            case "temp_usage_percent" -> metricData.tempUsagePercent;
-            case "max_ts_name" -> metricData.maxTsName;
             case "max_ts_usage_pct" -> metricData.maxTsUsagePct;
             case "total_db_usage_pct" -> metricData.totalDbUsagePct;
             case "total_db_usage_percent" -> metricData.totalDbUsagePercent;
@@ -359,44 +399,11 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "temp_max_size_gb" -> metricData.tempMaxSizeGb;
             case "temp_peak_usage_24h_gb" -> metricData.tempPeakUsage24hGb;
             case "temp_usage_pct_of_max" -> metricData.tempUsagePctOfMax;
-            case "system_ts_usage_pct" -> metricData.systemTsUsagePct;
-            case "system_ts_used_mb" -> metricData.systemTsUsedMb;
-            case "system_ts_free_mb" -> metricData.systemTsFreeMb;
-            case "sysaux_ts_usage_pct" -> metricData.sysauxTsUsagePct;
-            case "sysaux_ts_used_mb" -> metricData.sysauxTsUsedMb;
-            case "sysaux_ts_free_mb" -> metricData.sysauxTsFreeMb;
-            case "users_ts_usage_pct" -> metricData.usersTsUsagePct;
-            case "users_ts_used_mb" -> metricData.usersTsUsedMb;
-            case "users_ts_free_mb" -> metricData.usersTsFreeMb;
-            case "undo_ts_usage_pct" -> metricData.undoTsUsagePct;
-            case "undo_ts_used_mb" -> metricData.undoTsUsedMb;
-            case "undo_ts_free_mb" -> metricData.undoTsFreeMb;
-            case "temp_ts_usage_pct" -> metricData.tempTsUsagePct;
-            case "temp_ts_used_mb" -> metricData.tempTsUsedMb;
-            case "temp_ts_free_mb" -> metricData.tempTsFreeMb;
-            case "system_tablespace_name" -> metricData.systemTablespaceName;
-            case "sysaux_tablespace_name" -> metricData.sysauxTablespaceName;
-            case "undotbs1_tablespace_name" -> metricData.undotbs1TablespaceName;
-            case "users_tablespace_name" -> metricData.usersTablespaceName;
-            case "system_used_percent" -> metricData.systemUsedPercent;
-            case "sysaux_used_percent" -> metricData.sysauxUsedPercent;
-            case "undotbs1_used_percent" -> metricData.undotbs1UsedPercent;
-            case "users_used_percent" -> metricData.usersUsedPercent;
-            case "system_tablespace_name_inc" -> metricData.systemTablespaceNameInc;
-            case "sysaux_tablespace_name_inc" -> metricData.sysauxTablespaceNameInc;
-            case "undotbs1_tablespace_name_inc" -> metricData.undotbs1TablespaceNameInc;
-            case "users_tablespace_name_inc" -> metricData.usersTablespaceNameInc;
             case "system_used_space_gb_inc" -> metricData.systemUsedSpaceGbInc;
             case "sysaux_used_space_gb_inc" -> metricData.sysauxUsedSpaceGbInc;
             case "undotbs1_used_space_gb_inc" -> metricData.undotbs1UsedSpaceGbInc;
             case "users_used_space_gb_inc" -> metricData.usersUsedSpaceGbInc;
-            case "space_limit_gb" -> metricData.spaceLimitGb;
-            case "space_used_gb" -> metricData.spaceUsedGb;
-            case "space_reclaimable_gb" -> metricData.spaceReclaimableGb;
-            case "usage_pct" -> metricData.usagePct;
-            case "hourly_growth_pct" -> metricData.hourlyGrowthPct;
-            case "time_to_95_pct_hours" -> metricData.timeTo95PctHours;
-
+            
             // STORAGE 대용량 세그먼트 Top 5
             case "1_owner_seg" -> metricData.ownerSeg01;
             case "2_owner_seg" -> metricData.ownerSeg02;
@@ -418,7 +425,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "3_compression_seg" -> metricData.compressionSeg03;
             case "4_compression_seg" -> metricData.compressionSeg04;
             case "5_compression_seg" -> metricData.compressionSeg05;
-
+            
             // Background Process PID
             case "lgwr_pid" -> metricData.lgwrPid;
             case "dbwr_pid" -> metricData.dbwrPid;
@@ -426,34 +433,44 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "smon_pid" -> metricData.smonPid;
             case "ckpt_pid" -> metricData.ckptPid;
             case "arcn_pid" -> metricData.arcnPid;
-
+            
             default -> null;
         };
     }
 
     /**
-     * 동적 쿼리를 위한 조건 메서드들
+     * 인스턴스 ID 조건
      */
     private BooleanExpression instanceIdEq(Long instanceId) {
         return instanceId != null ? metricData.instanceId.eq(instanceId) : null;
     }
 
+    /**
+     * 그래프 ID 조건
+     */
     private BooleanExpression graphIdEq(Long graphId) {
         return graphId != null ? metricData.graphId.eq(graphId) : null;
     }
 
+    /**
+     * 시간 단위 조건
+     */
     private BooleanExpression intervalTypeEq(String intervalType) {
         return intervalType != null ? metricData.intervalType.eq(intervalType) : null;
     }
 
     /**
-     * 수집 시간 범위 필터 (실시간 모드용)
+     * 수집 시간 범위 조건
      */
-    private BooleanExpression collectedAtBetween(LocalDateTime from, LocalDateTime to) {
-        if (from == null || to == null) {
-            return null;
+    private BooleanExpression collectedAtBetween(LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        if (startDateTime != null && endDateTime != null) {
+            return metricData.collectedAt.between(startDateTime, endDateTime);
+        } else if (startDateTime != null) {
+            return metricData.collectedAt.goe(startDateTime);
+        } else if (endDateTime != null) {
+            return metricData.collectedAt.loe(endDateTime);
         }
-        return metricData.collectedAt.between(from, to);
+        return null;
     }
 }
 
