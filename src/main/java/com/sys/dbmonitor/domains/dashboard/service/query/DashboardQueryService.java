@@ -87,8 +87,8 @@ public class DashboardQueryService {
         }
         
         int registryGraphId = resolveGraphRegistryId(graph);
-        
-        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}", 
+
+        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}",
                 graph.getId(), graph.getName(), instanceId, timeUnit, columns);
         
         // Repository를 통해 QueryDSL로 데이터 조회
@@ -132,13 +132,13 @@ public class DashboardQueryService {
             // GraphRegistry에 정의된 컬럼 목록을 소문자로 변환하여 반환
             // (DB 컬럼명은 대소문자 혼용이므로 원본 유지)
             List<String> columns = new ArrayList<>(rule.columns());
-            log.debug("GraphRegistry에서 컬럼 조회: graphId={}, graphName={}, columns={}", 
+            log.debug("GraphRegistry에서 컬럼 조회: graphId={}, graphName={}, columns={}",
                     rule.graphId(), rule.name(), columns);
             return columns;
         }
-        
+
         // GraphRegistry에서 찾을 수 없는 경우 경고 로그
-        log.warn("GraphRegistry에서 그래프 '{}' (ID: {})을 찾을 수 없습니다. 빈 컬럼 리스트를 반환합니다.", 
+        log.warn("GraphRegistry에서 그래프 '{}' (ID: {})을 찾을 수 없습니다. 빈 컬럼 리스트를 반환합니다.",
                 graph.getName(), graph.getId());
         return Collections.emptyList();
     }

@@ -59,11 +59,11 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         }
 
         LocalDateTime nowSeoul = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
-        
+
         // 실시간 모드: 현재 시간 기준 최근 10분의 데이터 조회
         LocalDateTime tenMinutesAgo = nowSeoul.minusMinutes(9); // 최근 10개 데이터 (현재 포함)
-        
-        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}", 
+
+        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}",
                 instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, tenMinutesAgo);
 
         // 쿼리 실행 - 실시간 모드: 현재 시간 기준 최근 10분의 데이터만 조회
@@ -83,22 +83,22 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
 
         log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
                 instanceId, graphId, intervalType, results.size());
-        
+
         // 최신 데이터의 시간 정보 로깅 및 신선도 확인
         if (!results.isEmpty()) {
             LocalDateTime latestCollectedAt = results.get(0).get(metricData.collectedAt);
             long minutesSinceLatest = java.time.Duration.between(latestCollectedAt, nowSeoul).toMinutes();
-            
-            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}", 
+
+            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}",
                     instanceId, graphId, intervalType, latestCollectedAt, nowSeoul, minutesSinceLatest);
-            
+
             // 데이터가 너무 오래된 경우 경고 (5분 이상 차이)
             if (minutesSinceLatest > 5) {
-                log.warn("데이터가 오래됨: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, minutesSinceLatest={}분", 
+                log.warn("데이터가 오래됨: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, minutesSinceLatest={}분",
                         instanceId, graphId, intervalType, latestCollectedAt, minutesSinceLatest);
             }
         } else {
-            log.warn("데이터가 없음: instanceId={}, graphId={}, intervalType={}, currentTime={}", 
+            log.warn("데이터가 없음: instanceId={}, graphId={}, intervalType={}, currentTime={}",
                     instanceId, graphId, intervalType, nowSeoul);
         }
 
@@ -144,7 +144,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "load_threshold" -> metricData.loadThreshold;
             case "load_threshold_min" -> metricData.loadThresholdMin;
             case "load_threshold_max" -> metricData.loadThresholdMax;
-            
+
             // SESSION 관련
             case "sessions_limit_util_pct" -> metricData.sessionsLimitUtilPct;
             case "processes_usage_pct" -> metricData.processesUsagePct;
@@ -202,7 +202,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "aas_bg_sessions" -> metricData.aasBgSessions;
             case "aas_oncpu_sessions" -> metricData.aasOncpuSessions;
             case "aas_wait_sessions" -> metricData.aasWaitSessions;
-            
+
             // CPU Top SQL
             case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
             case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
@@ -214,7 +214,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
             case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
             case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
-            
+
             // MEMORY 추가 컬럼
             case "pga_used_bytes" -> metricData.pgaUsedBytes;
             case "pga_target_bytes" -> metricData.pgaTargetBytes;
@@ -242,7 +242,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "dictionary_cache_hit_pct" -> metricData.dictionaryCacheHitPct;
             case "latch_hit_pct" -> metricData.latchHitPct;
             case "redo_buffer_wait_pct" -> metricData.redoBufferWaitPct;
-            
+
             // MEMORY Top SQL
             case "top_sql_by_shared_pool_sql_id_01" -> metricData.topSqlBySharedPoolSqlId01;
             case "top_sql_by_shared_pool_sql_id_02" -> metricData.topSqlBySharedPoolSqlId02;
@@ -254,7 +254,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "top_sql_by_shared_pool_value_03" -> metricData.topSqlBySharedPoolValue03;
             case "top_sql_by_shared_pool_value_04" -> metricData.topSqlBySharedPoolValue04;
             case "top_sql_by_shared_pool_value_05" -> metricData.topSqlBySharedPoolValue05;
-            
+
             // SESSION 추가 컬럼
             case "active_user_sessions_now" -> metricData.activeUserSessionsNow;
             case "inactive_user_sessions_now" -> metricData.inactiveUserSessionsNow;
@@ -276,7 +276,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "session_headroom" -> metricData.sessionHeadroom;
             case "session_growth_rate_per_min" -> metricData.sessionGrowthRatePerMin;
             case "session_breach_eta_min" -> metricData.sessionBreachEtaMin;
-            
+
             // SESSION Top Blocker
             case "top_blocker_session_sid_01" -> metricData.topBlockerSessionSid01;
             case "top_blocker_session_sid_02" -> metricData.topBlockerSessionSid02;
@@ -288,7 +288,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "top_blocker_session_victims_03" -> metricData.topBlockerSessionVictims03;
             case "top_blocker_session_victims_04" -> metricData.topBlockerSessionVictims04;
             case "top_blocker_session_victims_05" -> metricData.topBlockerSessionVictims05;
-            
+
             // I/O 추가 컬럼
             case "hard_parse_ratio_pct" -> metricData.hardParseRatioPct;
             case "db_files_usage_pct" -> metricData.dbFilesUsagePct;
@@ -321,7 +321,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "dbwr_write_volume_mb_per_min" -> metricData.dbwrWriteVolumeMbPerMin;
             case "dbwr_write_volume_mb_per_min_total" -> metricData.dbwrWriteVolumeMbPerMinTotal;
             case "checkpoint_not_complete_count" -> metricData.checkpointNotCompleteCount;
-            
+
             // I/O 데이터파일 Top 5
             case "1_data_file_name" -> metricData.dataFileName01;
             case "2_data_file_name" -> metricData.dataFileName02;
@@ -338,7 +338,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "3_data_io_share_pct" -> metricData.dataIoSharePct03;
             case "4_data_io_share_pct" -> metricData.dataIoSharePct04;
             case "5_data_io_share_pct" -> metricData.dataIoSharePct05;
-            
+
             // STORAGE 추가 컬럼
             case "fra_usage_percent" -> metricData.fraUsagePercent;
             case "fra_free_gb" -> metricData.fraFreeGb;
@@ -396,7 +396,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "usage_pct" -> metricData.usagePct;
             case "hourly_growth_pct" -> metricData.hourlyGrowthPct;
             case "time_to_95_pct_hours" -> metricData.timeTo95PctHours;
-            
+
             // STORAGE 대용량 세그먼트 Top 5
             case "1_owner_seg" -> metricData.ownerSeg01;
             case "2_owner_seg" -> metricData.ownerSeg02;
@@ -418,7 +418,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "3_compression_seg" -> metricData.compressionSeg03;
             case "4_compression_seg" -> metricData.compressionSeg04;
             case "5_compression_seg" -> metricData.compressionSeg05;
-            
+
             // Background Process PID
             case "lgwr_pid" -> metricData.lgwrPid;
             case "dbwr_pid" -> metricData.dbwrPid;
@@ -426,7 +426,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             case "smon_pid" -> metricData.smonPid;
             case "ckpt_pid" -> metricData.ckptPid;
             case "arcn_pid" -> metricData.arcnPid;
-            
+
             default -> null;
         };
     }
