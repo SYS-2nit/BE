@@ -29,4 +29,9 @@ public class BaseEntity {
     public void markAsDeleted() {
         this.isDeleted = true;
     }
+
+    /** 수동 업데이트 반영용 setter (추가!) */
+    protected void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 }

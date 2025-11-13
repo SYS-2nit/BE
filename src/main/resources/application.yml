@@ -16,9 +16,9 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
 
-batch:
-  enabled: false
-
+  # batch 설정 (false)
+  batch:
+    enabled: false
 
   security:
     require-ssl: true
