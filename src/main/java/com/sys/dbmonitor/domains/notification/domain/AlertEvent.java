@@ -163,24 +163,70 @@ public class AlertEvent extends BaseEntity {
         this.isReverse = isReverse != null ? isReverse : false;
     }
 
-    /**
-     * 알림 규칙 정보 수정
-     */
-    public void update(String name, ThresholdFormat thresholdFormat,
-                       Double warning, Double danger, Double critical,
-                       DelayTime delayTime, Integer days, String startTime, String endTime,
-                       Boolean state, Boolean isReverse) {
-        if (name != null) this.name = name;
-        if (thresholdFormat != null) this.thresholdFormat = thresholdFormat;
-        if (warning != null) this.warning = warning;
-        if (danger != null) this.danger = danger;
-        if (critical != null) this.critical = critical;
-        if (delayTime != null) this.delayTime = delayTime;
-        if (days != null) this.days = days;
-        if (startTime != null) this.startTime = startTime;
-        if (endTime != null) this.endTime = endTime;
-        if (state != null) this.state = state;
-        if (isReverse != null) this.isReverse = isReverse;
+    public void updateAlert(AlertPolicy policy,
+                            AlertCategory category,
+                            Graph graph,
+                            String metricKey,
+                            String metricName,
+                            String name,
+                            ThresholdFormat thresholdFormat,
+                            Double warning,
+                            Double danger,
+                            Double critical,
+                            DelayTime delayTime,
+                            Integer days,
+                            String startTime,
+                            String endTime,
+                            Boolean state,
+                            Boolean isReverse) {
+        if (policy != null) {
+            this.policy = policy;
+        }
+        if (category != null) {
+            this.category = category;
+        }
+        if (graph != null) {
+            this.graph = graph;
+        }
+        if (metricKey != null) {
+            this.metricKey = metricKey;
+        }
+        if (metricName != null) {
+            this.metricName = metricName;
+        }
+        if (name != null) {
+            this.name = name;
+        }
+        if (thresholdFormat != null) {
+            this.thresholdFormat = thresholdFormat;
+        }
+        if (warning != null) {
+            this.warning = warning;
+        }
+        if (danger != null) {
+            this.danger = danger;
+        }
+        if (critical != null) {
+            this.critical = critical;
+        }
+        if (delayTime != null) {
+            this.delayTime = delayTime;
+        }
+        if (days != null) {
+            this.days = days;
+        }
+        if (startTime != null) {
+            this.startTime = startTime;
+        }
+        if (endTime != null) {
+            this.endTime = endTime;
+        }
+        if (state != null) {
+            this.state = state;
+        }
+        if (isReverse != null) {
+            this.isReverse = isReverse;
+        }
     }
 
     /**

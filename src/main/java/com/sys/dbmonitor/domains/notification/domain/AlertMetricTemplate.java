@@ -99,10 +99,10 @@ public class AlertMetricTemplate extends BaseEntity {
         this.graph = graph;
         this.metricKey = metricKey;
         this.metricName = metricName;
-        this.thresholdFormat = thresholdFormat;
-        this.defaultWarning = defaultWarning;
-        this.defaultDanger = defaultDanger;
-        this.defaultCritical = defaultCritical;
+        this.thresholdFormat = thresholdFormat != null ? thresholdFormat : ThresholdFormat.PERCENT;
+        this.defaultWarning = defaultWarning != null ? defaultWarning : 0.0;
+        this.defaultDanger = defaultDanger != null ? defaultDanger : 0.0;
+        this.defaultCritical = defaultCritical != null ? defaultCritical : 0.0;
         this.description = description;
         this.isActive = isActive != null ? isActive : true;
     }
@@ -110,15 +110,46 @@ public class AlertMetricTemplate extends BaseEntity {
     /**
      * 템플릿 정보 수정
      */
-    public void update(ThresholdFormat thresholdFormat,
-                       Double defaultWarning, Double defaultDanger, Double defaultCritical,
-                       String description, Boolean isActive) {
-        if (thresholdFormat != null) this.thresholdFormat = thresholdFormat;
-        if (defaultWarning != null) this.defaultWarning = defaultWarning;
-        if (defaultDanger != null) this.defaultDanger = defaultDanger;
-        if (defaultCritical != null) this.defaultCritical = defaultCritical;
-        if (description != null) this.description = description;
-        if (isActive != null) this.isActive = isActive;
+    public void updateTemplate(Graph graph,
+                               AlertCategory category,
+                               String metricKey,
+                               String metricName,
+                               ThresholdFormat thresholdFormat,
+                               Double defaultWarning,
+                               Double defaultDanger,
+                               Double defaultCritical,
+                               String description,
+                               Boolean isActive) {
+        if (graph != null) {
+            this.graph = graph;
+        }
+        if (category != null) {
+            this.category = category;
+        }
+        if (metricKey != null) {
+            this.metricKey = metricKey;
+        }
+        if (metricName != null) {
+            this.metricName = metricName;
+        }
+        if (thresholdFormat != null) {
+            this.thresholdFormat = thresholdFormat;
+        }
+        if (defaultWarning != null) {
+            this.defaultWarning = defaultWarning;
+        }
+        if (defaultDanger != null) {
+            this.defaultDanger = defaultDanger;
+        }
+        if (defaultCritical != null) {
+            this.defaultCritical = defaultCritical;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+        if (isActive != null) {
+            this.isActive = isActive;
+        }
     }
 
     /**
