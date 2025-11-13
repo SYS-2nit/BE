@@ -472,7 +472,7 @@ SELECT * FROM (
                   /* ---- Session activity and locks ---- */
                   UNION ALL SELECT i.inst_id, 'active_user_sessions',             NVL(sess.active_user_sessions,0)        FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'total_user_sessions',              NVL(sess.total_user_sessions,0)         FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
-                  UNION ALL SELECT -1, 'blocked_now',                            SUM(NVL(sess.blocked_now,0))        FROM sess
+                  UNION ALL SELECT i.inst_id, 'blocked_now',                      NVL(sess.blocked_now,0)                 FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'blockers_now',                     NVL(sess.blockers_now,0)             FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tx',                     NVL(sess.lock_wait_tx,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tm',                     NVL(sess.lock_wait_tm,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id

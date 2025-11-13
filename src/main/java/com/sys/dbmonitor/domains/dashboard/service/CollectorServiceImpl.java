@@ -4,6 +4,7 @@ import com.sys.dbmonitor.domains.dashboard.dao.CollectorRepository;
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 import com.sys.dbmonitor.domains.dashboard.engine.MetricsEngine;
 import com.sys.dbmonitor.domains.dashboard.state.DeltaStateStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -15,12 +16,16 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class CollectorServiceImpl implements CollectorService {
 
     private final CollectorRepository repo;
     private final DeltaStateStore store;
+
+    private static final String CACHE_HIT_FAMILY = "CACHE_HIT";
 
     public CollectorServiceImpl(@Qualifier("collectorRepositoryImpl") CollectorRepository repo,
                                 @Qualifier("inMemoryDeltaStateStore") DeltaStateStore store) {
@@ -154,6 +159,8 @@ public class CollectorServiceImpl implements CollectorService {
             double dbCpuUs = cachedAny(cache, "DB_CPU_μS", "DB_CPU_US", "db_cpu_us", "db cpu");
             double dbTimeUs= cachedAny(cache, "DB_TIME_μS", "DB_TIME_US", "db_time_us", "db time");
 
+
+
             double tps   = rate(instanceId, instId, "USER_COMMITS", commits, windowSec);
             double execs = rate(instanceId, instId, "EXECUTE_COUNT", execCnt, windowSec);
             double ucall = rate(instanceId, instId, "USER_CALLS", calls, windowSec);
@@ -167,6 +174,14 @@ public class CollectorServiceImpl implements CollectorService {
 
             double logonsCur = cachedAny(cache, "LOGONS_CURRENT", "logons_current");
             double disconnectsPerSec = negRate(instanceId, instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
+
+            // CollectorServiceImpl.java의 Bundle 순회 부분 (line 154 근처)
+            log.debug("[DEBUG] instId={}, dbCpuUs={}, isNaN={}", instId, dbCpuUs, Double.isNaN(dbCpuUs)); // -------------------------------------------------------- 없애
+            log.debug("[DEBUG] cache keys (DB_CPU related): {}",
+                    cache.keySet().stream()
+                            .filter(k -> k.toUpperCase().contains("DB_CPU") || k.toUpperCase().contains("CPU"))
+                            .collect(Collectors.toList()));
+            log.debug("[DEBUG] aasOnCpu={}, aasOnCpuSum={}", aasOnCpu, aasOnCpuSum); // ----------------------------------------------------------- 여기까지
 
             // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
             double bgUs = cachedAny(cache, "BACKGROUND_CPU_μS", "BACKGROUND_CPU_US", "bg_cpu_us");
@@ -253,7 +268,7 @@ public class CollectorServiceImpl implements CollectorService {
             wcConcAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CONCURRENCY",
                     cachedAny(cache, "TIME_WAITED_μS_CONCURRENCY","TIME_WAITED_US_CONCURRENCY","WAIT_CLASS_TIME_US_CONCURRENCY","wait_class_time_us_CONCURRENCY"), windowSec);
             wcSysIoAas  += rateUsToAas(instanceId, instId, "TIME_WAITED_US_SYSTEM_IO",
-                    cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_IO","wait_class_time_us_SYSTEM_I_O"), windowSec);
+                    cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_I_O"), windowSec);
             wcNetAas    += rateUsToAas(instanceId, instId, "TIME_WAITED_US_NETWORK",
                     cachedAny(cache, "TIME_WAITED_μS_NETWORK","TIME_WAITED_US_NETWORK","WAIT_CLASS_TIME_US_NETWORK","wait_class_time_us_NETWORK"), windowSec);
             wcClusAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CLUSTER",
@@ -538,20 +553,29 @@ public class CollectorServiceImpl implements CollectorService {
         // *** Buffer/Library/Dictionary/Latch Hit% — 분모 0이면 null, 반올림 없음 ***
         // 미스%를 먼저 계산 후 Hit% = 100 - Miss%
         Double bufMissPct = pctOrNull(dPhysReadsCache, (dDbBlockGets + dConsGets));
-        Double bufHitPct  = (bufMissPct == null) ? null : (100.0 - bufMissPct);
+        Double bufHitPctRaw  = (bufMissPct == null) ? null : (100.0 - bufMissPct);
+        Double bufHitPct = cacheHitFallback(instanceId, "BUFFER_CACHE_HIT_PCT", bufHitPctRaw);
         out.put("BUFFER_CACHE_HIT_PCT", bufHitPct); // 042
 
         Double libMissPct = pctOrNull(dLCReloads, dLCGets);
-        out.put("LIBRARY_CACHE_HIT_PCT",  libMissPct == null ? null : (100.0 - libMissPct)); // 043
+        Double libHitPctRaw = libMissPct == null ? null : (100.0 - libMissPct);
+        Double libHitPct = cacheHitFallback(instanceId, "LIBRARY_CACHE_HIT_PCT", libHitPctRaw);
+        out.put("LIBRARY_CACHE_HIT_PCT", libHitPct); // 043
 
         Double dictMissPct = pctOrNull(dRCMiss, dRCGets);
-        out.put("DICTIONARY_CACHE_HIT_PCT", dictMissPct == null ? null : (100.0 - dictMissPct)); // 044
+        Double dictHitPctRaw = dictMissPct == null ? null : (100.0 - dictMissPct);
+        Double dictHitPct = cacheHitFallback(instanceId, "DICTIONARY_CACHE_HIT_PCT", dictHitPctRaw);
+        out.put("DICTIONARY_CACHE_HIT_PCT", dictHitPct); // 044
 
         Double latchMissPct = pctOrNull(dLatchMiss, dLatchGets);
-        out.put("LATCH_HIT_PCT", latchMissPct == null ? null : (100.0 - latchMissPct)); // 045
+        Double latchHitPctRaw = latchMissPct == null ? null : (100.0 - latchMissPct);
+        Double latchHitPct = cacheHitFallback(instanceId, "LATCH_HIT_PCT", latchHitPctRaw);
+        out.put("LATCH_HIT_PCT", latchHitPct); // 045
 
         // 046 Redo Buffer Wait%
-        out.put("REDO_BUFFER_WAIT_PCT", pctOrNull(dRedoRetries, dRedoEntries)); // 046
+        Double redoWaitPctRaw = pctOrNull(dRedoRetries, dRedoEntries);
+        Double redoWaitPct = cacheHitFallback(instanceId, "REDO_BUFFER_WAIT_PCT", redoWaitPctRaw);
+        out.put("REDO_BUFFER_WAIT_PCT", redoWaitPct); // 046
 
         // 047~053 SGA/Pool 사이즈(게이지) + 055~058
         out.put("LARGE_POOL_MB",        MetricsEngine.sumInst(bundle, "LARGE_POOL_BYTES", "large_pool_bytes") / 1_048_576.0); // 047
@@ -1264,17 +1288,40 @@ public class CollectorServiceImpl implements CollectorService {
         return out;
     }
 
-    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (Instance별 격리) */
+//    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (Instance별 격리) */
+//    private double rateUsToAas(Long instanceId, int instId, String name, double curUs, int windowSec) {
+//        if (Double.isNaN(curUs)) return 0d;
+//        String key = name.toUpperCase();
+//        Instant now = Instant.now();
+//        double out = 0d;
+//        var prevOpt = store.get(instanceId, instId, key);
+//        if (prevOpt.isPresent()) {
+//            double d = curUs - prevOpt.get().value();
+//            if (d < 0) d = 0;
+//            out = (d / 1_000_000.0) / Math.max(1, windowSec);
+//        }
+//        store.put(instanceId, instId, key, curUs, now);
+//        return out;
+//    }
+// rateUsToAas() 메서드 내부 (line 1268 근처)
     private double rateUsToAas(Long instanceId, int instId, String name, double curUs, int windowSec) {
-        if (Double.isNaN(curUs)) return 0d;
+        if (Double.isNaN(curUs)) {
+            log.debug("[DEBUG] rateUsToAas: curUs is NaN, returning 0");
+            return 0d;
+        }
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
         var prevOpt = store.get(instanceId, instId, key);
+        log.debug("[DEBUG] rateUsToAas: instId={}, key={}, curUs={}, prevOpt={}, windowSec={}",
+                instId, key, curUs, prevOpt.isPresent() ? prevOpt.get().value() : "N/A", windowSec);
         if (prevOpt.isPresent()) {
             double d = curUs - prevOpt.get().value();
             if (d < 0) d = 0;
             out = (d / 1_000_000.0) / Math.max(1, windowSec);
+            log.debug("[DEBUG] rateUsToAas: delta={}, out={}", d, out);
+        } else {
+            log.debug("[DEBUG] rateUsToAas: prevOpt not present, returning 0");
         }
         store.put(instanceId, instId, key, curUs, now);
         return out;
@@ -1525,6 +1572,17 @@ public class CollectorServiceImpl implements CollectorService {
 
     private String upper(String value) {
         return value != null ? value.trim().toUpperCase() : null;
+    }
+
+    private Double cacheHitFallback(Long instanceId, String metricName, Double currentValue) {
+        if (currentValue != null && !Double.isNaN(currentValue) && !Double.isInfinite(currentValue)) {
+            store.putVar(instanceId, CACHE_HIT_FAMILY, metricName, currentValue, Instant.now());
+            return currentValue;
+        }
+        return store.getVar(instanceId, CACHE_HIT_FAMILY, metricName)
+                .map(DeltaStateStore.State::value)
+                .filter(v -> !Double.isNaN(v) && !Double.isInfinite(v))
+                .orElse(null);
     }
 }
 
