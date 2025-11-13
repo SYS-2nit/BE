@@ -271,6 +271,7 @@ public class SqlSnapshotService {
                 .waitPlsqlUsDelta(waitPlsqlUsDelta)
                 .waitJavaUsDelta(waitJavaUsDelta)
                 .sqlText(raw.getSqlText())
+                .planTextClob(raw.getPlanTextClob())
                 .build();
 
         // 상태 저장

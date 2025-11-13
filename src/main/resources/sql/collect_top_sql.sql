@@ -119,7 +119,24 @@ SELECT
     g.last_active_time_max,
     g.parsing_schema_name_any,
     g.module_any,
-    NVL(a.sql_text_vc, '') AS sql_text
+    NVL(a.sql_text_vc, '') AS sql_text,
+    (SELECT RTRIM(
+                XMLCAST(
+                    XMLAGG(
+                        XMLELEMENT("ln", TO_CLOB(plan_table_output) || CHR(10))
+                        ORDER BY ROWNUM
+                    ) AS CLOB
+                ),
+                CHR(10)
+            )
+     FROM TABLE(
+              DBMS_XPLAN.DISPLAY_CURSOR(
+                  sql_id          => g.sql_id,
+                  cursor_child_no => NULL,
+                  format          => 'ADVANCED'
+              )
+          )
+    ) AS plan_text_clob
 FROM G_EXT g
 JOIN U  ON U.sql_id = g.sql_id AND U.plan_hash_value = g.plan_hash_value
 LEFT JOIN A a ON a.sql_id = g.sql_id

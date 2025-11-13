@@ -29,5 +29,6 @@ public class SqlSnapshotRawDTO {
     private String parsingSchemaNameAny;
     private String moduleAny;
     private String sqlText;
+    private String planTextClob;
 }
 

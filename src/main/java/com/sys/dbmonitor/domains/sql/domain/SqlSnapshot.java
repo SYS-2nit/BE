@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -85,6 +86,10 @@ public class SqlSnapshot {
     @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
+    @Lob
+    @Column(name = "PLAN_TEXT_CLOB", columnDefinition = "CLOB")
+    private String planTextClob;
+
     @Builder
     public SqlSnapshot(Long instanceId,
                        LocalDateTime createdAt,
@@ -102,7 +107,8 @@ public class SqlSnapshot {
                        Long waitClusterUsDelta,
                        Long waitPlsqlUsDelta,
                        Long waitJavaUsDelta,
-                       String sqlText) {
+                       String sqlText,
+                       String planTextClob) {
         this.instanceId = instanceId;
         this.createdAt = createdAt;
         this.updatedAt = createdAt;
@@ -122,6 +128,7 @@ public class SqlSnapshot {
         this.waitPlsqlUsDelta = waitPlsqlUsDelta;
         this.waitJavaUsDelta = waitJavaUsDelta;
         this.sqlText = sqlText;
+        this.planTextClob = planTextClob;
     }
 }
 

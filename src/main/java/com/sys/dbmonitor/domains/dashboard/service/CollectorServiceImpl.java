@@ -28,6 +28,23 @@ public class CollectorServiceImpl implements CollectorService {
         this.store = store;
     }
 
+    // System SQL 필터링 상수 (SqlSnapshotService와 동일)
+    private static final java.util.Set<String> SYSTEM_SCHEMA_BLACKLIST = java.util.Set.of(
+            "SYS", "SYSTEM", "XDB", "DBSNMP", "OUTLN", "SYSMAN", "CTXSYS", "ORDSYS", "MDSYS",
+            "OLAPSYS", "WMSYS", "APPQOSSYS", "GSMADMIN_INTERNAL", "OJVMSYS", "DVSYS", "AUDSYS",
+            "GGSYS", "LBACSYS", "EXFSYS", "SI_INFORMTN_SCHEMA", "ANONYMOUS", "PERFSTAT",
+            "ORACLE_OCM"
+    );
+
+    private static final java.util.List<String> SYSTEM_SCHEMA_PREFIXES = java.util.List.of(
+            "APEX_", "FLOWS_", "FLOWS_FILES", "XS$"
+    );
+
+    private static final java.util.List<String> SYSTEM_MODULE_KEYWORDS = java.util.List.of(
+            "DBMS", "MMON", "MMNL", "SMON", "SMCO", "RECO", "OEM", "RMAN",
+            "STREAMS AQ", "GG", "SQL DEVELOPER", "PL/SQL DEVELOPER", "TOAD", "SYS.", "ORA$"
+    );
+
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
     public CollectorRawDTO collectRaw(Long instanceId) { return repo.collectSnapshot(instanceId); }
 
@@ -454,6 +471,16 @@ public class CollectorServiceImpl implements CollectorService {
             for (Map<String, Object> r : topSqlRows) {
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 if (sqlId == null || sqlId.isBlank()) continue;
+                
+                // 필터링: parsing_schema_name과 module 추출
+                String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
+                String module = str(anyObj(r, "MODULE", "module"));
+                
+                // System SQL 필터링 (SQL 페이지와 동일한 로직)
+                if (isSystemSql(schema, module)) {
+                    continue;
+                }
+                
                 double curUs = num(anyObj(r, "VALUE_NUM", "value_num", "CPU_US", "cpu_us"));
                 String k = "TOPSQL_CPU|" + sqlId;
                 double dUs = deltaByKey(instanceId, -1, k, curUs, now); // Δμs (음수 방지)
@@ -558,20 +585,34 @@ public class CollectorServiceImpl implements CollectorService {
                 "topshared",
                 "top_sql_shared_pool_candidate"
         );
+        // 필터링: System SQL 제외
+        List<Map<String, Object>> filteredTopShared = new ArrayList<>();
         if (topShared != null && !topShared.isEmpty()) {
-            topShared.sort((a, b) -> {
+            for (Map<String, Object> r : topShared) {
+                // 필터링: parsing_schema_name과 module 추출
+                String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
+                String module = str(anyObj(r, "MODULE", "module"));
+                
+                // System SQL 필터링 (SQL 페이지와 동일한 로직)
+                if (isSystemSql(schema, module)) {
+                    continue;
+                }
+                
+                filteredTopShared.add(r);
+            }
+            // 필터링된 리스트 정렬
+            filteredTopShared.sort((a, b) -> {
                 double va = nz(num(anyObj(a, "VALUE_NUM", "value_num")));
                 double vb = nz(num(anyObj(b, "VALUE_NUM", "value_num")));
                 return Double.compare(vb, va);
             });
-        } else {
-            topShared = List.of();
         }
+        // 패딩 포함 Top5 출력
         for (int i = 0; i < 5; i++) {
             String idKey  = String.format("TOP_SQL_BY_SHARED_POOL_SQL_ID_%02d", i+1);
             String valKey = String.format("TOP_SQL_BY_SHARED_POOL_VALUE_%02d",   i+1);
-            if (i < topShared.size()) {
-                Map<String, Object> r = topShared.get(i);
+            if (i < filteredTopShared.size()) {
+                Map<String, Object> r = filteredTopShared.get(i);
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 double val   = num(anyObj(r, "VALUE_NUM", "value_num"));
                 out.put(idKey,  sqlId == null ? "" : sqlId);
@@ -1438,6 +1479,41 @@ public class CollectorServiceImpl implements CollectorService {
             if ((v = tables.get(k4.toLowerCase())) != null) return v;
         }
         return List.of(); // 없으면 빈 리스트
+    }
+
+    /**
+     * System SQL 여부 판단 (SqlSnapshotService와 동일한 로직)
+     * @param schema parsing_schema_name
+     * @param module module
+     * @return System SQL이면 true
+     */
+    private boolean isSystemSql(String schema, String module) {
+        String upperSchema = upper(schema);
+        if (upperSchema != null) {
+            if (SYSTEM_SCHEMA_BLACKLIST.contains(upperSchema)) {
+                return true;
+            }
+            for (String prefix : SYSTEM_SCHEMA_PREFIXES) {
+                if (upperSchema.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        String upperModule = upper(module);
+        if (upperModule != null) {
+            for (String keyword : SYSTEM_MODULE_KEYWORDS) {
+                if (upperModule.contains(keyword)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private String upper(String value) {
+        return value != null ? value.trim().toUpperCase() : null;
     }
 }
 

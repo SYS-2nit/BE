@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import javax.sql.DataSource;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.sql.Clob;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -97,6 +98,7 @@ public class SqlSnapshotCollectorRepository {
                 .parsingSchemaNameAny(getString(row, "PARSING_SCHEMA_NAME_ANY"))
                 .moduleAny(getString(row, "MODULE_ANY"))
                 .sqlText(getString(row, "SQL_TEXT"))
+                .planTextClob(getClobString(row, "PLAN_TEXT_CLOB"))
                 .build();
     }
 
@@ -142,6 +144,29 @@ public class SqlSnapshotCollectorRepository {
             return (LocalDateTime) value;
         }
         return null;
+    }
+
+    /**
+     * CLOB 타입을 String으로 변환
+     */
+    private String getClobString(Map<String, Object> row, String key) {
+        Object value = row.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Clob) {
+            try {
+                Clob clob = (Clob) value;
+                long length = clob.length();
+                if (length == 0) {
+                    return null;
+                }
+                return clob.getSubString(1, (int) length);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        return value.toString();
     }
 }
 

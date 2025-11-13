@@ -625,9 +625,11 @@ SELECT
     SUM(cpu_time)                  AS value_num,
     inst_id,
     MIN(plan_hash_value)           AS plan_hash_value,
-    MIN(SUBSTR(module,1,64))       AS module
+    MIN(SUBSTR(module,1,64))       AS module,
+    MIN(parsing_schema_name)       AS parsing_schema_name
 FROM   gv$sqlarea
 WHERE  last_active_time >= SYSDATE - NUMTODSINTERVAL(v_lookback_min,'MINUTE')
+  AND parsing_schema_name = 'ADMIN'
 GROUP  BY inst_id, sql_id
 ORDER  BY value_num DESC
     FETCH FIRST v_max_candidates ROWS ONLY;
@@ -672,15 +674,18 @@ SELECT
     t.value_num        AS VALUE_NUM,
     t.inst_id          AS INST_ID,
     t.plan_hash_value  AS PLAN_HASH_VALUE,
-    SUBSTR(t.module,1,64) AS MODULE
+    SUBSTR(t.module,1,64) AS MODULE,
+    t.parsing_schema_name AS PARSING_SCHEMA_NAME
 FROM (
     SELECT
     s.inst_id,
     s.sql_id,
     SUM(NVL(s.sharable_mem,0)) AS value_num,
     MAX(s.plan_hash_value)     AS plan_hash_value,
-    MAX(s.module)              AS module
+    MAX(s.module)              AS module,
+    MAX(s.parsing_schema_name) AS parsing_schema_name
     FROM gv$sql s
+    WHERE s.parsing_schema_name = 'ADMIN'
     /* Optional PDB filter (caller may set :pdb_name); in non-CDB, ignore by leaving :pdb_name NULL */
     /* AND s.con_id IN (SELECT con_id FROM v$pdbs WHERE name = :pdb_name) */
     GROUP BY s.inst_id, s.sql_id
