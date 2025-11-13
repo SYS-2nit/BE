@@ -7,6 +7,8 @@ import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.domain.AlertLevel;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import com.sys.dbmonitor.domains.notification.service.command.EmailAlertService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +41,14 @@ public class EmailAlertTestController {
             @RequestParam String email,
             @RequestParam(required = false, defaultValue = "1") Integer severity,
             @RequestParam(required = false) Long instanceId,
+            @RequestParam(required = false) String thresholdFormat,
+            @RequestParam(required = false) String metricKey,
+            @RequestParam(required = false) String metricName,
+            @RequestParam(required = false) Double currentValue,
+            @RequestParam(required = false) Double thresholdValue,
+            @RequestParam(required = false) Double warningThreshold,
+            @RequestParam(required = false) Double dangerThreshold,
+            @RequestParam(required = false) Double criticalThreshold,
             // SMTP 설정 (선택적 - 없으면 application.yml의 기본 설정 사용)
             @RequestParam(required = false) String smtpHost,
             @RequestParam(required = false) Integer smtpPort,
@@ -64,7 +74,8 @@ public class EmailAlertTestController {
         }
 
         // 테스트용 Event 생성
-        Event testEvent = createTestEvent(instance, severity);
+        Event testEvent = createTestEvent(instance, severity, thresholdFormat, metricKey, metricName,
+            currentValue, thresholdValue, warningThreshold, dangerThreshold, criticalThreshold);
 
         try {
             // SMTP 설정이 모두 제공되면 사용, 아니면 기본 설정 사용
@@ -98,8 +109,17 @@ public class EmailAlertTestController {
     /**
      * 테스트용 Event 객체 생성
      */
-    private Event createTestEvent(Instance instance, Integer severity) {
-        AlertLevel alertLevel = severity == null ? AlertLevel.WARNING : 
+    private Event createTestEvent(Instance instance,
+                                  Integer severity,
+                                  String thresholdFormatStr,
+                                  String metricKey,
+                                  String metricName,
+                                  Double currentValue,
+                                  Double thresholdValue,
+                                  Double warningThreshold,
+                                  Double dangerThreshold,
+                                  Double criticalThreshold) {
+        AlertLevel alertLevel = severity == null ? AlertLevel.WARNING :
             switch (severity) {
                 case 1 -> AlertLevel.WARNING;
                 case 2 -> AlertLevel.DANGER;
@@ -107,14 +127,36 @@ public class EmailAlertTestController {
                 default -> AlertLevel.WARNING;
             };
 
-        // 테스트용 AlertEvent 생성 (실제 DB 저장 없이 메모리상에만 존재)
+        ThresholdFormat thresholdFormat = resolveThresholdFormat(thresholdFormatStr);
+        String resolvedMetricKey = metricKey != null ? metricKey : "HOST_CPU_UTIL_PCT";
+        String resolvedMetricName = metricName != null ? metricName : "Host CPU 사용률";
+
+        if (warningThreshold == null) warningThreshold = defaultWarning(thresholdFormat);
+        if (dangerThreshold == null) dangerThreshold = defaultDanger(thresholdFormat);
+        if (criticalThreshold == null) criticalThreshold = defaultCritical(thresholdFormat);
+
+        if (thresholdValue == null) {
+            thresholdValue = switch (alertLevel) {
+                case WARNING -> warningThreshold;
+                case DANGER -> dangerThreshold;
+                case CRITICAL -> criticalThreshold;
+            };
+        }
+
+        if (currentValue == null) {
+            currentValue = thresholdValue + defaultDelta(thresholdFormat);
+        }
+
         AlertEvent testAlertEvent = AlertEvent.builder()
-            .name("테스트 알림 규칙")
-            .metricName("Host CPU 사용률")
-            .metricKey("HOST_CPU_UTIL_PCT")
+            .name(resolvedMetricName + " 테스트 규칙")
+            .metricName(resolvedMetricName)
+            .metricKey(resolvedMetricKey)
+            .thresholdFormat(thresholdFormat)
+            .warning(warningThreshold)
+            .danger(dangerThreshold)
+            .critical(criticalThreshold)
             .build();
 
-        // 테스트용 Member 생성 (이메일 전송용, DB 저장 없음)
         Member testMember = Member.builder()
             .username("test_user")
             .email("test@example.com")
@@ -122,17 +164,72 @@ public class EmailAlertTestController {
             .company("Test Company")
             .build();
 
-        // 테스트용 Event 생성
+        String message = String.format("테스트 알림: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+            resolvedMetricName,
+            ThresholdFormatUtils.formatValue(currentValue, thresholdFormat),
+            alertLevel.getDescription(),
+            ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat)
+        );
+
         return Event.builder()
             .alertEvent(testAlertEvent)
             .instance(instance)
             .member(testMember)
             .status(AlertStatus.PENDING)
             .severity(alertLevel.getValue())
-            .currentValue(85.5)
-            .thresholdValue(80.0)
-            .message("테스트 알림: Host CPU 사용률이 85.5%로 위험 임계값(80.0%)을 초과했습니다.")
+            .currentValue(currentValue)
+            .thresholdValue(thresholdValue)
+            .thresholdFormat(thresholdFormat)
+            .message(message)
             .build();
+    }
+
+    private ThresholdFormat resolveThresholdFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return ThresholdFormat.PERCENT;
+        }
+        try {
+            return ThresholdFormat.valueOf(format.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            log.warn("[EmailTest] 알 수 없는 thresholdFormat={}, 기본값 PERCENT 사용", format);
+            return ThresholdFormat.PERCENT;
+        }
+    }
+
+    private double defaultWarning(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 70.0;
+            case MS -> 20.0;
+            case MBPS -> 80.0;
+            case COUNT -> 1.0;
+        };
+    }
+
+    private double defaultDanger(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 85.0;
+            case MS -> 35.0;
+            case MBPS -> 120.0;
+            case COUNT -> 3.0;
+        };
+    }
+
+    private double defaultCritical(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 95.0;
+            case MS -> 50.0;
+            case MBPS -> 160.0;
+            case COUNT -> 5.0;
+        };
+    }
+
+    private double defaultDelta(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 5.0;
+            case MS -> 5.0;
+            case MBPS -> 10.0;
+            case COUNT -> 1.0;
+        };
     }
 }
 

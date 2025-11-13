@@ -2,6 +2,7 @@ package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.MailException;
@@ -217,6 +218,9 @@ public class EmailAlertService {
         String severityText = getSeverityText(event.getSeverity());
         String severityColor = getSeverityColor(event.getSeverity());
         
+        String formattedCurrent = ThresholdFormatUtils.formatValue(event.getCurrentValue(), event.getThresholdFormat());
+        String formattedThreshold = ThresholdFormatUtils.formatValue(event.getThresholdValue(), event.getThresholdFormat());
+
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -244,8 +248,8 @@ public class EmailAlertService {
                     <div class="content">
                         <div class="alert-info">
                             <h3>%s</h3>
-                            <p class="metric-value">현재 값: %.2f%%</p>
-                            <p>임계값: %.2f%%</p>
+                            <p class="metric-value">현재 값: %s</p>
+                            <p>임계값: %s</p>
                         </div>
                         <table>
                             <tr>
@@ -286,8 +290,8 @@ public class EmailAlertService {
             severityColor,
             severityText,
             event.getAlertEvent().getMetricName(),
-            event.getCurrentValue(),
-            event.getThresholdValue(),
+            formattedCurrent,
+            formattedThreshold,
             event.getInstance().getId(),
             event.getAlertEvent().getMetricName(),
             event.getAlertEvent().getName(),

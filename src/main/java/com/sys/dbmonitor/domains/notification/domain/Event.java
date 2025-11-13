@@ -69,14 +69,21 @@ public class Event extends BaseEntity {
     /**
      * 알림 발생 시점의 메트릭 현재 값
      */
-    @Column(name = "CURRENT_VALUE", nullable = false, precision = 10, scale = 2)
+    @Column(name = "CURRENT_VALUE", nullable = false, columnDefinition = "NUMBER(10,2)")
     private Double currentValue;
 
     /**
      * 초과한 임계값
      */
-    @Column(name = "THRESHOLD_VALUE", nullable = false, precision = 5, scale = 2)
+    @Column(name = "THRESHOLD_VALUE", nullable = false, columnDefinition = "NUMBER(5,2)")
     private Double thresholdValue;
+
+    /**
+     * 임계치 포맷
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "THRESHOLD_FORMAT", nullable = false, length = 20)
+    private ThresholdFormat thresholdFormat = ThresholdFormat.PERCENT;
 
     /**
      * 알림 메시지
@@ -118,7 +125,8 @@ public class Event extends BaseEntity {
 
     @Builder
     public Event(AlertEvent alertEvent, Instance instance, Member member,
-                 AlertStatus status, Integer severity, Double currentValue, Double thresholdValue, String message) {
+                 AlertStatus status, Integer severity, Double currentValue, Double thresholdValue,
+                 ThresholdFormat thresholdFormat, String message) {
         this.alertEvent = alertEvent;
         this.instance = instance;
         this.member = member;
@@ -126,6 +134,7 @@ public class Event extends BaseEntity {
         this.severity = severity;
         this.currentValue = currentValue;
         this.thresholdValue = thresholdValue;
+        this.thresholdFormat = thresholdFormat != null ? thresholdFormat : ThresholdFormat.PERCENT;
         this.message = message;
     }
 

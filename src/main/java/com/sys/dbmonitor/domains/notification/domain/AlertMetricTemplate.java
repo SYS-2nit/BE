@@ -54,21 +54,28 @@ public class AlertMetricTemplate extends BaseEntity {
     private String metricName;
 
     /**
+     * 임계치 입력 포맷 (예: %, MS, MBPS, COUNT)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "THRESHOLD_FORMAT", nullable = false, length = 20)
+    private ThresholdFormat thresholdFormat;
+
+    /**
      * 기본 경고(WARNING) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_WARNING", columnDefinition = "NUMBER(5,2)")
+    @Column(name = "DEFAULT_WARNING")
     private Double defaultWarning;
 
     /**
      * 기본 위험(DANGER) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_DANGER", columnDefinition = "NUMBER(5,2)")
+    @Column(name = "DEFAULT_DANGER")
     private Double defaultDanger;
 
     /**
      * 기본 치명(CRITICAL) 임계값 (0~100 범위, 선택 사항)
      */
-    @Column(name = "DEFAULT_CRITICAL", columnDefinition = "NUMBER(5,2)")
+    @Column(name = "DEFAULT_CRITICAL")
     private Double defaultCritical;
 
     /**
@@ -85,12 +92,14 @@ public class AlertMetricTemplate extends BaseEntity {
 
     @Builder
     public AlertMetricTemplate(AlertCategory category, Graph graph, String metricKey, String metricName,
+                               ThresholdFormat thresholdFormat,
                                Double defaultWarning, Double defaultDanger, Double defaultCritical,
                                String description, Boolean isActive) {
         this.category = category;
         this.graph = graph;
         this.metricKey = metricKey;
         this.metricName = metricName;
+        this.thresholdFormat = thresholdFormat;
         this.defaultWarning = defaultWarning;
         this.defaultDanger = defaultDanger;
         this.defaultCritical = defaultCritical;
@@ -101,8 +110,10 @@ public class AlertMetricTemplate extends BaseEntity {
     /**
      * 템플릿 정보 수정
      */
-    public void update(Double defaultWarning, Double defaultDanger, Double defaultCritical,
-                      String description, Boolean isActive) {
+    public void update(ThresholdFormat thresholdFormat,
+                       Double defaultWarning, Double defaultDanger, Double defaultCritical,
+                       String description, Boolean isActive) {
+        if (thresholdFormat != null) this.thresholdFormat = thresholdFormat;
         if (defaultWarning != null) this.defaultWarning = defaultWarning;
         if (defaultDanger != null) this.defaultDanger = defaultDanger;
         if (defaultCritical != null) this.defaultCritical = defaultCritical;

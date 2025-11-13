@@ -8,6 +8,8 @@ import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.domain.AlertLevel;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import com.sys.dbmonitor.domains.notification.dto.request.NotificationTestRequest;
 import com.sys.dbmonitor.domains.notification.service.command.AlertNotificationService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
@@ -65,7 +67,7 @@ public class AlertNotificationTestController {
         }
 
         // 테스트용 Event 생성 (실제 DB의 Member 사용)
-        Event testEvent = createTestEvent(instance, member, severity);
+        Event testEvent = createTestEvent(instance, member, request);
 
         try {
             log.info("[NotificationTest] 알림 전송 시도: memberId={}, severity={}", request.getMemberId(), severity);
@@ -82,38 +84,117 @@ public class AlertNotificationTestController {
      * 테스트용 Event 객체 생성
      * 실제 DB의 Member를 사용하여 Event 생성
      */
-    private Event createTestEvent(Instance instance, Member member, Integer severity) {
-        AlertLevel alertLevel = severity == null ? AlertLevel.WARNING : 
-            switch (severity) {
-                case 1 -> AlertLevel.WARNING;
-                case 2 -> AlertLevel.DANGER;
-                case 3 -> AlertLevel.CRITICAL;
-                default -> AlertLevel.WARNING;
-            };
+    private Event createTestEvent(Instance instance, Member member, NotificationTestRequest request) {
+        int severityValue = request.getSeverity() != null ? request.getSeverity() : 1;
+        AlertLevel alertLevel = switch (severityValue) {
+            case 1 -> AlertLevel.WARNING;
+            case 2 -> AlertLevel.DANGER;
+            case 3 -> AlertLevel.CRITICAL;
+            default -> AlertLevel.WARNING;
+        };
 
-        // 테스트용 AlertEvent 생성 (실제 DB 저장 없이 메모리상에만 존재)
+        ThresholdFormat thresholdFormat = resolveThresholdFormat(request.getThresholdFormat());
+        String metricKey = request.getMetricKey() != null ? request.getMetricKey() : "HOST_CPU_UTIL_PCT";
+        String metricName = request.getMetricName() != null ? request.getMetricName() : "Host CPU 사용률";
+
+        Double warningThreshold = request.getWarningThreshold();
+        Double dangerThreshold = request.getDangerThreshold();
+        Double criticalThreshold = request.getCriticalThreshold();
+
+        if (warningThreshold == null) warningThreshold = defaultWarning(thresholdFormat);
+        if (dangerThreshold == null) dangerThreshold = defaultDanger(thresholdFormat);
+        if (criticalThreshold == null) criticalThreshold = defaultCritical(thresholdFormat);
+
+        Double thresholdValue = request.getThresholdValue();
+        if (thresholdValue == null) {
+            thresholdValue = switch (alertLevel) {
+                case WARNING -> warningThreshold;
+                case DANGER -> dangerThreshold;
+                case CRITICAL -> criticalThreshold;
+            };
+        }
+
+        Double currentValue = request.getCurrentValue();
+        if (currentValue == null) {
+            currentValue = thresholdValue + defaultDelta(thresholdFormat);
+        }
+
         AlertEvent testAlertEvent = AlertEvent.builder()
-            .name("테스트 알림 규칙")
-            .metricName("Host CPU 사용률")
-            .metricKey("HOST_CPU_UTIL_PCT")
+            .name(metricName + " 테스트 규칙")
+            .metricName(metricName)
+            .metricKey(metricKey)
+            .thresholdFormat(thresholdFormat)
+            .warning(warningThreshold)
+            .danger(dangerThreshold)
+            .critical(criticalThreshold)
             .build();
 
-        // 테스트용 Event 생성 (실제 DB의 Member 사용)
-        Event testEvent = Event.builder()
+        String message = String.format("테스트 알림: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+            metricName,
+            ThresholdFormatUtils.formatValue(currentValue, thresholdFormat),
+            alertLevel.getDescription(),
+            ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat)
+        );
+
+        return Event.builder()
             .alertEvent(testAlertEvent)
             .instance(instance)
-            .member(member)  // 실제 DB에서 조회한 Member 사용
+            .member(member)
             .status(AlertStatus.PENDING)
             .severity(alertLevel.getValue())
-            .currentValue(severity == 3 ? 95.5 : 85.5) // CRITICAL이면 95.5%, 아니면 85.5%
-            .thresholdValue(severity == 3 ? 90.0 : 80.0) // CRITICAL이면 90.0%, 아니면 80.0%
-            .message(String.format("테스트 알림: Host CPU 사용률이 %.2f%%로 %s 임계값(%.2f%%)을 초과했습니다.", 
-                severity == 3 ? 95.5 : 85.5,
-                alertLevel.getDescription(),
-                severity == 3 ? 90.0 : 80.0))
+            .currentValue(currentValue)
+            .thresholdValue(thresholdValue)
+            .thresholdFormat(thresholdFormat)
+            .message(message)
             .build();
-        
-        return testEvent;
+    }
+
+    private ThresholdFormat resolveThresholdFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return ThresholdFormat.PERCENT;
+        }
+        try {
+            return ThresholdFormat.valueOf(format.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            log.warn("[NotificationTest] 알 수 없는 thresholdFormat={}, 기본값 PERCENT 사용", format);
+            return ThresholdFormat.PERCENT;
+        }
+    }
+
+    private double defaultWarning(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 70.0;
+            case MS -> 20.0;
+            case MBPS -> 80.0;
+            case COUNT -> 1.0;
+        };
+    }
+
+    private double defaultDanger(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 85.0;
+            case MS -> 35.0;
+            case MBPS -> 120.0;
+            case COUNT -> 3.0;
+        };
+    }
+
+    private double defaultCritical(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 95.0;
+            case MS -> 50.0;
+            case MBPS -> 160.0;
+            case COUNT -> 5.0;
+        };
+    }
+
+    private double defaultDelta(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 5.0;
+            case MS -> 5.0;
+            case MBPS -> 10.0;
+            case COUNT -> 1.0;
+        };
     }
 }
 

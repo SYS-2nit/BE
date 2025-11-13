@@ -58,22 +58,29 @@ public class AlertEvent extends BaseEntity {
     private String name;
 
     /**
-     * 경고(WARNING) 임계값 (0~100 범위)
+     * 임계치 입력 포맷 (예: %, MS, MBPS, COUNT)
      */
-    @Column(name = "WARNING", nullable = false, columnDefinition = "NUMBER DEFAULT 50")
-    private Integer warning = 50;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "THRESHOLD_FORMAT", nullable = false, length = 20, columnDefinition = "VARCHAR2(20) DEFAULT 'PERCENT'")
+    private ThresholdFormat thresholdFormat = ThresholdFormat.PERCENT;
 
     /**
-     * 위험(DANGER) 임계값 (0~100 범위)
+     * 경고(WARNING) 임계값
      */
-    @Column(name = "DANGER", nullable = false, columnDefinition = "NUMBER DEFAULT 70")
-    private Integer danger = 70;
+    @Column(name = "WARNING", nullable = false, columnDefinition = "NUMBER(10,3) DEFAULT 50")
+    private Double warning = 50.0;
 
     /**
-     * 치명(CRITICAL) 임계값 (0~100 범위)
+     * 위험(DANGER) 임계값
      */
-    @Column(name = "CRITICAL", nullable = false, columnDefinition = "NUMBER DEFAULT 90")
-    private Integer critical = 90;
+    @Column(name = "DANGER", nullable = false, columnDefinition = "NUMBER(10,3) DEFAULT 70")
+    private Double danger = 70.0;
+
+    /**
+     * 치명(CRITICAL) 임계값
+     */
+    @Column(name = "CRITICAL", nullable = false, columnDefinition = "NUMBER(10,3) DEFAULT 90")
+    private Double critical = 90.0;
 
     /**
      * 누적 시간 옵션
@@ -134,16 +141,18 @@ public class AlertEvent extends BaseEntity {
 
     @Builder
     public AlertEvent(AlertPolicy policy, AlertCategory category, Boolean state, String name,
-                      Integer warning, Integer danger, Integer critical,
+                      ThresholdFormat thresholdFormat,
+                      Double warning, Double danger, Double critical,
                       DelayTime delayTime, Integer days, String startTime, String endTime,
                       Graph graph, String metricKey, String metricName, Boolean isReverse) {
         this.policy = policy;
         this.category = category;
         this.state = state != null ? state : true;
         this.name = name;
-        this.warning = warning != null ? warning : 50;
-        this.danger = danger != null ? danger : 70;
-        this.critical = critical != null ? critical : 90;
+        this.thresholdFormat = thresholdFormat != null ? thresholdFormat : ThresholdFormat.PERCENT;
+        this.warning = warning != null ? warning : 50.0;
+        this.danger = danger != null ? danger : 70.0;
+        this.critical = critical != null ? critical : 90.0;
         this.delayTime = delayTime != null ? delayTime : DelayTime.ONE_MINUTE;
         this.days = days != null ? days : 127;
         this.startTime = startTime;
@@ -157,10 +166,12 @@ public class AlertEvent extends BaseEntity {
     /**
      * 알림 규칙 정보 수정
      */
-    public void update(String name, Integer warning, Integer danger, Integer critical,
-                      DelayTime delayTime, Integer days, String startTime, String endTime,
-                      Boolean state, Boolean isReverse) {
+    public void update(String name, ThresholdFormat thresholdFormat,
+                       Double warning, Double danger, Double critical,
+                       DelayTime delayTime, Integer days, String startTime, String endTime,
+                       Boolean state, Boolean isReverse) {
         if (name != null) this.name = name;
+        if (thresholdFormat != null) this.thresholdFormat = thresholdFormat;
         if (warning != null) this.warning = warning;
         if (danger != null) this.danger = danger;
         if (critical != null) this.critical = critical;

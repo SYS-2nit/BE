@@ -7,6 +7,8 @@ import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.domain.AlertLevel;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import com.sys.dbmonitor.domains.notification.dto.request.SlackTestRequest;
 import com.sys.dbmonitor.domains.notification.service.command.SlackAlertService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
@@ -60,7 +62,7 @@ public class SlackAlertTestController {
         }
 
         // 테스트용 Event 생성
-        Event testEvent = createTestEvent(instance, severity);
+        Event testEvent = createTestEvent(instance, request);
 
         try {
             log.info("[SlackTest] Slack 전송 시도: webhookUrl={}, severity={}", request.getWebhookUrl(), severity);
@@ -76,23 +78,38 @@ public class SlackAlertTestController {
     /**
      * 테스트용 Event 객체 생성
      */
-    private Event createTestEvent(Instance instance, Integer severity) {
-        AlertLevel alertLevel = severity == null ? AlertLevel.CRITICAL : 
-            switch (severity) {
-                case 1 -> AlertLevel.WARNING;
-                case 2 -> AlertLevel.DANGER;
-                case 3 -> AlertLevel.CRITICAL;
-                default -> AlertLevel.CRITICAL;
-            };
+    private Event createTestEvent(Instance instance, SlackTestRequest request) {
+        int severityValue = request.getSeverity() != null ? request.getSeverity() : 3;
+        AlertLevel alertLevel = switch (severityValue) {
+            case 1 -> AlertLevel.WARNING;
+            case 2 -> AlertLevel.DANGER;
+            case 3 -> AlertLevel.CRITICAL;
+            default -> AlertLevel.CRITICAL;
+        };
 
-        // 테스트용 AlertEvent 생성 (실제 DB 저장 없이 메모리상에만 존재)
+        ThresholdFormat thresholdFormat = resolveThresholdFormat(request.getThresholdFormat());
+        String metricKey = request.getMetricKey() != null ? request.getMetricKey() : "HOST_CPU_UTIL_PCT";
+        String metricName = request.getMetricName() != null ? request.getMetricName() : "Host CPU 사용률";
+
+        double defaultThreshold = switch (alertLevel) {
+            case WARNING -> defaultWarning(thresholdFormat);
+            case DANGER -> defaultDanger(thresholdFormat);
+            case CRITICAL -> defaultCritical(thresholdFormat);
+        };
+
+        Double thresholdValue = request.getThresholdValue() != null ? request.getThresholdValue() : defaultThreshold;
+        Double currentValue = request.getCurrentValue() != null ? request.getCurrentValue() : thresholdValue + defaultDelta(thresholdFormat);
+
         AlertEvent testAlertEvent = AlertEvent.builder()
-            .name("테스트 알림 규칙")
-            .metricName("Host CPU 사용률")
-            .metricKey("HOST_CPU_UTIL_PCT")
+            .name(metricName + " 테스트 규칙")
+            .metricName(metricName)
+            .metricKey(metricKey)
+            .thresholdFormat(thresholdFormat)
+            .warning(defaultWarning(thresholdFormat))
+            .danger(defaultDanger(thresholdFormat))
+            .critical(defaultCritical(thresholdFormat))
             .build();
 
-        // 테스트용 Member 생성 (Slack 전송용, DB 저장 없음)
         Member testMember = Member.builder()
             .username("test_user")
             .email("test@example.com")
@@ -100,17 +117,72 @@ public class SlackAlertTestController {
             .company("Test Company")
             .build();
 
-        // 테스트용 Event 생성
+        String message = String.format("테스트 알림: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+            metricName,
+            ThresholdFormatUtils.formatValue(currentValue, thresholdFormat),
+            alertLevel.getDescription(),
+            ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat)
+        );
+
         return Event.builder()
             .alertEvent(testAlertEvent)
             .instance(instance)
             .member(testMember)
             .status(AlertStatus.PENDING)
             .severity(alertLevel.getValue())
-            .currentValue(95.5)
-            .thresholdValue(90.0)
-            .message("테스트 알림: Host CPU 사용률이 95.5%로 치명 임계값(90.0%)을 초과했습니다.")
+            .currentValue(currentValue)
+            .thresholdValue(thresholdValue)
+            .thresholdFormat(thresholdFormat)
+            .message(message)
             .build();
+    }
+
+    private ThresholdFormat resolveThresholdFormat(String format) {
+        if (format == null || format.isBlank()) {
+            return ThresholdFormat.PERCENT;
+        }
+        try {
+            return ThresholdFormat.valueOf(format.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            log.warn("[SlackTest] 알 수 없는 thresholdFormat={}, 기본값 PERCENT 사용", format);
+            return ThresholdFormat.PERCENT;
+        }
+    }
+
+    private double defaultWarning(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 70.0;
+            case MS -> 20.0;
+            case MBPS -> 80.0;
+            case COUNT -> 1.0;
+        };
+    }
+
+    private double defaultDanger(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 85.0;
+            case MS -> 35.0;
+            case MBPS -> 120.0;
+            case COUNT -> 3.0;
+        };
+    }
+
+    private double defaultCritical(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 95.0;
+            case MS -> 50.0;
+            case MBPS -> 160.0;
+            case COUNT -> 5.0;
+        };
+    }
+
+    private double defaultDelta(ThresholdFormat format) {
+        return switch (format) {
+            case PERCENT -> 5.0;
+            case MS -> 5.0;
+            case MBPS -> 10.0;
+            case COUNT -> 1.0;
+        };
     }
 }
 

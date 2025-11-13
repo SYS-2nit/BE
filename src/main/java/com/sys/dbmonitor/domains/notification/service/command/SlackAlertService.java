@@ -2,6 +2,7 @@ package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -129,14 +130,19 @@ public class SlackAlertService {
         metricBlock.put("type", "section");
         Map<String, Object> metricText = new HashMap<>();
         metricText.put("type", "mrkdwn");
+        String formattedCurrent = ThresholdFormatUtils.formatValue(event.getCurrentValue(), event.getThresholdFormat());
+        String formattedThreshold = ThresholdFormatUtils.formatValue(event.getThresholdValue(), event.getThresholdFormat());
+
         metricText.put("text", String.format(
             "*메트릭:* %s\n" +
-            "*현재 값:* <!here> *%.2f%%*\n" +
-            "*임계값:* %.2f%%\n" +
+            "*현재 값:* <!here> *%s*\n" +
+            "*임계값:* %s\n" +
+            "*임계치 포맷:* %s\n" +
             "*인스턴스 ID:* %d",
             event.getAlertEvent().getMetricName(),
-            event.getCurrentValue(),
-            event.getThresholdValue(),
+            formattedCurrent,
+            formattedThreshold,
+            event.getThresholdFormat().name(),
             event.getInstance().getId()
         ));
         metricBlock.put("text", metricText);
@@ -188,13 +194,13 @@ public class SlackAlertService {
 
         // 간단한 텍스트 메시지도 포함 (fallback)
         message.put("text", String.format(
-            "%s DB 모니터링 알림: %s - %s가 %.2f%%로 %s 임계값(%.2f%%)을 초과했습니다.",
+            "%s DB 모니터링 알림: %s - %s가 %s로 %s 임계값(%s)을 초과했습니다.",
             severityEmoji,
             severityText,
             event.getAlertEvent().getMetricName(),
-            event.getCurrentValue(),
+            formattedCurrent,
             severityText,
-            event.getThresholdValue()
+            formattedThreshold
         ));
 
         return message;

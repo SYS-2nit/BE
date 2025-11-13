@@ -1,12 +1,14 @@
 package com.sys.dbmonitor.domains.notification.service.realtime;
 
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -98,18 +100,28 @@ public class SseAlertService {
 
         try {
             // 알림 데이터 전송
+            String createdAtStr = event.getCreatedAt() != null
+                ? event.getCreatedAt().toString()
+                : java.time.LocalDateTime.now().toString();
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("eventId", event.getId());
+            payload.put("alertEventId", event.getAlertEvent().getId());
+            payload.put("instanceId", event.getInstance().getId());
+            payload.put("severity", event.getSeverity());
+            payload.put("message", event.getMessage());
+            payload.put("currentValue", event.getCurrentValue());
+            payload.put("thresholdValue", event.getThresholdValue());
+            payload.put("thresholdFormat", event.getThresholdFormat().name());
+            payload.put("currentValueFormatted", ThresholdFormatUtils.formatValue(
+                event.getCurrentValue(), event.getThresholdFormat()));
+            payload.put("thresholdValueFormatted", ThresholdFormatUtils.formatValue(
+                event.getThresholdValue(), event.getThresholdFormat()));
+            payload.put("createdAt", createdAtStr);
+
             emitter.send(SseEmitter.event()
                 .name("alert")
-                .data(Map.of(
-                    "eventId", event.getId(),
-                    "alertEventId", event.getAlertEvent().getId(),
-                    "instanceId", event.getInstance().getId(),
-                    "severity", event.getSeverity(),
-                    "message", event.getMessage(),
-                    "currentValue", event.getCurrentValue(),
-                    "thresholdValue", event.getThresholdValue(),
-                    "createdAt", event.getCreatedAt().toString()
-                )));
+                .data(payload));
             
             log.debug("[SseAlert] 알림 전송 완료: userId={}, eventId={}", userId, event.getId());
         } catch (IOException e) {

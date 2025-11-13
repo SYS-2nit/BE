@@ -6,9 +6,11 @@ import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.domain.AlertLevel;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
+import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
 import com.sys.dbmonitor.domains.notification.repository.EventRepository;
 import com.sys.dbmonitor.domains.notification.state.AlertStateStore;
+import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -288,12 +290,16 @@ public class AlertCheckService {
         Double thresholdValue = determineThresholdValue(currentValue, alertEvent);
         
         // 알림 메시지 생성
-        String message = String.format("%s: %s가 %.2f%%로 %s 임계값(%.2f%%)을 초과했습니다.", 
+        ThresholdFormat thresholdFormat = alertEvent.getThresholdFormat();
+        String formattedCurrent = ThresholdFormatUtils.formatValue(currentValue, thresholdFormat);
+        String formattedThreshold = ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat);
+
+        String message = String.format("%s: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
             alertEvent.getMetricName(),
             alertEvent.getMetricName(),
-            currentValue,
+            formattedCurrent,
             severity.getDescription(),
-            thresholdValue
+            formattedThreshold
         );
 
         // Event 엔티티 생성
@@ -305,6 +311,7 @@ public class AlertCheckService {
             .severity(severity.getValue()) // AlertLevel의 value 사용
             .currentValue(currentValue)
             .thresholdValue(thresholdValue)
+            .thresholdFormat(thresholdFormat)
             .message(message)
             .build();
 
