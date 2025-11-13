@@ -82,10 +82,13 @@ public class Sql extends BaseEntity {
         setUpdatedAt(java.time.LocalDateTime.now());
     }
 
-    /** 평균 수행시간 계산 (elapsedUsDelta / executionsDelta) */
-    public Long getAvgElapsedUs() {
-        if (elapsedUsDelta == null || executionsDelta == null || executionsDelta == 0) {
-            return null;
+    /* 평균 컬럼 계산 */
+    public Long getAvgElapsed() {
+        if (executionsDelta == null || executionsDelta == 0) {
+            return 0L;
+        }
+        if (elapsedUsDelta == null) {
+            return 0L;
         }
         return elapsedUsDelta / executionsDelta;
     }

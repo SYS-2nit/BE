@@ -16,8 +16,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/sql")
@@ -59,12 +57,14 @@ public class SqlCommandController {
         return ApiResponse.ok(200, response, "SQL 통계 목록 조회 성공");
     }
 
-    /** SQL 그래프 조회
-    @Operation(summary = "SQL 그래프 데이터 조회", description = "시간 단위(HH)로 하루(00:00~다음날 00:00) 기준 SQL 지표를 집계하여 반환합니다.")
+    /* 5. SQL 그래프 데이터 조회 */
+    @Operation(summary = "SQL 그래프 데이터 조회")
     @GetMapping("/graph")
-    public ApiResponse<SqlGraphSeriesResponse> getGraph(@Valid SqlGraphRequest request) {
-        SqlGraphSeriesResponse graphData = sqlStatsQueryService.getSqlGraphData(request);
-        return ApiResponse.ok(200, graphData, "SQL 그래프 데이터 조회 성공");
+    public ApiResponse<SqlGraphSeriesResponse> graph(@Valid SqlGraphRequest request) {
+        return ApiResponse.ok(
+                200,
+                sqlStatsQueryService.getSqlGraphData(request),
+                "그래프 데이터 조회 성공"
+        );
     }
-    **/
 }

@@ -1,17 +1,19 @@
 package com.sys.dbmonitor.domains.sql.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-
-import java.time.Instant;
 import java.util.List;
 
-@Schema(description = "그래프 시리즈 응답(시간 단위, 하루 24포인트)")
+@Schema(description = "SQL 그래프 데이터 응답")
 public record SqlGraphSeriesResponse(
-		String metric,
-		String interval, // always "hour"
-		List<Point> series
+        String metric,
+        String startDate,
+        String endDate,
+        List<Bucket> buckets
 ) {
-	public record Point(Instant t, long v) { }
+
+    @Schema(description = "시간대 bucket 데이터 (interval 단위)")
+    public record Bucket(
+            String timeLabel, // 예: "2025-11-10 01:00"
+            Long value         // metric 값 합계
+    ) {}
 }
-
-

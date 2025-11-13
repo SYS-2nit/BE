@@ -42,7 +42,7 @@ public record SqlStatsQueryRequest(
 		Integer page,
 
 		@Min(1)
-		@Schema(description = "페이지 크기", example = "20")
+		@Schema(description = "페이지 크기", example = "5")
 		Integer size
 ) { }
 
