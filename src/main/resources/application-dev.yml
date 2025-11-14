@@ -52,5 +52,6 @@ server:
 
 app:
   metric:
-    # 개발 환경에서는 metric_data 저장 방지 (통합 테스트 전용)
     persist: false
+  batch:
+    enabled: false  # 배치 스케줄러 비활성화
