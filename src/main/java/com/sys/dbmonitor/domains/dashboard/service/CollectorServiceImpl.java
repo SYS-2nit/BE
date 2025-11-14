@@ -388,7 +388,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("HOST_CPU_UTIL_PCT", hostUtilPct);       // 003
 
         // 004 AAS_ONCPU_SESSIONS = 이미 aasOnCpuSum
-        out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum);      // 004
+        // out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum);      
 
         // 005 CORE_BASELINE_SESSIONS = Σ cpu_count
         out.put("CORE_BASELINE_SESSIONS", cpuCntSum);    // 005
@@ -425,6 +425,8 @@ public class CollectorServiceImpl implements CollectorService {
 
         // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec (단일 순회에서 이미 계산됨)
         out.put("AAS_BG_SESSIONS", aasBgSum); // 019
+
+        out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum + aasBgSum); // FG + BG // 004
 
         /* ========= 세션 탭 지표(요약) ========= */
         out.put("ACTIVE_USER_SESSIONS_NOW",  activeSum);
