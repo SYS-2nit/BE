@@ -194,7 +194,7 @@ public class SlackAlertService {
 
         // 간단한 텍스트 메시지도 포함 (fallback)
         message.put("text", String.format(
-            "%s DB 모니터링 알림: %s - %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+            "%s DB 모니터링 알림: %s - %s이/가 %s로 %s 임계값(%s)을 초과했습니다.",
             severityEmoji,
             severityText,
             event.getAlertEvent().getMetricName(),

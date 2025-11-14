@@ -164,7 +164,7 @@ public class EmailAlertTestController {
             .company("Test Company")
             .build();
 
-        String message = String.format("테스트 알림: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+        String message = String.format("테스트 알림: %s이/가 %s로 %s 임계값(%s)을 초과했습니다.",
             resolvedMetricName,
             ThresholdFormatUtils.formatValue(currentValue, thresholdFormat),
             alertLevel.getDescription(),

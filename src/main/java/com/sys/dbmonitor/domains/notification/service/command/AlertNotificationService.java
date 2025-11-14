@@ -66,20 +66,48 @@ public class AlertNotificationService {
             sseAlertService.sendAlert(memberId, event);
             log.debug("[AlertNotification] SSE 알림 전송 완료: eventId={}, memberId={}", event.getId(), memberId);
 
-            // 2. 심각도별 채널 선택
-            if (severity == 1 || severity == 2) {
-                // WARNING(1), DANGER(2) → 이메일
+            // 2. 사용자 설정에 따른 채널 선택
+            String selectedChannel = null;
+            
+            if (severity == 1) {
+                // WARNING(1) → 사용자 설정의 warningChannel 확인
+                selectedChannel = member.getWarningChannel();
+                // 설정이 없으면 기본값: email
+                if (selectedChannel == null || selectedChannel.trim().isEmpty()) {
+                    selectedChannel = "email";
+                }
+            } else if (severity == 2) {
+                // DANGER(2) → 사용자 설정의 dangerChannel 확인
+                selectedChannel = member.getDangerChannel();
+                // 설정이 없으면 기본값: email
+                if (selectedChannel == null || selectedChannel.trim().isEmpty()) {
+                    selectedChannel = "email";
+                }
+            } else if (severity == 3) {
+                // CRITICAL(3) → 사용자 설정의 criticalChannel 확인
+                selectedChannel = member.getCriticalChannel();
+                // 설정이 없으면 기본값: slack
+                if (selectedChannel == null || selectedChannel.trim().isEmpty()) {
+                    selectedChannel = "slack";
+                }
+            } else {
+                log.warn("[AlertNotification] 알 수 없는 심각도: eventId={}, memberId={}, severity={}", 
+                    event.getId(), memberId, severity);
+                return;
+            }
+
+            // 3. 선택된 채널로 알림 전송
+            if ("email".equalsIgnoreCase(selectedChannel)) {
                 emailAlertService.sendEmail(member, event);
                 log.info("[AlertNotification] 이메일 알림 전송 완료: eventId={}, memberId={}, severity={}", 
                     event.getId(), memberId, severity);
-            } else if (severity == 3) {
-                // CRITICAL(3) → Slack
+            } else if ("slack".equalsIgnoreCase(selectedChannel)) {
                 slackAlertService.sendSlack(member, event);
                 log.info("[AlertNotification] Slack 알림 전송 완료: eventId={}, memberId={}, severity={}", 
                     event.getId(), memberId, severity);
             } else {
-                log.warn("[AlertNotification] 알 수 없는 심각도: eventId={}, memberId={}, severity={}", 
-                    event.getId(), memberId, severity);
+                log.warn("[AlertNotification] 알 수 없는 채널: eventId={}, memberId={}, severity={}, channel={}", 
+                    event.getId(), memberId, severity, selectedChannel);
             }
         } catch (Exception e) {
             log.error("[AlertNotification] 알림 전송 중 오류 발생: eventId={}, memberId={}, severity={}, error={}", 

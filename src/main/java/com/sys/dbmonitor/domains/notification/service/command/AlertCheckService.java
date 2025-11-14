@@ -294,7 +294,7 @@ public class AlertCheckService {
         String formattedCurrent = ThresholdFormatUtils.formatValue(currentValue, thresholdFormat);
         String formattedThreshold = ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat);
 
-        String message = String.format("%s: %s가 %s로 %s 임계값(%s)을 초과했습니다.",
+        String message = String.format("%s: %s이/가 %s로 %s 임계값(%s)을 초과했습니다.",
             alertEvent.getMetricName(),
             alertEvent.getMetricName(),
             formattedCurrent,
