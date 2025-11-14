@@ -9,6 +9,7 @@ import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
 import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
 import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
+import com.sys.dbmonitor.domains.notification.dto.request.EmailTestRequest;
 import com.sys.dbmonitor.domains.notification.service.command.EmailAlertService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,35 +38,21 @@ public class EmailAlertTestController {
      */
     @Operation(summary = "테스트 이메일 전송", description = "테스트용 이메일을 전송합니다. 이메일 주소와 SMTP 설정을 직접 입력할 수 있습니다. (개발 환경용)")
     @PostMapping("/send")
-    public ApiResponse<String> sendTestEmail(
-            @RequestParam String email,
-            @RequestParam(required = false, defaultValue = "1") Integer severity,
-            @RequestParam(required = false) Long instanceId,
-            @RequestParam(required = false) String thresholdFormat,
-            @RequestParam(required = false) String metricKey,
-            @RequestParam(required = false) String metricName,
-            @RequestParam(required = false) Double currentValue,
-            @RequestParam(required = false) Double thresholdValue,
-            @RequestParam(required = false) Double warningThreshold,
-            @RequestParam(required = false) Double dangerThreshold,
-            @RequestParam(required = false) Double criticalThreshold,
-            // SMTP 설정 (선택적 - 없으면 application.yml의 기본 설정 사용)
-            @RequestParam(required = false) String smtpHost,
-            @RequestParam(required = false) Integer smtpPort,
-            @RequestParam(required = false) String smtpUsername,
-            @RequestParam(required = false) String smtpPassword,
-            @RequestParam(required = false) String smtpFromEmail) {
+    public ApiResponse<String> sendTestEmail(@RequestBody EmailTestRequest request) {
         
         // 이메일 형식 간단 검증
-        if (email == null || email.trim().isEmpty() || !email.contains("@")) {
+        if (request.getTo() == null || request.getTo().trim().isEmpty() || !request.getTo().contains("@")) {
             return ApiResponse.okWithoutData(400, "유효한 이메일 주소를 입력해주세요.");
         }
 
+        // severity 기본값 설정
+        Integer severity = request.getSeverity() != null ? request.getSeverity() : 1;
+
         // Instance 조회 (필수)
         Instance instance;
-        if (instanceId != null) {
-            instance = instanceRepository.findById(instanceId)
-                .orElseThrow(() -> new IllegalArgumentException("Instance not found: " + instanceId));
+        if (request.getInstanceId() != null) {
+            instance = instanceRepository.findById(request.getInstanceId())
+                .orElseThrow(() -> new IllegalArgumentException("Instance not found: " + request.getInstanceId()));
         } else {
             // instanceId가 없으면 첫 번째 인스턴스 사용
             instance = instanceRepository.findByIsDeletedFalse().stream()
@@ -74,34 +61,37 @@ public class EmailAlertTestController {
         }
 
         // 테스트용 Event 생성
-        Event testEvent = createTestEvent(instance, severity, thresholdFormat, metricKey, metricName,
-            currentValue, thresholdValue, warningThreshold, dangerThreshold, criticalThreshold);
+        Event testEvent = createTestEvent(instance, severity, request.getThresholdFormat(), 
+            request.getMetricKey(), request.getMetricName(),
+            request.getCurrentValue(), request.getThresholdValue(), 
+            request.getWarning(), request.getDanger(), request.getCritical());
 
         try {
             // SMTP 설정이 모두 제공되면 사용, 아니면 기본 설정 사용
-            if (smtpHost != null && smtpPort != null && smtpUsername != null && smtpPassword != null) {
+            if (request.getSmtpHost() != null && request.getSmtpPort() != null && 
+                request.getSmtpUsername() != null && request.getSmtpPassword() != null) {
                 // 사용자 지정 SMTP 설정으로 전송
                 log.info("[EmailTest] 사용자 지정 SMTP 설정 사용: host={}, port={}, username={}", 
-                    smtpHost, smtpPort, smtpUsername);
+                    request.getSmtpHost(), request.getSmtpPort(), request.getSmtpUsername());
                 
                 emailAlertService.sendEmailWithSmtp(
-                    email.trim(), 
+                    request.getTo().trim(), 
                     testEvent,
-                    smtpHost,
-                    smtpPort,
-                    smtpUsername,
-                    smtpPassword,
-                    smtpFromEmail != null ? smtpFromEmail : smtpUsername
+                    request.getSmtpHost(),
+                    request.getSmtpPort(),
+                    request.getSmtpUsername(),
+                    request.getSmtpPassword(),
+                    request.getSmtpFromEmail() != null ? request.getSmtpFromEmail() : request.getSmtpUsername()
                 );
             } else {
                 // 기본 SMTP 설정 사용
                 log.info("[EmailTest] 기본 SMTP 설정 사용 (application.yml)");
-                emailAlertService.sendEmail(email.trim(), testEvent);
+                emailAlertService.sendEmail(request.getTo().trim(), testEvent);
             }
             
-            return ApiResponse.ok("테스트 이메일 전송 완료: " + email);
+            return ApiResponse.ok("테스트 이메일 전송 완료: " + request.getTo());
         } catch (Exception e) {
-            log.error("[EmailTest] 이메일 전송 실패: email={}", email, e);
+            log.error("[EmailTest] 이메일 전송 실패: email={}", request.getTo(), e);
             return ApiResponse.okWithoutData(500, "이메일 전송 실패: " + e.getMessage());
         }
     }
