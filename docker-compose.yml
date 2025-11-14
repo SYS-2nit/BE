@@ -10,6 +10,13 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    networks:
+      - dbmonitor-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
 
   application:
     image: ${2nit_spring:latest}
@@ -45,7 +52,14 @@ services:
         max-file: "3"
 
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    networks:
+      - dbmonitor-network
+
+networks:
+  dbmonitor-network:
+    driver: bridge
 
 volumes:
   redis_data:
