@@ -3,7 +3,6 @@ package com.sys.dbmonitor.domains.notification.controller.command;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertMetricTemplateCreateRequest;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertMetricTemplateUpdateRequest;
 import com.sys.dbmonitor.domains.notification.dto.response.AlertMetricTemplateResponse;
-import com.sys.dbmonitor.domains.notification.repository.AlertMetricTemplateRepository;
 import com.sys.dbmonitor.domains.notification.service.command.AlertMetricTemplateCommandService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,9 +11,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 @RestController
 @RequestMapping("/api/alerts/templates")
 @RequiredArgsConstructor
@@ -22,8 +18,6 @@ import java.util.stream.Collectors;
 public class AlertMetricTemplateCommandController {
 
     private final AlertMetricTemplateCommandService templateCommandService;
-    private final AlertMetricTemplateRepository templateRepository;
-
     @Operation(summary = "알림 메트릭 템플릿 생성")
     @PostMapping
     public ApiResponse<AlertMetricTemplateResponse> create(@Valid @RequestBody AlertMetricTemplateCreateRequest request) {
@@ -49,18 +43,6 @@ public class AlertMetricTemplateCommandController {
     public ApiResponse<String> delete(@PathVariable Long id) {
         templateCommandService.delete(id);
         return ApiResponse.ok("삭제되었습니다: id=" + id);
-    }
-
-    @Operation(summary = "알림 메트릭 템플릿 목록 조회")
-    @GetMapping
-    public ApiResponse<List<AlertMetricTemplateResponse>> list() {
-        return ApiResponse.ok(
-            templateRepository.findAll()
-                .stream()
-                .filter(t -> Boolean.FALSE.equals(t.getIsDeleted()))
-                .map(AlertMetricTemplateResponse::from)
-                .collect(Collectors.toList())
-        );
     }
 }
 
