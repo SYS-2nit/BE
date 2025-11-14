@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.batch", name = "enabled", havingValue = "true")
+
 public class MetricAggregationScheduler {
 
     private final JobLauncher jobLauncher;
