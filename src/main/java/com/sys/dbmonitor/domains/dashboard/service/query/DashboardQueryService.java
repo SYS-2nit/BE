@@ -4,6 +4,8 @@ import com.sys.dbmonitor.domains.dashboard.dto.response.DashboardDataResponse;
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataPoint;
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataResponse;
 import com.sys.dbmonitor.domains.dashboard.dto.response.MemberWidgetResponse;
+import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRegistry;
+import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRule;
 import com.sys.dbmonitor.domains.dashboard.repository.MetricDataRepository;
 import com.sys.dbmonitor.domains.graph.domain.Graph;
 import com.sys.dbmonitor.domains.graph.domain.GraphCategory;
@@ -32,24 +34,14 @@ public class DashboardQueryService {
 
     /**
      * 대시보드 데이터 조회
-     * 
-     * @param instanceId 인스턴스 ID
-     * @param timeUnit 시간 단위 (1m, 10m, 1h, 1d)
-     * @param category 카테고리 (CUSTOM만 처리)
-     * @return 대시보드 데이터 응답
      */
     public DashboardDataResponse getDashboardData(Long instanceId, String timeUnit, GraphCategory category) {
-        // 인스턴스 존재 확인 (추후 실제 DB 쿼리 시 사용)
+        // 인스턴스 존재 확인
         instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
 
-        // 현재는 CUSTOM 카테고리만 처리
-        if (category != GraphCategory.CUSTOM) {
-            throw new IllegalArgumentException("현재는 CUSTOM 카테고리만 지원합니다.");
-        }
-
-        // 멤버의 위젯 설정에 따라 그래프 목록 조회
-        List<Graph> graphs = getGraphsByMemberWidget();
+        // 카테고리별 그래프 목록 조회
+        List<Graph> graphs = getGraphsByCategory(category);
 
         // 각 그래프별 데이터 조회 (DB에서 조회)
         List<GraphDataResponse> graphDataList = graphs.stream()
@@ -77,7 +69,7 @@ public class DashboardQueryService {
         log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}", 
                 response.id(), response.name(), response.type(), 
                 response.data() != null ? response.data().size() : 0);
-        
+        log.debug(response.toString());
         return response;
     }
 
@@ -87,19 +79,22 @@ public class DashboardQueryService {
     private List<GraphDataPoint> fetchGraphDataFromDb(Graph graph, Long instanceId, String timeUnit) {
         // 그래프별 필요한 컬럼 리스트 가져오기
         List<String> columns = getGraphColumns(graph);
-        
+
+        log.info("그래프" + graph.getName() + "당 필요한 컬럼 종류 :" + columns.toString());
         if (columns.isEmpty()) {
             log.warn("그래프 '{}' (ID: {})에 대한 컬럼이 정의되지 않았습니다.", graph.getName(), graph.getId());
             return Collections.emptyList();
         }
         
-        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}", 
+        int registryGraphId = resolveGraphRegistryId(graph);
+
+        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}",
                 graph.getId(), graph.getName(), instanceId, timeUnit, columns);
         
         // Repository를 통해 QueryDSL로 데이터 조회
         List<GraphDataPoint> dataPoints = metricDataRepository.findGraphDataPoints(
                 instanceId,
-                graph.getId(),
+                (long) registryGraphId,
                 timeUnit,
                 columns
         );
@@ -115,93 +110,53 @@ public class DashboardQueryService {
         return dataPoints;
     }
 
+    private int resolveGraphRegistryId(Graph graph) {
+        return GraphRegistry.findByName(graph.getName())
+                .map(GraphRule::graphId)
+                .orElseGet(() -> {
+                    log.warn("GraphRegistry에서 그래프 이름 '{}'을 찾을 수 없어 DB ID를 사용합니다. (graphId={})",
+                            graph.getName(), graph.getId());
+                    return graph.getId().intValue();
+                });
+    }
+
     /**
      * 그래프별 필요한 컬럼 리스트 반환
      */
     private List<String> getGraphColumns(Graph graph) {
-        String graphName = graph.getName();
-        List<String> columns = new ArrayList<>();
-        
-        // insert_graph_data.sql의 실제 그래프 이름 기반으로 컬럼명 사용
-        if (graphName.contains("PGA / SGA 압박률")) {
-            // Tile (type=7) - 4개 컬럼
-            columns.add("workarea_spill_rate_pct");
-            columns.add("libcache_reload_per_s");
-            columns.add("hard_parses_per_sec");
-            columns.add("spill_mb_per_min");
-            
-        } else if (graphName.equals("AAS")) {
-            // Line (type=1) - 1개 컬럼
-            columns.add("aas_total");
-            
-        } else if (graphName.contains("SGA 압박")) {
-            // Line (type=1) - 2개 컬럼
-            columns.add("shared_pool_free_bytes");
-            columns.add("libcache_reload_per_s");
-            
-        } else if (graphName.contains("Wait Class 분포")) {
-            // Line (type=1) - 5개 컬럼 (Stack으로도 표시 가능)
-            columns.add("wait_class_aas_user_io");
-            columns.add("wait_class_aas_commit");
-            columns.add("wait_class_aas_concurrency");
-            columns.add("wait_class_aas_network");
-            columns.add("wait_class_aas_other");
-            
-        } else if (graphName.contains("CPU 사용") && graphName.contains("호스트")) {
-            // Line (type=1) - 2개 컬럼
-            columns.add("host_cpu_util_pct");
-            columns.add("db_of_host_share_pct");
-            
-        } else if (graphName.contains("I/O 지연량")) {
-            // Line (type=1) - 3개 컬럼
-            columns.add("single_block_read_latency_ms");
-            columns.add("direct_path_read_latency_ms");
-            columns.add("direct_path_write_latency_ms");
-            
-        } else if (graphName.contains("I/O 처리량")) {
-            // Line (type=1) - 2개 컬럼
-            columns.add("physical_read_mb_per_sec");
-            columns.add("physical_write_mb_per_sec");
-            
-        } else if (graphName.contains("세션 한도") || graphName.contains("세션 한도/급증")) {
-            // Gauge (type=3) - 1개 컬럼
-            columns.add("sessions_limit_util_pct");
-            
-        } else if (graphName.contains("아카이브 로그")) {
-            // Gauge (type=3) - 1개 컬럼
-            columns.add("fra_usage_pct");
-            
-        } else if (graphName.contains("핵심 테이블스페이스") || graphName.contains("테이블스페이스 여유율")) {
-            // Timeline (type=5) - 5개 컬럼 (Stack으로 표시)
-            columns.add("system_ts_usage_pct");
-            columns.add("sysaux_ts_usage_pct");
-            columns.add("users_ts_usage_pct");
-            columns.add("undo_ts_usage_pct");
-            columns.add("temp_ts_usage_pct");
-            
-        } else if (graphName.contains("백그라운드 프로세스")) {
-            // Tile (type=7) - 6개 컬럼
-            columns.add("lgwr_active");
-            columns.add("dbwr_active");
-            columns.add("pmon_active");
-            columns.add("smon_active");
-            columns.add("ckpt_active");
-            columns.add("arcn_active");
-            
-        } else if (graphName.contains("제한 근접") || graphName.contains("파라미터 감시")) {
-            // Line (type=1) - 3개 컬럼
-            columns.add("processes_usage_pct");
-            columns.add("sessions_usage_pct");
-            columns.add("open_cursors_max_session_pct");
+        // GraphRegistry에서 그래프 정보 조회
+        Optional<GraphRule> ruleOpt = GraphRegistry.findByName(graph.getName());
+
+        if (ruleOpt.isPresent()) {
+            GraphRule rule = ruleOpt.get();
+            // GraphRegistry에 정의된 컬럼 목록을 소문자로 변환하여 반환
+            // (DB 컬럼명은 대소문자 혼용이므로 원본 유지)
+            List<String> columns = new ArrayList<>(rule.columns());
+            log.debug("GraphRegistry에서 컬럼 조회: graphId={}, graphName={}, columns={}",
+                    rule.graphId(), rule.name(), columns);
+            return columns;
         }
-        
-        return columns;
+
+        // GraphRegistry에서 찾을 수 없는 경우 경고 로그
+        log.warn("GraphRegistry에서 그래프 '{}' (ID: {})을 찾을 수 없습니다. 빈 컬럼 리스트를 반환합니다.",
+                graph.getName(), graph.getId());
+        return Collections.emptyList();
     }
 
     /**
-     * 멤버 위젯 설정에 따라 그래프 목록 조회
-     * - 위젯 설정이 있으면: 설정된 순서대로 그래프 반환 (Redis 캐싱 활용)
-     * - 위젯 설정이 없으면: CUSTOM 카테고리의 모든 그래프 반환
+     * 카테고리별 그래프 목록 조회
+     */
+    private List<Graph> getGraphsByCategory(GraphCategory category) {
+        if (category == GraphCategory.CUSTOM) {
+            // CUSTOM 카테고리: 유저 위젯 설정 기반으로 그래프 조회
+            return getGraphsByMemberWidget();
+        }
+        // CUSTOM 외 카테고리: widget을 거치지 않고 카테고리별 고정 그래프 목록 반환
+        return graphRepository.findByCategory(category);
+    }
+
+    /**
+     * 멤버 위젯 설정에 따라 그래프 목록 조회 (CUSTOM 카테고리 전용)
      */
     private List<Graph> getGraphsByMemberWidget() {
         try {

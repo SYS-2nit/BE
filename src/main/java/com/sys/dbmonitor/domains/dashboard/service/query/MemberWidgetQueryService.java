@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.dashboard.service.query;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sys.dbmonitor.domains.dashboard.domain.MemberWidget;
 import com.sys.dbmonitor.domains.dashboard.dto.response.MemberWidgetResponse;
@@ -33,8 +34,6 @@ public class MemberWidgetQueryService {
 
     /**
      * 멤버 위젯 설정 조회
-     * 1. Redis 캐시에서 조회 시도
-     * 2. 캐시 미스 시 DB에서 조회 후 Redis에 캐싱
      */
     public MemberWidgetResponse getWidgets() {
         try {
@@ -42,19 +41,22 @@ public class MemberWidgetQueryService {
             String cacheKey = REDIS_KEY_PREFIX + memberId;
 
             // 1. Redis 캐시에서 조회 시도
-            try {
-                Object cached = redisTemplate.opsForValue().get(cacheKey);
-                if (cached != null) {
-                    log.debug("Redis 캐시에서 위젯 설정 조회: {}", cacheKey);
-                    // StringRedisSerializer 사용 시 JSON 문자열로 저장되므로 파싱 필요
-                    if (cached instanceof String) {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.debug("Redis 캐시에서 위젯 설정 조회: {}", cacheKey);
+                // StringRedisSerializer 사용 시 JSON 문자열로 저장되므로 파싱 필요
+                if (cached instanceof String) {
+                    try {
                         return objectMapper.readValue((String) cached, MemberWidgetResponse.class);
+                    } catch (JsonProcessingException e) {
+                        log.error("Redis 캐시 데이터 파싱 실패: {}", e.getMessage(), e);
+                        // 파싱 실패 시 캐시를 무효화하고 DB에서 조회
+                        redisTemplate.delete(cacheKey);
                     }
+                } else {
                     // GenericJackson2JsonRedisSerializer 사용 시
                     return (MemberWidgetResponse) cached;
                 }
-            } catch (Exception e) {
-                log.warn("Redis 캐시 조회 실패, DB에서 조회: {}", e.getMessage());
             }
 
             // 2. DB에서 조회
@@ -81,9 +83,10 @@ public class MemberWidgetQueryService {
                         TimeUnit.MINUTES
                 );
                 log.debug("Redis 캐시 저장: {}", cacheKey);
-            } catch (Exception e) {
-                log.warn("Redis 캐시 저장 실패: {}", e.getMessage());
-                // 캐시 저장 실패해도 DB 결과는 반환
+            } catch (JsonProcessingException e) {
+                log.error("Redis 캐시 저장 시 JSON 변환 실패: {}", e.getMessage(), e);
+                // JSON 변환 실패는 Redis 연결 실패와는 별개의 문제이므로 예외를 던지지 않음
+                // 하지만 Redis는 필수 서비스이므로 연결 실패는 예외로 전파됨
             }
 
             return response;

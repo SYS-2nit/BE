@@ -3,6 +3,7 @@ package com.sys.dbmonitor.global.exception.handler;
 
 import com.sys.dbmonitor.global.exception.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -85,8 +86,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Redis 연결 실패 예외 처리
+     */
+    @ExceptionHandler(RedisConnectionFailureException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    ProblemDetail handleRedisConnectionFailureException(final RedisConnectionFailureException e) {
+        log.error("Redis 연결 실패 (필수 서비스): {}", e.getMessage(), e);
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Redis 서비스에 연결할 수 없습니다. 시스템 관리자에게 문의하세요."
+        );
+        problemDetail.setTitle("Redis 서비스 연결 실패");
+        return problemDetail;
+    }
+
+    /**
      * Internal Server Error 5xx :
-     * 예외처리가 제대로 되지 않았거나 코드 자체의 문제인 경우일 확률 높음 코드를 고치거나 해당 예외처리 핸들러를 추가해줘야 함
      */
     @ExceptionHandler(Exception.class)
     ProblemDetail handleInternalError(final Exception e) {

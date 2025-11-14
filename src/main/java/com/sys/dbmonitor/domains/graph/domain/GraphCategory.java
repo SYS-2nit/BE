@@ -1,5 +1,5 @@
 package com.sys.dbmonitor.domains.graph.domain;
 
 public enum GraphCategory {
-    CPU, MEMORY, SESSION, IO, CUSTOM, STORAGE
+    CUSTOM, CPU, MEMORY, SESSION, IO, STORAGE
 }

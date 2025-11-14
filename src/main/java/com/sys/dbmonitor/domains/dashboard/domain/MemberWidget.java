@@ -42,4 +42,15 @@ public class MemberWidget extends BaseEntity {
             this.position = position;
         }
     }
+
+    public void updateGraph(Long graphId) {
+        if (graphId != null) {
+            this.graphId = graphId;
+        }
+    }
+
+    public void updateWidget(Long graphId, Integer position) {
+        updateGraph(graphId);
+        updatePosition(position);
+    }
 }

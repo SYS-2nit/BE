@@ -5,12 +5,17 @@ import com.sys.dbmonitor.domains.diagnosis.dto.request.DiagnosisStartRequest;
 import com.sys.dbmonitor.domains.diagnosis.dto.response.DiagnosisStatusDto;
 import com.sys.dbmonitor.domains.diagnosis.dto.response.ScenarioDto;
 import com.sys.dbmonitor.domains.diagnosis.runners.DiagnosisRunner;
+import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.global.common.util.PasswordEncryptionUtil;
 import com.sys.dbmonitor.global.exception.BadRequestException;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
+import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,15 +28,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DiagnosisService {
 
-    @Value("${spring.datasource.url}")
-    private String dbUrl;
+    @Value("${app.encryption.key}")
+    private String encryptionKey;
 
-    @Value("${spring.datasource.username}")
-    private String dbUsername;
-
-    @Value("${spring.datasource.password}")
-    private String dbPassword;
-
+    private final InstanceRepository instanceRepository;
     private final Map<Long, ScenarioType> idToScenario = Arrays.stream(ScenarioType.values())
             .collect(Collectors.toMap(ScenarioType::getId, s -> s));
 
@@ -39,12 +39,16 @@ public class DiagnosisService {
     private volatile Thread runnerThread;
     private volatile List<Long> selectedScenarioIds = new ArrayList<>();
 
+    @Transactional(readOnly = true)
     public synchronized void startDiagnosis(DiagnosisStartRequest req) {
         if (req == null || req.scenarioIds() == null || req.scenarioIds().isEmpty()) {
             throw new BadRequestException(ExceptionMessage.INVALID_REQUEST);
         }
         if (req.durationSec() <= 0) {
             throw new BadRequestException(ExceptionMessage.INVALID_DURATION);
+        }
+        if (req.instanceId() == null) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "인스턴스 ID는 필수입니다.");
         }
         if (runnerThread != null && runnerThread.isAlive()) {
             throw new BadRequestException(ExceptionMessage.DIAGNOSIS_ALREADY_RUNNING);
@@ -56,12 +60,47 @@ public class DiagnosisService {
         if (list.isEmpty()) {
             throw new BadRequestException(ExceptionMessage.INVALID_SCENARIO_IDS);
         }
+
+        // Instance로부터 DB 연결 정보 가져오기 (DBInfo를 함께 로드)
+        Instance instance = instanceRepository.findByIdWithDbInfoAndIsDeletedFalse(req.instanceId())
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
+
+        if (instance.getDbInfo() == null) {
+            throw new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스에 연결된 DB 정보를 찾을 수 없습니다.");
+        }
+
+        // Instance URL 사용
+        String dbUrl = instance.getUrl();
+        if (dbUrl == null || dbUrl.isEmpty()) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "인스턴스 URL이 설정되지 않았습니다.");
+        }
+
+        // DBInfo에서 사용자명과 비밀번호 가져오기 (트랜잭션 내에서 접근)
+        String dbUsername = instance.getDbInfo().getUserName();
+        String encryptedPassword = instance.getDbInfo().getPassword();
+
+        // 비밀번호 복호화
+        String dbPassword;
+        try {
+            if (PasswordEncryptionUtil.isBcryptHash(encryptedPassword)) {
+                throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, 
+                        "BCrypt 해시 형식의 비밀번호는 복호화할 수 없습니다. 비밀번호를 재입력하여 AES 암호화로 저장하세요.");
+            }
+            dbPassword = PasswordEncryptionUtil.decrypt(encryptedPassword, encryptionKey);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            log.error("[Diagnosis] 비밀번호 복호화 실패: instanceId={}, error={}", req.instanceId(), e.getMessage());
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "비밀번호 복호화에 실패했습니다.");
+        }
+
         // DB 연결 정보를 환경 변수로 전달
         runner = new DiagnosisRunner(list, req.durationSec(), dbUrl, dbUsername, dbPassword);
         runnerThread = new Thread(runner, "diagnosis-runner");
         selectedScenarioIds = new ArrayList<>(req.scenarioIds());
         runnerThread.start();
-        log.info("[Diagnosis] 시작 - scenarios: {}, durationSec: {}", selectedScenarioIds, req.durationSec());
+        log.info("[Diagnosis] 시작 - instanceId: {}, scenarios: {}, durationSec: {}", 
+                req.instanceId(), selectedScenarioIds, req.durationSec());
     }
 
     public synchronized void stopDiagnosis() {
@@ -84,20 +123,28 @@ public class DiagnosisService {
     public DiagnosisStatusDto queryStatus() {
         boolean running = runnerThread != null && runnerThread.isAlive();
         Long currentId = null;
-        int remain = 0;
-        Integer loop = null;
-        if (running && runner != null && runner.getCurrentScenario() != null) {
-            currentId = runner.getCurrentScenario().getId();
-            remain = Math.max(0, runner.getRemainSec().get());
-            loop = runner.getLoopCount().get();
+        int remainSec = 0;
+        Integer remainingSec = 0;
+        Integer loopCount = null;
+        if (running && runner != null) {
+            if (runner.getCurrentScenario() != null) {
+                currentId = runner.getCurrentScenario().getId();
+            }
+            if (runner.getRemainSec() != null) {
+                remainSec = Math.max(0, runner.getRemainSec().get());
+                remainingSec = remainSec;
+            }
+            if (runner.getLoopCount() != null) {
+                loopCount = runner.getLoopCount().get();
+            }
         }
         return new DiagnosisStatusDto(
                 running,
                 currentId,
                 selectedScenarioIds != null ? new ArrayList<>(selectedScenarioIds) : List.of(),
-                remain,
-                remain,
-                loop
+                remainSec,
+                remainingSec,
+                loopCount
         );
     }
 
