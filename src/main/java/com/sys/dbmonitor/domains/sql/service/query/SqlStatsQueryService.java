@@ -29,7 +29,7 @@ public class SqlStatsQueryService {
     private final SqlRepository sqlRepository;
 
 
-    /* ============== SQL 통계 목록 조회 API ============== */
+    /** SQL 통계 목록 조회 API */
     @Transactional(readOnly = true)
     public SqlStatsPageResponse getSqlStats(SqlStatsQueryRequest request) {
 
@@ -115,7 +115,7 @@ public class SqlStatsQueryService {
     }
 
 
-    /* ============== SQL 그래프 데이터 조회 API ============== */
+    /** SQL 그래프 데이터 조회 API */
     @Transactional(readOnly = true)
     public SqlGraphSeriesResponse getSqlGraphData(SqlGraphRequest request) {
 
@@ -220,11 +220,11 @@ public class SqlStatsQueryService {
         return v == null ? 0L : v;
     }
 
-    /* ============== SQL 상세 탭 데이터 조회 API ============== */
+    /** SQL 상세 탭 데이터 조회 API */
     @Transactional(readOnly = true)
     public SqlDetailResponse getSqlDetail(String sqlId, String startDate, String endDate, Integer intervalMinutes) {
 
-        // 1) 날짜 파싱
+        // 날짜 파싱
         LocalDate start = LocalDate.parse(startDate);
         LocalDate end = LocalDate.parse(endDate);
         LocalDateTime startAt = start.atStartOfDay();
@@ -246,8 +246,18 @@ public class SqlStatsQueryService {
         long totalBuffer = list.stream().mapToLong(s -> nvl(s.getBufferGetsDelta())).sum();
         long totalDisk = list.stream().mapToLong(s -> nvl(s.getDiskReadsDelta())).sum();
         long totalWait = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
+        long totalWaitTime = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
+        long totalWaitUserIo = list.stream().mapToLong(s -> nvl(s.getWaitUserIoUsDelta())).sum();
+        long totalWaitConcurrency = list.stream().mapToLong(s -> nvl(s.getWaitConcurrencyUsDelta())).sum();
+        long totalWaitApplication = list.stream().mapToLong(s -> nvl(s.getWaitApplicationUsDelta())).sum();
+        long totalWaitCluster = list.stream().mapToLong(s -> nvl(s.getWaitClusterUsDelta())).sum();
 
         long avgElapsed = (totalExec == 0 ? 0 : totalElapsed / totalExec);
+
+        // wait_other 계산
+        long totalWaitOther = totalWaitTime
+                - (totalWaitUserIo + totalWaitConcurrency + totalWaitApplication + totalWaitCluster);
+        if (totalWaitOther < 0) totalWaitOther = 0;
 
         // 시간대 버킷 생성
         Map<Long, Long> elapsedTrend = makeTrend(list, startAt, interval, Sql::getElapsedUsDelta);
@@ -270,6 +280,7 @@ public class SqlStatsQueryService {
                 list.get(0).getInstanceId(),
                 sqlId,
                 list.get(0).getSqlText(),
+
                 totalElapsed,
                 totalCpu,
                 totalExec,
@@ -277,6 +288,13 @@ public class SqlStatsQueryService {
                 totalDisk,
                 totalWait,
                 avgElapsed,
+                totalWaitTime,
+                totalWaitUserIo,
+                totalWaitConcurrency,
+                totalWaitApplication,
+                totalWaitCluster,
+                totalWaitOther,
+
                 convert(elapsedTrend, startAt, interval),
                 convert(cpuTrend, startAt, interval),
                 convert(execTrend, startAt, interval),
