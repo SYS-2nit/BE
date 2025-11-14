@@ -20,12 +20,13 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/sql")
-@Tag(name = "SQL API", description = "SQL 데이터 관리 및 통계 API (등록/조회/수정/삭제/그래프)")
+@Tag(name = "SQL Stats API", description = "SQL 통계 탭 및 상세 탭 데이터 조회 API")
 public class SqlCommandController {
 
     private final SqlCommandService sqlCommandService;
     private final SqlStatsQueryService sqlStatsQueryService;
 
+    /**
     // 1. SQL 등록
     @Operation(summary = "SQL 등록", description = "SQL 데이터를 새로 등록합니다.")
     @PostMapping
@@ -49,9 +50,10 @@ public class SqlCommandController {
         sqlCommandService.deleteSql(id);
         return ApiResponse.ok(200, null, "SQL 데이터가 삭제되었습니다.");
     }
+    **/
 
     //  4. SQL 통계 목록 조회
-    @Operation(summary = "SQL 통계 목록 조회", description = "필터, 정렬, 페이지네이션이 적용된 SQL 통계 데이터를 조회합니다.")
+    @Operation(summary = "SQL 통계 목록 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 테이블 목록을 조회합니다.")
     @GetMapping("/stats")
     public ApiResponse<SqlStatsPageResponse> getStats(@Valid SqlStatsQueryRequest request) {
         SqlStatsPageResponse response = sqlStatsQueryService.getSqlStats(request);
@@ -59,7 +61,7 @@ public class SqlCommandController {
     }
 
     // 5. SQL 그래프 데이터 조회
-    @Operation(summary = "SQL 그래프 데이터 조회")
+    @Operation(summary = "SQL 그래프 데이터 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 통계 데이터를 조회합니다.")
     @GetMapping("/graph")
     public ApiResponse<SqlGraphSeriesResponse> graph(@Valid SqlGraphRequest request) {
         return ApiResponse.ok(
@@ -70,7 +72,7 @@ public class SqlCommandController {
     }
 
     // 6. SQL 상세 탭 조회
-    @Operation(summary = "SQL 상세 탭 데이터 조회")
+    @Operation(summary = "SQL 상세 탭 데이터 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 통계 데이터를 조회합니다.")
     @GetMapping("/detail/{sqlId}")
     public ApiResponse<SqlDetailResponse> getSqlDetail(
             @PathVariable String sqlId,
