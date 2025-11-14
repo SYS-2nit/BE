@@ -138,12 +138,12 @@ public class SlackAlertService {
             "*현재 값:* <!here> *%s*\n" +
             "*임계값:* %s\n" +
             "*임계치 포맷:* %s\n" +
-            "*인스턴스 ID:* %d",
+            "*인스턴스 ID:* %s",
             event.getAlertEvent().getMetricName(),
             formattedCurrent,
             formattedThreshold,
             event.getThresholdFormat().name(),
-            event.getInstance().getId()
+            event.getInstance() != null ? String.valueOf(event.getInstance().getId()) : "테스트"
         ));
         metricBlock.put("text", metricText);
         blocks.add(metricBlock);

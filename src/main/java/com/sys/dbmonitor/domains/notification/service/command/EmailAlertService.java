@@ -258,7 +258,7 @@ public class EmailAlertService {
                             </tr>
                             <tr>
                                 <td>인스턴스 ID</td>
-                                <td>%d</td>
+                                <td>%s</td>
                             </tr>
                             <tr>
                                 <td>메트릭</td>
@@ -292,7 +292,7 @@ public class EmailAlertService {
             event.getAlertEvent().getMetricName(),
             formattedCurrent,
             formattedThreshold,
-            event.getInstance().getId(),
+            event.getInstance() != null ? String.valueOf(event.getInstance().getId()) : "테스트",
             event.getAlertEvent().getMetricName(),
             event.getAlertEvent().getName(),
             event.getCreatedAt(),
