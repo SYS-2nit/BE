@@ -126,7 +126,7 @@ public class DashboardQueryService {
     private List<String> getGraphColumns(Graph graph) {
         // GraphRegistry에서 그래프 정보 조회
         Optional<GraphRule> ruleOpt = GraphRegistry.findByName(graph.getName());
-        
+
         if (ruleOpt.isPresent()) {
             GraphRule rule = ruleOpt.get();
             // GraphRegistry에 정의된 컬럼 목록을 소문자로 변환하여 반환
