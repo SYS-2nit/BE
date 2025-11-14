@@ -1,10 +1,13 @@
 package com.sys.dbmonitor.domains.notification.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -28,5 +31,9 @@ public class AlertPolicyCreateRequest {
 
     @Schema(description = "활성 여부", example = "true", defaultValue = "true")
     private Boolean isActive = true;
+
+    @Schema(description = "정책에 함께 생성할 알림 규칙 목록")
+    @Valid
+    private List<AlertEventBulkCreateRequest.EventDefinition> events;
 }
 

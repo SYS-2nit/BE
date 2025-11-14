@@ -5,6 +5,7 @@ import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.member.domain.Member;
 import com.sys.dbmonitor.domains.member.repository.MemberRepository;
 import com.sys.dbmonitor.domains.notification.domain.AlertPolicy;
+import com.sys.dbmonitor.domains.notification.dto.request.AlertEventBulkCreateRequest;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertPolicyCreateRequest;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertPolicyUpdateRequest;
 import com.sys.dbmonitor.domains.notification.dto.response.AlertPolicyResponse;
@@ -13,6 +14,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -29,6 +31,7 @@ public class AlertPolicyCommandService {
     private final AlertPolicyRepository alertPolicyRepository;
     private final MemberRepository memberRepository;
     private final InstanceRepository instanceRepository;
+    private final AlertEventCommandService alertEventCommandService;
 
     @Transactional
     public AlertPolicyResponse create(AlertPolicyCreateRequest request) {
@@ -53,8 +56,19 @@ public class AlertPolicyCommandService {
             .isActive(request.getIsActive())
             .build();
 
-        // 생성된 정책 저장 후 응답 DTO 변환
+        // 생성된 정책 저장
         alertPolicyRepository.save(policy);
+
+        // 연결된 알림 규칙이 있다면 일괄 생성 처리
+        List<AlertEventBulkCreateRequest.EventDefinition> events = request.getEvents();
+        if (events != null && !events.isEmpty()) {
+            AlertEventBulkCreateRequest bulkRequest = new AlertEventBulkCreateRequest();
+            bulkRequest.setPolicyId(policy.getId());
+            bulkRequest.setEvents(events);
+            alertEventCommandService.bulkCreate(bulkRequest);
+        }
+
+        // 응답 DTO 변환
         return AlertPolicyResponse.from(policy);
     }
 

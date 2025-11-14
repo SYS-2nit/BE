@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.notification.controller.command;
 
+import com.sys.dbmonitor.domains.notification.dto.request.AlertEventBulkCreateRequest;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertEventCreateRequest;
 import com.sys.dbmonitor.domains.notification.dto.request.AlertEventUpdateRequest;
 import com.sys.dbmonitor.domains.notification.dto.response.AlertEventResponse;
@@ -10,6 +11,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/alerts/events")
@@ -23,6 +26,12 @@ public class AlertEventCommandController {
     @PostMapping
     public ApiResponse<AlertEventResponse> create(@Valid @RequestBody AlertEventCreateRequest request) {
         return ApiResponse.ok(alertEventCommandService.create(request));
+    }
+
+    @Operation(summary = "알림 규칙 일괄 생성")
+    @PostMapping("/bulk")
+    public ApiResponse<List<AlertEventResponse>> bulkCreate(@Valid @RequestBody AlertEventBulkCreateRequest request) {
+        return ApiResponse.ok(alertEventCommandService.bulkCreate(request));
     }
 
     @Operation(summary = "알림 규칙 수정")
