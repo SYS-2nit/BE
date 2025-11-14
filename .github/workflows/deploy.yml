@@ -1,30 +1,26 @@
 name: CD - Deploy to Production
 
 on:
-  push:
-    branches: [ "dev" ]
   pull_request:
-    types: [closed]
+    types: [opened, synchronize]
     branches: [ "dev" ]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # ✅ 중복 실행 방지
+    # ✅ PR 생성/업데이트 시점에만 배포
     if: |
-      (github.event_name == 'push') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -83,11 +79,19 @@ jobs:
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
           IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
         run: |
-          SHORT_SHA=${GITHUB_SHA::7}
+          # PR 이벤트인 경우 PR의 head SHA 사용, 그 외에는 현재 SHA 사용
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            COMMIT_SHA="${GITHUB_SHA}"
+          fi
+          SHORT_SHA=${COMMIT_SHA::7}
           
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🐳 Docker 이미지 빌드 및 푸시"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "이벤트: ${{ github.event_name }}"
+          echo "커밋 SHA: ${COMMIT_SHA}"
           echo "이미지: ${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
           echo ""
           
@@ -182,7 +186,6 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
           IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
-
           KEEP_LAST: 3
         run: |
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -280,7 +283,13 @@ jobs:
             # ✅ 환경 변수 설정
             DOCKER_USER="${{ secrets.DOCKERHUB_USERNAME }}"
             IMAGE_NAME="${{ secrets.DOCKER_IMAGE_NAME }}"
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            # PR 이벤트인 경우 PR의 head SHA 사용, 그 외에는 현재 SHA 사용
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+            else
+              COMMIT_SHA="${{ github.sha }}"
+            fi
+            SHORT_SHA=$(echo "${COMMIT_SHA}" | cut -c1-7)
             FULL_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:${SHORT_SHA}"
             LATEST_IMAGE="${DOCKER_USER}/${IMAGE_NAME}:latest"
             DEPLOY_DIR="/home/${{ secrets.SSH_USERNAME }}/deploy"
@@ -384,11 +393,124 @@ jobs:
               echo "✅ 컨테이너 완전히 제거됨"
             fi
             
+            # Redis 컨테이너 네트워크 확인 및 생성
+            echo ""
+            echo "--- Redis 컨테이너 및 네트워크 확인 ---"
+            
+            cd ${DEPLOY_DIR}
+            
+            # docker-compose.yml이 있는지 확인하고 없으면 생성
+            if [ ! -f "${DEPLOY_DIR}/docker-compose.yml" ]; then
+              echo "⚠️  docker-compose.yml이 없습니다. 생성합니다..."
+              sudo bash -c 'printf "%s\n" "version: \"3.8\"" "services:" "  redis:" "    image: redis:7-alpine" "    container_name: 2nit_redis" "    ports:" "      - \"6379:6379\"" "    restart: unless-stopped" "    command: redis-server --appendonly yes" "    volumes:" "      - redis_data:/data" "    networks:" "      - dbmonitor-network" "    healthcheck:" "      test: [\"CMD\", \"redis-cli\", \"ping\"]" "      interval: 10s" "      timeout: 3s" "      retries: 3" "networks:" "  dbmonitor-network:" "    driver: bridge" "volumes:" "  redis_data:" > '"${DEPLOY_DIR}"'/docker-compose.yml'
+              echo "✅ docker-compose.yml 생성 완료"
+              
+              # 생성된 파일 확인
+              echo "--- 생성된 docker-compose.yml 확인 ---"
+              sudo cat ${DEPLOY_DIR}/docker-compose.yml | head -10
+            else
+              echo "✅ docker-compose.yml 이미 존재"
+            fi
+            
+            # Redis 컨테이너가 실행 중인지 확인
+            REDIS_CONTAINER=$(sudo docker ps --filter "name=2nit_redis" --format "{{.Names}}" | head -1)
+            
+            if [ -z "$REDIS_CONTAINER" ]; then
+              echo "⚠️  Redis 컨테이너가 실행 중이 아닙니다. 시작합니다..."
+              
+              # 기존 Redis 컨테이너가 중지된 상태로 있는지 확인하고 제거
+              STOPPED_REDIS=$(sudo docker ps -a --filter "name=2nit_redis" --format "{{.Names}}" | head -1)
+              if [ -n "$STOPPED_REDIS" ]; then
+                echo "기존 중지된 Redis 컨테이너 제거 중..."
+                sudo docker rm -f 2nit_redis 2>/dev/null || true
+              fi
+              
+              # dbmonitor-network가 존재하는지 확인하고 없으면 생성
+              if ! sudo docker network ls | grep -q "dbmonitor-network"; then
+                echo "📦 dbmonitor-network 생성 중..."
+                sudo docker network create dbmonitor-network 2>/dev/null || true
+              fi
+              
+              # docker run으로 Redis 컨테이너 직접 시작
+              echo "--- Redis 컨테이너 시작 (docker run) ---"
+              sudo docker run -d \
+                --name 2nit_redis \
+                --restart unless-stopped \
+                -p 6379:6379 \
+                --network dbmonitor-network \
+                -v redis_data:/data \
+                redis:7-alpine \
+                redis-server --appendonly yes
+              
+              if [ $? -eq 0 ]; then
+                echo "✅ Redis 컨테이너 시작 명령 실행 완료"
+              else
+                echo "❌ Redis 컨테이너 시작 실패"
+                echo "❌ Redis는 필수 서비스이므로 배포를 중단합니다."
+                exit 1
+              fi
+              
+              echo "⏳ Redis 컨테이너 시작 대기 중..."
+              sleep 10  # Redis 시작 대기
+              
+              # Redis 컨테이너 상태 확인
+              if sudo docker ps --filter "name=2nit_redis" --format "{{.Names}}" | grep -q "2nit_redis"; then
+                echo "✅ Redis 컨테이너 시작 완료"
+              else
+                echo "❌ Redis 컨테이너 시작 실패"
+                echo "--- 모든 컨테이너 상태 확인 ---"
+                sudo docker ps -a | grep redis || echo "Redis 컨테이너가 없습니다"
+                sudo docker logs 2nit_redis 2>/dev/null || echo "Redis 컨테이너 로그를 가져올 수 없습니다"
+                echo "❌ Redis는 필수 서비스이므로 배포를 중단합니다."
+                exit 1
+              fi
+            else
+              echo "✅ Redis 컨테이너 실행 중: ${REDIS_CONTAINER}"
+            fi
+            
+            # Redis 연결 테스트 (필수)
+            echo "--- Redis 연결 테스트 (필수) ---"
+            if sudo docker exec 2nit_redis redis-cli ping 2>/dev/null | grep -q "PONG"; then
+              echo "✅ Redis 연결 성공"
+            else
+              echo "❌ Redis 연결 테스트 실패"
+              echo "❌ Redis는 필수 서비스이므로 배포를 중단합니다."
+              exit 1
+            fi
+            
+            # Redis 컨테이너의 네트워크 확인
+            REDIS_NETWORK=$(sudo docker inspect ${REDIS_CONTAINER:-2nit_redis} --format='{{range $net, $conf := .NetworkSettings.Networks}}{{$net}}{{end}}' 2>/dev/null | head -1)
+            
+            if [ -z "$REDIS_NETWORK" ]; then
+              # 네트워크가 없으면 dbmonitor-network를 찾거나 생성
+              echo "⚠️  Redis 네트워크를 찾을 수 없습니다. dbmonitor-network를 확인합니다..."
+              
+              # dbmonitor-network가 존재하는지 확인
+              if sudo docker network ls | grep -q "dbmonitor-network"; then
+                echo "✅ dbmonitor-network 발견"
+                USE_NETWORK="dbmonitor-network"
+              else
+                # 네트워크 생성
+                echo "📦 dbmonitor-network 생성 중..."
+                sudo docker network create dbmonitor-network 2>/dev/null || true
+                USE_NETWORK="dbmonitor-network"
+                
+                # Redis 컨테이너가 실행 중이면 네트워크에 연결
+                if [ -n "$REDIS_CONTAINER" ] && sudo docker ps --filter "name=${REDIS_CONTAINER}" --format "{{.Names}}" | grep -q "${REDIS_CONTAINER}"; then
+                  echo "🔗 Redis 컨테이너를 dbmonitor-network에 연결 중..."
+                  sudo docker network connect dbmonitor-network ${REDIS_CONTAINER} 2>/dev/null || true
+                fi
+              fi
+            else
+              echo "✅ Redis 네트워크 발견: ${REDIS_NETWORK}"
+              USE_NETWORK="${REDIS_NETWORK}"
+            fi
+            
             # 새 컨테이너 시작
             echo ""
-            echo "--- 컨테이너 시작 ---"
+            echo "--- 컨테이너 시작 (네트워크: ${USE_NETWORK}) ---"
             
-            # Docker 명령어로 직접 실행
+            # Docker 명령어로 직접 실행 (Redis와 같은 네트워크 사용)
             sudo docker run -d \
               --name 2nit_spring \
               -p 8080:8080 \
@@ -401,7 +523,7 @@ jobs:
               -e REDIS_PORT="6379" \
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
-              --network bridge \
+              --network ${USE_NETWORK} \
               ${SELECTED_IMAGE}
             
             # 컨테이너 상태 확인
