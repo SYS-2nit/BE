@@ -82,7 +82,7 @@ public class Sql extends BaseEntity {
         setUpdatedAt(java.time.LocalDateTime.now());
     }
 
-    /* 평균 컬럼 계산 */
+    /** 평균 컬럼 계산 */
     public Long getAvgElapsed() {
         if (executionsDelta == null || executionsDelta == 0) {
             return 0L;
