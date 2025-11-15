@@ -71,20 +71,6 @@ public class Sql extends BaseEntity {
     @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
-    /** soft delete */
-    public void markAsDeleted() {
-        super.markAsDeleted();
-    }
-
-    /** SQL 데이터 갱신 */
-    public void updateFrom(Sql newSql) {
-        if (newSql.sqlText != null) this.sqlText = newSql.sqlText;
-        if (newSql.cpuUsDelta != null) this.cpuUsDelta = newSql.cpuUsDelta;
-        if (newSql.elapsedUsDelta != null) this.elapsedUsDelta = newSql.elapsedUsDelta;
-        if (newSql.executionsDelta != null) this.executionsDelta = newSql.executionsDelta;
-        setUpdatedAt(java.time.LocalDateTime.now());
-    }
-
     /** 평균 컬럼 계산 */
     public Long getAvgElapsed() {
         if (executionsDelta == null || executionsDelta == 0) {
