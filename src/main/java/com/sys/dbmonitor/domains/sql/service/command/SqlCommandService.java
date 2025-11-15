@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 public class SqlCommandService {
 
     private final SqlRepository sqlRepository;
-    
+
+
     /** SQL 리스트 */
     @Transactional(readOnly = true)
     public List<SqlResponse> getActiveSqlList() {
