@@ -15,8 +15,12 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Sql extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sqlDataSeq")
+    @SequenceGenerator(
+            name = "sqlDataSeq",
+            sequenceName = "SEQ_SQL_DATA",
+            allocationSize = 1
+    )
     private Long id;
 
     @Column(name = "INSTANCE_ID", nullable = false)
