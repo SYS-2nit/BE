@@ -1,7 +1,9 @@
 package com.sys.dbmonitor.domains.sql.controller.command;
 
+import com.sys.dbmonitor.domains.sql.dto.request.SqlCompareRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
+import com.sys.dbmonitor.domains.sql.dto.response.SqlComparePageResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlStatsPageResponse;
@@ -23,7 +25,7 @@ public class SqlCommandController {
     private final SqlCommandService sqlCommandService;
     private final SqlStatsQueryService sqlStatsQueryService;
 
-    //  1. SQL 통계 목록 조회
+    /* =====  1. SQL 통계 목록 조회 ===== */
     @Operation(summary = "SQL 통계 목록 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 테이블 목록을 조회합니다.")
     @GetMapping("/stats")
     public ApiResponse<SqlStatsPageResponse> getStats(@Valid SqlStatsQueryRequest request) {
@@ -31,7 +33,7 @@ public class SqlCommandController {
         return ApiResponse.ok(200, response, "SQL 통계 목록 조회 성공");
     }
 
-    // 2. SQL 그래프 데이터 조회
+    /* ===== 2. SQL 그래프 데이터 조회 ===== */
     @Operation(summary = "SQL 그래프 데이터 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 통계 데이터를 조회합니다.")
     @GetMapping("/graph")
     public ApiResponse<SqlGraphSeriesResponse> graph(@Valid SqlGraphRequest request) {
@@ -42,7 +44,7 @@ public class SqlCommandController {
         );
     }
 
-    // 3. SQL 상세 탭 조회
+    /* ===== 3. SQL 상세 탭 조회 ===== */
     @Operation(summary = "SQL 상세 탭 데이터 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 통계 데이터를 조회합니다.")
     @GetMapping("/detail/{sqlId}")
     public ApiResponse<SqlDetailResponse> getSqlDetail(
@@ -55,4 +57,14 @@ public class SqlCommandController {
         return ApiResponse.ok(200, response, "SQL 상세 조회 성공");
     }
 
+    /* ===== 4. Top SQL 비교 조회 ===== */
+    @Operation(summary = "Top SQL 비교 조회", description = "기준 구간과 비교 구간의 SQL 통계를 나란히 조회합니다.")
+    @GetMapping("/stats/compare")
+    public ApiResponse<SqlComparePageResponse> compare(@Valid SqlCompareRequest request) {
+        return ApiResponse.ok(
+                200,
+                sqlStatsQueryService.getSqlCompareStats(request),
+                "Top SQL 비교 조회 성공"
+        );
+    }
 }

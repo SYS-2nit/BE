@@ -1,16 +1,13 @@
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
+import com.sys.dbmonitor.domains.sql.dto.request.SqlCompareRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlStatsPageResponse;
+import com.sys.dbmonitor.domains.sql.dto.response.*;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
-import lombok.Getter;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,7 +122,10 @@ public class SqlStatsQueryService {
         LocalDateTime startAt = start.atStartOfDay();
         LocalDateTime endAt = end.plusDays(1).atStartOfDay();
 
-        int interval = request.intervalMinutes() == null ? 30 : request.intervalMinutes();
+        int interval = (request.intervalMinutes() == null || request.intervalMinutes() <= 0)
+                ? 30
+                : request.intervalMinutes();
+
 
         // 1) 원본 DB 데이터 조회
         List<Sql> list = sqlRepository.findForGraph(
@@ -351,4 +351,54 @@ public class SqlStatsQueryService {
         return trend;
     }
 
+    /* ====== Top SQL 비교 ====== */
+    public SqlComparePageResponse getSqlCompareStats(@Valid SqlCompareRequest req) {
+
+        // base 구간 (하루 기준)
+        LocalDate baseStart = req.baseDate();
+        LocalDate baseEnd = req.baseDate();
+
+        // compare 구간 (하루 기준)
+        LocalDate compStart = req.compareDate();
+        LocalDate compEnd = req.compareDate();
+
+
+        // 기준 구간 SQL 조회
+        SqlStatsQueryRequest baseReq = new SqlStatsQueryRequest(
+                req.instanceId(),     // instanceId
+                baseStart,            // startDate
+                baseEnd,              // endDate
+                req.keyword(),        // keyword
+                null,                 // minExecCount
+                null,                 // maxExecCount
+                "elapsed",            // orderBy
+                "DESC",               // direction
+                0,                    // page
+                100                   // size
+        );
+        SqlStatsPageResponse base = getSqlStats(baseReq);
+
+
+        // 비교 구간 SQL 조회
+        SqlStatsQueryRequest compareReq = new SqlStatsQueryRequest(
+                req.instanceId(),
+                compStart,
+                compEnd,
+                req.keyword(),
+                null,
+                null,
+                "elapsed",
+                "DESC",
+                0,
+                100
+        );
+        SqlStatsPageResponse compare = getSqlStats(compareReq);
+
+
+        // 비교 결과 응답
+        return new SqlComparePageResponse(
+                base.content(),
+                compare.content()
+        );
+    }
 }

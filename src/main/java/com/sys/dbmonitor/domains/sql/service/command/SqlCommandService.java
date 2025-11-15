@@ -1,7 +1,5 @@
 package com.sys.dbmonitor.domains.sql.service.command;
 
-import com.sys.dbmonitor.domains.sql.domain.Sql;
-import com.sys.dbmonitor.domains.sql.dto.request.SqlCreateRequest;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
 import lombok.RequiredArgsConstructor;
