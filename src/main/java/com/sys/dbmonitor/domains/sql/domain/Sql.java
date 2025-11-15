@@ -72,9 +72,8 @@ public class Sql extends BaseEntity {
     private String sqlText;
 
     /** soft delete */
-    public void softDelete() {
-        markAsDeleted();
-        setUpdatedAt(java.time.LocalDateTime.now());
+    public void markAsDeleted() {
+        super.markAsDeleted();
     }
 
     /** SQL 데이터 갱신 */
