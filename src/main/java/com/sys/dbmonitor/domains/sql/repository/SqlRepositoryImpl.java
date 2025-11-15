@@ -8,16 +8,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
+// QueryDSL 실제 구현체
 @RequiredArgsConstructor
 public class SqlRepositoryImpl implements SqlRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
 
-    /** QueryDSL 기반 SQL 통계 조회 + 페이징 */
+    /** =====  QueryDSL 기반 SQL 통계 필터 조회 ===== */
     @Override
     public Page<Sql> findFilteredSqlStats(
             Long instanceId,
@@ -26,10 +26,8 @@ public class SqlRepositoryImpl implements SqlRepositoryCustom {
             LocalDateTime end,
             Pageable pageable
     ) {
-
         QSql sql = QSql.sql;
 
-        // 동적 where 조건 생성
         BooleanExpression condition = sql.isDeleted.eq(false);
 
         if (instanceId != null) {
@@ -48,7 +46,6 @@ public class SqlRepositoryImpl implements SqlRepositoryCustom {
             condition = condition.and(sql.createdAt.loe(end));
         }
 
-        // 콘텐츠 조회 (페이징)
         List<Sql> content = queryFactory
                 .selectFrom(sql)
                 .where(condition)
@@ -57,16 +54,50 @@ public class SqlRepositoryImpl implements SqlRepositoryCustom {
                 .limit(pageable.getPageSize())
                 .fetch();
 
-        // total count 조회
         Long total = queryFactory
                 .select(sql.count())
                 .from(sql)
                 .where(condition)
                 .fetchOne();
 
-        // null-safe 처리
         long totalCount = total != null ? total : 0L;
 
         return new PageImpl<>(content, pageable, totalCount);
+    }
+
+
+    /** ===== QueryDSL 기반 통계 그래프 조회 ===== */
+    @Override
+    public List<Sql> findForGraph(
+            Long instanceId,
+            String keyword,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        QSql sql = QSql.sql;
+
+        BooleanExpression condition = sql.isDeleted.eq(false);
+
+        if (instanceId != null) {
+            condition = condition.and(sql.instanceId.eq(instanceId));
+        }
+
+        if (keyword != null && !keyword.isBlank()) {
+            condition = condition.and(sql.sqlText.containsIgnoreCase(keyword));
+        }
+
+        if (start != null) {
+            condition = condition.and(sql.createdAt.goe(start));
+        }
+
+        if (end != null) {
+            condition = condition.and(sql.createdAt.lt(end));   // "< end" 그대로 반영
+        }
+
+        return queryFactory
+                .selectFrom(sql)
+                .where(condition)
+                .orderBy(sql.createdAt.asc()) // 그래프는 시간 오름차순이 일반적
+                .fetch();
     }
 }
