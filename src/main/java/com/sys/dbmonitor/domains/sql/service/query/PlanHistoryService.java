@@ -7,6 +7,7 @@ import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -42,22 +43,33 @@ public class PlanHistoryService {
 
         return result;
     }
-
     /**
      * 특정 before/after plan hash 에 대한 상세 조회
      */
     public PlanHistoryDetailResponse getPlanHistoryDetail(
             String sqlId,
             Long beforeHash,
-            Long afterHash
+            Long afterHash,
+            String time
     ) {
+        LocalDateTime createdAt = LocalDateTime.parse(time);
 
+        // BEFORE row 조회: createdAt 이하 중 가장 최근
         Sql before = sqlRepository
-                .findTopBySqlIdAndPlanHashValueOrderByCreatedAtDesc(sqlId, beforeHash)
+                .findTopBySqlIdAndPlanHashValueAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
+                        sqlId,
+                        beforeHash,
+                        createdAt
+                )
                 .orElse(null);
 
+        // AFTER row 조회: createdAt 이상 중 가장 빠른
         Sql after = sqlRepository
-                .findTopBySqlIdAndPlanHashValueOrderByCreatedAtDesc(sqlId, afterHash)
+                .findTopBySqlIdAndPlanHashValueAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+                        sqlId,
+                        afterHash,
+                        createdAt
+                )
                 .orElse(null);
 
         return new PlanHistoryDetailResponse(

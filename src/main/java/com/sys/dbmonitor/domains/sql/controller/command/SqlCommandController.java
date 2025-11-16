@@ -121,11 +121,12 @@ public class SqlCommandController {
     public ApiResponse<PlanHistoryDetailResponse> getPlanHistoryDetail(
             @RequestParam String sqlId,
             @RequestParam Long beforeHash,
-            @RequestParam Long afterHash
+            @RequestParam Long afterHash,
+            @RequestParam String time
     ) {
         return ApiResponse.ok(
                 200,
-                planHistoryService.getPlanHistoryDetail(sqlId, beforeHash, afterHash),
+                planHistoryService.getPlanHistoryDetail(sqlId, beforeHash, afterHash, time),
                 "Plan Change Before/After 조회 성공"
         );
     }

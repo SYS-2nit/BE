@@ -12,12 +12,17 @@ import java.util.Optional;
 @Repository
 public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCustom {
 
-    /** 데이터 전체 조회용 */
+    /**
+     * 데이터 전체 조회용
+     */
     List<Sql> findByIsDeletedFalse();
 
-    /** ===== 통계 상세 탭 조회용 ===== */
+    /**
+     * ===== 통계 상세 탭 조회용 =====
+     */
     @Query("""
-        SELECT s
+
+            SELECT s
         FROM Sql s
         WHERE s.isDeleted = false
           AND s.sqlId = :sqlId
@@ -30,7 +35,9 @@ public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCu
             LocalDateTime end
     );
 
-    /** 전체 elapsed 합계 (비중 계산용) */
+    /**
+     * 전체 elapsed 합계 (비중 계산용)
+     */
     @Query("""
         SELECT COALESCE(SUM(s.elapsedUsDelta), 0)
         FROM Sql s
@@ -43,7 +50,9 @@ public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCu
             LocalDateTime end
     );
 
-    /** 특정 SQL의 랭킹 조회: elapsed 기준으로 몇 등인지 */
+    /**
+     * 특정 SQL의 랭킹 조회: elapsed 기준으로 몇 등인지
+     */
     @Query("""
         SELECT COUNT(s) + 1
         FROM Sql s
@@ -64,12 +73,31 @@ public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCu
             LocalDateTime end
     );
 
-    /** Plan History 조회용: 특정 SQL_ID의 전체 이력 ASC */
+    /**
+     * Plan History 조회용: 특정 SQL_ID의 전체 이력 ASC
+     */
     List<Sql> findBySqlIdOrderByCreatedAtAsc(String sqlId);
 
-    /** Plan Change Detail 조회용: 특정 sqlId + planHash 에서 가장 최신 row */
-    Optional<Sql> findTopBySqlIdAndPlanHashValueOrderByCreatedAtDesc(
+    /**
+     * Plan Change Detail 조회용
+     * 특정 순간(createdAt)에서의 PlanHashValue를 가진 행 조회
+     */
+
+    /**
+     * Before Plan: 기준 시간 이전에서 가장 최신 1개
+     */
+    Optional<Sql> findTopBySqlIdAndPlanHashValueAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
             String sqlId,
-            Long planHashValue
+            Long planHashValue,
+            LocalDateTime createdAt
+    );
+
+    /**
+     * After Plan: 기준 시간 이후에서 가장 첫 번째 1개
+     */
+    Optional<Sql> findTopBySqlIdAndPlanHashValueAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+            String sqlId,
+            Long planHashValue,
+            LocalDateTime createdAt
     );
 }
