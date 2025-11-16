@@ -3,13 +3,14 @@ package com.sys.dbmonitor.domains.notification.service.command;
 import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
+import com.sys.dbmonitor.domains.notification.domain.AlertState;
 import com.sys.dbmonitor.domains.notification.domain.AlertLevel;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
 import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
 import com.sys.dbmonitor.domains.notification.repository.EventRepository;
-import com.sys.dbmonitor.domains.notification.state.AlertStateStore;
+import com.sys.dbmonitor.domains.notification.repository.AlertStateRepository;
 import com.sys.dbmonitor.domains.notification.support.ThresholdFormatUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +36,7 @@ public class AlertCheckService {
     private final AlertEventRepository alertEventRepository;
     private final EventRepository eventRepository;
     private final InstanceRepository instanceRepository;
-    private final AlertStateStore alertStateStore;
+    private final AlertStateRepository alertStateRepository;
     private final AlertNotificationService alertNotificationService;
 
     /**
@@ -125,30 +126,66 @@ public class AlertCheckService {
         // 4. 임계값 비교 및 심각도 결정
         AlertLevel severity = determineSeverity(metricValue, alertEvent);
         
+        // 4-1. ALERT_STATE 로드 (없으면 생성 전제 상태)
+        AlertState state = alertStateRepository
+            .findByInstanceIdAndAlertEventIdAndIsDeletedFalse(instance.getId(), alertEvent.getId())
+            .orElse(AlertState.builder()
+                .alertEvent(alertEvent)
+                .instance(instance)
+                .lastSeverity(null)
+                .lastNotifiedSeverity(null)
+                .consecutiveCount(0)
+                .build());
+
+        // 4-2. 임계값 미만이면 연속 초과 횟수 리셋 후 상태 갱신만 하고 반환
         if (severity == null) {
-            // 임계값 미만이면 연속 초과 횟수 리셋
-            alertStateStore.resetCount(instance.getId(), alertEvent.getId());
-            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}", 
+            state.setConsecutiveCount(0);
+            state.setLastSeverity(null);
+            state.setLastCheckedAt(java.time.LocalDateTime.now());
+            alertStateRepository.save(state);
+            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}",
                 alertEvent.getId(), metricValue, alertEvent.getWarning());
             return;
         }
 
-        // 5. 누적 시간 조건 확인
-        AlertStateStore.AlertState state = alertStateStore.incrementCount(
-            instance.getId(), 
-            alertEvent.getId(), 
-            severity
-        );
+        // 5. 누적 시간 조건 확인 (영속 상태 사용)
+        int currentCount = state.getConsecutiveCount() != null ? state.getConsecutiveCount() : 0;
+        currentCount += 1;
+        state.setConsecutiveCount(currentCount);
+        state.setLastCheckedAt(java.time.LocalDateTime.now());
 
         int requiredCount = alertEvent.getDelayTime().getMinutes();
-        if (state.consecutiveCount() < requiredCount) {
-            log.debug("[AlertCheck] 누적 시간 조건 미달: alertEventId={}, consecutiveCount={}, requiredCount={}", 
-                alertEvent.getId(), state.consecutiveCount(), requiredCount);
+        if (currentCount < requiredCount) {
+            alertStateRepository.save(state);
+            log.debug("[AlertCheck] 누적 시간 조건 미달: alertEventId={}, consecutiveCount={}, requiredCount={}",
+                alertEvent.getId(), currentCount, requiredCount);
             return;
         }
 
-        // 6. 알림 발생 - Event 생성 및 저장
-        createAndSaveEvent(alertEvent, instance, severity, metricValue, state);
+        // 6. 상태 변화 기반 발송 판단
+        Integer prevNotified = state.getLastNotifiedSeverity();
+        Integer cur = severity.getValue();
+        boolean shouldNotify = false;
+        boolean isRecovery = false;
+        if (prevNotified == null && cur != null) {
+            shouldNotify = true; // 진입
+        } else if (prevNotified != null && cur == null) {
+            shouldNotify = true; // 복구
+            isRecovery = true;
+        } else if (prevNotified != null && cur != null && cur > prevNotified) {
+            shouldNotify = true; // 상승
+        }
+
+        if (shouldNotify) {
+            createAndSaveEvent(alertEvent, instance, severity, metricValue);
+            state.setLastNotifiedSeverity(cur);
+            state.setLastNotifiedAt(java.time.LocalDateTime.now());
+            // 누적 카운트는 유지(지속 상태에서도 필요 시 정책 변경 여지), 필요하면 0으로 리셋 가능
+        }
+
+        // 7. 상태 갱신 저장
+        state.setLastSeverity(cur);
+        alertStateRepository.save(state);
     }
 
     /**
@@ -296,9 +333,8 @@ public class AlertCheckService {
     /**
      * Event 생성 및 저장
      */
-    private void createAndSaveEvent(AlertEvent alertEvent, Instance instance, 
-                                    AlertLevel severity, Double currentValue, 
-                                    AlertStateStore.AlertState state) {
+    private void createAndSaveEvent(AlertEvent alertEvent, Instance instance,
+                                    AlertLevel severity, Double currentValue) {
         // 임계값 결정 (초과한 임계값)
         Double thresholdValue = determineThresholdValue(currentValue, alertEvent);
         
