@@ -4,6 +4,7 @@ import com.sys.dbmonitor.domains.dashboard.dao.CollectorRepository;
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 import com.sys.dbmonitor.domains.dashboard.engine.MetricsEngine;
 import com.sys.dbmonitor.domains.dashboard.state.DeltaStateStore;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -15,18 +16,44 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class CollectorServiceImpl implements CollectorService {
 
     private final CollectorRepository repo;
     private final DeltaStateStore store;
 
+    private static final String CACHE_HIT_FAMILY = "CACHE_HIT";
+
     public CollectorServiceImpl(@Qualifier("collectorRepositoryImpl") CollectorRepository repo,
                                 @Qualifier("inMemoryDeltaStateStore") DeltaStateStore store) {
         this.repo = repo;
         this.store = store;
     }
+
+    // System SQL 필터링 상수 (SqlSnapshotService와 동일)
+    private static final java.util.Set<String> SYSTEM_SCHEMA_BLACKLIST = java.util.Set.of(
+            "SYS", "SYSTEM", "XDB", "DBSNMP", "OUTLN", "SYSMAN", "CTXSYS", "ORDSYS", "MDSYS",
+            "OLAPSYS", "WMSYS", "APPQOSSYS", "GSMADMIN_INTERNAL", "OJVMSYS", "DVSYS", "AUDSYS",
+            "GGSYS", "LBACSYS", "EXFSYS", "SI_INFORMTN_SCHEMA", "ANONYMOUS", "PERFSTAT",
+            "ORACLE_OCM"
+    );
+
+    private static final java.util.List<String> SYSTEM_SCHEMA_PREFIXES = java.util.List.of(
+            "APEX_", "FLOWS_", "FLOWS_FILES", "XS$"
+    );
+
+    private static final java.util.List<String> SYSTEM_MODULE_KEYWORDS = java.util.List.of(
+            "DBMS", "MMON", "MMNL", "SMON", "SMCO", "RECO", "OEM", "RMAN",
+            "STREAMS AQ", "GG", "SQL DEVELOPER", "PL/SQL DEVELOPER", "TOAD", "SYS.", "ORA$"
+    );
+
+    private static final java.util.Set<String> SQL_ID_BLACKLIST = java.util.Set.of(
+            "9BABJV8YQ8RU3", "5T10UU7V11S5T","G4Y6NW3TTS7CC","5QGZ1P0CUT7MX","6U5ZQZZ2NM55C"
+
+    );
 
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
     public CollectorRawDTO collectRaw(Long instanceId) { return repo.collectSnapshot(instanceId); }
@@ -132,6 +159,8 @@ public class CollectorServiceImpl implements CollectorService {
             double dbCpuUs = cachedAny(cache, "DB_CPU_μS", "DB_CPU_US", "db_cpu_us", "db cpu");
             double dbTimeUs= cachedAny(cache, "DB_TIME_μS", "DB_TIME_US", "db_time_us", "db time");
 
+
+
             double tps   = rate(instanceId, instId, "USER_COMMITS", commits, windowSec);
             double execs = rate(instanceId, instId, "EXECUTE_COUNT", execCnt, windowSec);
             double ucall = rate(instanceId, instId, "USER_CALLS", calls, windowSec);
@@ -145,6 +174,14 @@ public class CollectorServiceImpl implements CollectorService {
 
             double logonsCur = cachedAny(cache, "LOGONS_CURRENT", "logons_current");
             double disconnectsPerSec = negRate(instanceId, instId, "LOGONS_CURRENT", logonsCur, windowSec); // 이후 항등식으로 재산출
+
+            // CollectorServiceImpl.java의 Bundle 순회 부분 (line 154 근처)
+            log.debug("[DEBUG] instId={}, dbCpuUs={}, isNaN={}", instId, dbCpuUs, Double.isNaN(dbCpuUs)); // -------------------------------------------------------- 없애
+            log.debug("[DEBUG] cache keys (DB_CPU related): {}",
+                    cache.keySet().stream()
+                            .filter(k -> k.toUpperCase().contains("DB_CPU") || k.toUpperCase().contains("CPU"))
+                            .collect(Collectors.toList()));
+            log.debug("[DEBUG] aasOnCpu={}, aasOnCpuSum={}", aasOnCpu, aasOnCpuSum); // ----------------------------------------------------------- 여기까지
 
             // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec
             double bgUs = cachedAny(cache, "BACKGROUND_CPU_μS", "BACKGROUND_CPU_US", "bg_cpu_us");
@@ -231,7 +268,7 @@ public class CollectorServiceImpl implements CollectorService {
             wcConcAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CONCURRENCY",
                     cachedAny(cache, "TIME_WAITED_μS_CONCURRENCY","TIME_WAITED_US_CONCURRENCY","WAIT_CLASS_TIME_US_CONCURRENCY","wait_class_time_us_CONCURRENCY"), windowSec);
             wcSysIoAas  += rateUsToAas(instanceId, instId, "TIME_WAITED_US_SYSTEM_IO",
-                    cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_IO","wait_class_time_us_SYSTEM_I_O"), windowSec);
+                    cachedAny(cache, "TIME_WAITED_μS_SYSTEM_IO","TIME_WAITED_US_SYSTEM_IO","WAIT_CLASS_TIME_US_SYSTEM_I_O"), windowSec);
             wcNetAas    += rateUsToAas(instanceId, instId, "TIME_WAITED_US_NETWORK",
                     cachedAny(cache, "TIME_WAITED_μS_NETWORK","TIME_WAITED_US_NETWORK","WAIT_CLASS_TIME_US_NETWORK","wait_class_time_us_NETWORK"), windowSec);
             wcClusAas   += rateUsToAas(instanceId, instId, "TIME_WAITED_US_CLUSTER",
@@ -351,7 +388,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("HOST_CPU_UTIL_PCT", hostUtilPct);       // 003
 
         // 004 AAS_ONCPU_SESSIONS = 이미 aasOnCpuSum
-        out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum);      // 004
+        // out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum);      
 
         // 005 CORE_BASELINE_SESSIONS = Σ cpu_count
         out.put("CORE_BASELINE_SESSIONS", cpuCntSum);    // 005
@@ -388,6 +425,8 @@ public class CollectorServiceImpl implements CollectorService {
 
         // 019 BG = (Σ ΔBACKGROUND_CPU_μs / 1e6) / window_sec (단일 순회에서 이미 계산됨)
         out.put("AAS_BG_SESSIONS", aasBgSum); // 019
+
+        out.put("AAS_ONCPU_SESSIONS", aasOnCpuSum + aasBgSum); // FG + BG // 004
 
         /* ========= 세션 탭 지표(요약) ========= */
         out.put("ACTIVE_USER_SESSIONS_NOW",  activeSum);
@@ -454,6 +493,16 @@ public class CollectorServiceImpl implements CollectorService {
             for (Map<String, Object> r : topSqlRows) {
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 if (sqlId == null || sqlId.isBlank()) continue;
+
+                // 필터링: parsing_schema_name과 module 추출
+                String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
+                String module = str(anyObj(r, "MODULE", "module"));
+
+                // System SQL 필터링 (SQL 페이지와 동일한 로직)
+                if (isSystemSql(sqlId, schema, module)) {
+                    continue;
+                }
+
                 double curUs = num(anyObj(r, "VALUE_NUM", "value_num", "CPU_US", "cpu_us"));
                 String k = "TOPSQL_CPU|" + sqlId;
                 double dUs = deltaByKey(instanceId, -1, k, curUs, now); // Δμs (음수 방지)
@@ -506,20 +555,29 @@ public class CollectorServiceImpl implements CollectorService {
         // *** Buffer/Library/Dictionary/Latch Hit% — 분모 0이면 null, 반올림 없음 ***
         // 미스%를 먼저 계산 후 Hit% = 100 - Miss%
         Double bufMissPct = pctOrNull(dPhysReadsCache, (dDbBlockGets + dConsGets));
-        Double bufHitPct  = (bufMissPct == null) ? null : (100.0 - bufMissPct);
+        Double bufHitPctRaw  = (bufMissPct == null) ? null : (100.0 - bufMissPct);
+        Double bufHitPct = cacheHitFallback(instanceId, "BUFFER_CACHE_HIT_PCT", bufHitPctRaw);
         out.put("BUFFER_CACHE_HIT_PCT", bufHitPct); // 042
 
         Double libMissPct = pctOrNull(dLCReloads, dLCGets);
-        out.put("LIBRARY_CACHE_HIT_PCT",  libMissPct == null ? null : (100.0 - libMissPct)); // 043
+        Double libHitPctRaw = libMissPct == null ? null : (100.0 - libMissPct);
+        Double libHitPct = cacheHitFallback(instanceId, "LIBRARY_CACHE_HIT_PCT", libHitPctRaw);
+        out.put("LIBRARY_CACHE_HIT_PCT", libHitPct); // 043
 
         Double dictMissPct = pctOrNull(dRCMiss, dRCGets);
-        out.put("DICTIONARY_CACHE_HIT_PCT", dictMissPct == null ? null : (100.0 - dictMissPct)); // 044
+        Double dictHitPctRaw = dictMissPct == null ? null : (100.0 - dictMissPct);
+        Double dictHitPct = cacheHitFallback(instanceId, "DICTIONARY_CACHE_HIT_PCT", dictHitPctRaw);
+        out.put("DICTIONARY_CACHE_HIT_PCT", dictHitPct); // 044
 
         Double latchMissPct = pctOrNull(dLatchMiss, dLatchGets);
-        out.put("LATCH_HIT_PCT", latchMissPct == null ? null : (100.0 - latchMissPct)); // 045
+        Double latchHitPctRaw = latchMissPct == null ? null : (100.0 - latchMissPct);
+        Double latchHitPct = cacheHitFallback(instanceId, "LATCH_HIT_PCT", latchHitPctRaw);
+        out.put("LATCH_HIT_PCT", latchHitPct); // 045
 
         // 046 Redo Buffer Wait%
-        out.put("REDO_BUFFER_WAIT_PCT", pctOrNull(dRedoRetries, dRedoEntries)); // 046
+        Double redoWaitPctRaw = pctOrNull(dRedoRetries, dRedoEntries);
+        Double redoWaitPct = cacheHitFallback(instanceId, "REDO_BUFFER_WAIT_PCT", redoWaitPctRaw);
+        out.put("REDO_BUFFER_WAIT_PCT", redoWaitPct); // 046
 
         // 047~053 SGA/Pool 사이즈(게이지) + 055~058
         out.put("LARGE_POOL_MB",        MetricsEngine.sumInst(bundle, "LARGE_POOL_BYTES", "large_pool_bytes") / 1_048_576.0); // 047
@@ -558,20 +616,35 @@ public class CollectorServiceImpl implements CollectorService {
                 "topshared",
                 "top_sql_shared_pool_candidate"
         );
+        // 필터링: System SQL 제외
+        List<Map<String, Object>> filteredTopShared = new ArrayList<>();
         if (topShared != null && !topShared.isEmpty()) {
-            topShared.sort((a, b) -> {
+            for (Map<String, Object> r : topShared) {
+                // 필터링: parsing_schema_name과 module 추출
+                String schema = str(anyObj(r, "PARSING_SCHEMA_NAME", "parsing_schema_name"));
+                String module = str(anyObj(r, "MODULE", "module"));
+                String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
+
+                // System SQL 필터링 (SQL 페이지와 동일한 로직)
+                if (isSystemSql(sqlId, schema, module)) {
+                    continue;
+                }
+
+                filteredTopShared.add(r);
+            }
+            // 필터링된 리스트 정렬
+            filteredTopShared.sort((a, b) -> {
                 double va = nz(num(anyObj(a, "VALUE_NUM", "value_num")));
                 double vb = nz(num(anyObj(b, "VALUE_NUM", "value_num")));
                 return Double.compare(vb, va);
             });
-        } else {
-            topShared = List.of();
         }
+        // 패딩 포함 Top5 출력
         for (int i = 0; i < 5; i++) {
             String idKey  = String.format("TOP_SQL_BY_SHARED_POOL_SQL_ID_%02d", i+1);
             String valKey = String.format("TOP_SQL_BY_SHARED_POOL_VALUE_%02d",   i+1);
-            if (i < topShared.size()) {
-                Map<String, Object> r = topShared.get(i);
+            if (i < filteredTopShared.size()) {
+                Map<String, Object> r = filteredTopShared.get(i);
                 String sqlId = str(anyObj(r, "SQL_ID", "sql_id"));
                 double val   = num(anyObj(r, "VALUE_NUM", "value_num"));
                 out.put(idKey,  sqlId == null ? "" : sqlId);
@@ -1217,17 +1290,40 @@ public class CollectorServiceImpl implements CollectorService {
         return out;
     }
 
-    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (Instance별 격리) */
+//    /** Δμs → AAS: (Δ/1e6)/window_sec — 상태는 store에 저장 (Instance별 격리) */
+//    private double rateUsToAas(Long instanceId, int instId, String name, double curUs, int windowSec) {
+//        if (Double.isNaN(curUs)) return 0d;
+//        String key = name.toUpperCase();
+//        Instant now = Instant.now();
+//        double out = 0d;
+//        var prevOpt = store.get(instanceId, instId, key);
+//        if (prevOpt.isPresent()) {
+//            double d = curUs - prevOpt.get().value();
+//            if (d < 0) d = 0;
+//            out = (d / 1_000_000.0) / Math.max(1, windowSec);
+//        }
+//        store.put(instanceId, instId, key, curUs, now);
+//        return out;
+//    }
+// rateUsToAas() 메서드 내부 (line 1268 근처)
     private double rateUsToAas(Long instanceId, int instId, String name, double curUs, int windowSec) {
-        if (Double.isNaN(curUs)) return 0d;
+        if (Double.isNaN(curUs)) {
+            log.debug("[DEBUG] rateUsToAas: curUs is NaN, returning 0");
+            return 0d;
+        }
         String key = name.toUpperCase();
         Instant now = Instant.now();
         double out = 0d;
         var prevOpt = store.get(instanceId, instId, key);
+        log.debug("[DEBUG] rateUsToAas: instId={}, key={}, curUs={}, prevOpt={}, windowSec={}",
+                instId, key, curUs, prevOpt.isPresent() ? prevOpt.get().value() : "N/A", windowSec);
         if (prevOpt.isPresent()) {
             double d = curUs - prevOpt.get().value();
             if (d < 0) d = 0;
             out = (d / 1_000_000.0) / Math.max(1, windowSec);
+            log.debug("[DEBUG] rateUsToAas: delta={}, out={}", d, out);
+        } else {
+            log.debug("[DEBUG] rateUsToAas: prevOpt not present, returning 0");
         }
         store.put(instanceId, instId, key, curUs, now);
         return out;
@@ -1438,6 +1534,57 @@ public class CollectorServiceImpl implements CollectorService {
             if ((v = tables.get(k4.toLowerCase())) != null) return v;
         }
         return List.of(); // 없으면 빈 리스트
+    }
+
+    /**
+     * System SQL 여부 판단 (SqlSnapshotService와 동일한 로직)
+     * @param schema parsing_schema_name
+     * @param module module
+     * @return System SQL이면 true
+     */
+    private boolean isSystemSql(String sqlId, String schema, String module) {
+        String upperSqlId = upper(sqlId);
+        if (upperSqlId != null && SQL_ID_BLACKLIST.contains(upperSqlId)) {
+            return true;
+        }
+
+        String upperSchema = upper(schema);
+        if (upperSchema != null) {
+            if (SYSTEM_SCHEMA_BLACKLIST.contains(upperSchema)) {
+                return true;
+            }
+            for (String prefix : SYSTEM_SCHEMA_PREFIXES) {
+                if (upperSchema.startsWith(prefix)) {
+                    return true;
+                }
+            }
+        }
+
+        String upperModule = upper(module);
+        if (upperModule != null) {
+            for (String keyword : SYSTEM_MODULE_KEYWORDS) {
+                if (upperModule.contains(keyword)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private String upper(String value) {
+        return value != null ? value.trim().toUpperCase() : null;
+    }
+
+    private Double cacheHitFallback(Long instanceId, String metricName, Double currentValue) {
+        if (currentValue != null && !Double.isNaN(currentValue) && !Double.isInfinite(currentValue)) {
+            store.putVar(instanceId, CACHE_HIT_FAMILY, metricName, currentValue, Instant.now());
+            return currentValue;
+        }
+        return store.getVar(instanceId, CACHE_HIT_FAMILY, metricName)
+                .map(DeltaStateStore.State::value)
+                .filter(v -> !Double.isNaN(v) && !Double.isInfinite(v))
+                .orElse(null);
     }
 }
 

@@ -75,7 +75,7 @@ public final class MetricRowMapper {
         ALIAS.put("LIBRARY_CACHE_RELOADS_PER_SEC", "libraryCacheReloadsPerSec");
         ALIAS.put("LIBCACHE_RELOAD_PER_S", "libraryCacheReloadsPerSec");
         ALIAS.put("libcache_reload_per_s", "libraryCacheReloadsPerSec");
-        
+
         // FRA Usage
         ALIAS.put("FRA_USAGE_PCT", "fraUsagePct");
         ALIAS.put("fra_usage_pct", "fraUsagePct");

@@ -1,7 +1,7 @@
 DECLARE
 /* ===== Local defaults from binds (client may bind these) ===== */
 v_lookback_min   NUMBER := NVL(1, 1);   -- minutes for candidate pools (e.g., Top SQL)
-  v_top_n          NUMBER := NVL(5, 5);          -- Top-N rows for snapshot tables
+  v_top_n          NUMBER := NVL(30, 5);          -- Top-N rows for snapshot tables
   v_max_candidates NUMBER := NVL(50, 200);
 
   v_inst_filter    VARCHAR2(4000) := 'ALL';-- :inst_filter;  -- 'ALL' | NULL | '1,2,3' | '2'
@@ -472,7 +472,7 @@ SELECT * FROM (
                   /* ---- Session activity and locks ---- */
                   UNION ALL SELECT i.inst_id, 'active_user_sessions',             NVL(sess.active_user_sessions,0)        FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'total_user_sessions',              NVL(sess.total_user_sessions,0)         FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
-                  UNION ALL SELECT -1, 'blocked_now',                            SUM(NVL(sess.blocked_now,0))        FROM sess
+                  UNION ALL SELECT i.inst_id, 'blocked_now',                      NVL(sess.blocked_now,0)                 FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'blockers_now',                     NVL(sess.blockers_now,0)             FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tx',                     NVL(sess.lock_wait_tx,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
                   UNION ALL SELECT i.inst_id, 'lock_wait_tm',                     NVL(sess.lock_wait_tm,0)                FROM inst i LEFT JOIN sess ON sess.inst_id = i.inst_id
@@ -625,9 +625,11 @@ SELECT
     SUM(cpu_time)                  AS value_num,
     inst_id,
     MIN(plan_hash_value)           AS plan_hash_value,
-    MIN(SUBSTR(module,1,64))       AS module
+    MIN(SUBSTR(module,1,64))       AS module,
+    MIN(parsing_schema_name)       AS parsing_schema_name
 FROM   gv$sqlarea
 WHERE  last_active_time >= SYSDATE - NUMTODSINTERVAL(v_lookback_min,'MINUTE')
+  AND parsing_schema_name = 'ADMIN'
 GROUP  BY inst_id, sql_id
 ORDER  BY value_num DESC
     FETCH FIRST v_max_candidates ROWS ONLY;
@@ -672,15 +674,18 @@ SELECT
     t.value_num        AS VALUE_NUM,
     t.inst_id          AS INST_ID,
     t.plan_hash_value  AS PLAN_HASH_VALUE,
-    SUBSTR(t.module,1,64) AS MODULE
+    SUBSTR(t.module,1,64) AS MODULE,
+    t.parsing_schema_name AS PARSING_SCHEMA_NAME
 FROM (
     SELECT
     s.inst_id,
     s.sql_id,
     SUM(NVL(s.sharable_mem,0)) AS value_num,
     MAX(s.plan_hash_value)     AS plan_hash_value,
-    MAX(s.module)              AS module
+    MAX(s.module)              AS module,
+    MAX(s.parsing_schema_name) AS parsing_schema_name
     FROM gv$sql s
+    WHERE s.parsing_schema_name = 'ADMIN'
     /* Optional PDB filter (caller may set :pdb_name); in non-CDB, ignore by leaving :pdb_name NULL */
     /* AND s.con_id IN (SELECT con_id FROM v$pdbs WHERE name = :pdb_name) */
     GROUP BY s.inst_id, s.sql_id
