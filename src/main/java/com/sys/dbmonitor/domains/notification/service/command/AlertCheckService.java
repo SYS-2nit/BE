@@ -116,8 +116,10 @@ public class AlertCheckService {
 
         // 역방향 메트릭 처리 (높을수록 문제가 아닌 경우)
         if (Boolean.TRUE.equals(alertEvent.getIsReverse())) {
-            // 예: cache_hit_ratio_pct의 경우 100 - value로 변환
-            metricValue = 100.0 - metricValue;
+            // 퍼센트 포맷인 경우에만 100 - value 변환 (히트율 등)
+            if (alertEvent.getThresholdFormat() == ThresholdFormat.PERCENT) {
+                metricValue = 100.0 - metricValue;
+            }
         }
 
         // 4. 임계값 비교 및 심각도 결정
@@ -261,23 +263,34 @@ public class AlertCheckService {
      * @return 심각도 (null이면 임계값 미만)
      */
     private AlertLevel determineSeverity(Double metricValue, AlertEvent alertEvent) {
-        // CRITICAL 체크 (가장 높은 임계값)
-        if (metricValue >= alertEvent.getCritical()) {
-            return AlertLevel.CRITICAL;
+        boolean isReverse = Boolean.TRUE.equals(alertEvent.getIsReverse());
+        ThresholdFormat format = alertEvent.getThresholdFormat();
+
+        if (isReverse && format != ThresholdFormat.PERCENT) {
+            // 역방향이면서 퍼센트가 아닌 경우(예: fra_free_gb)는 낮을수록 심각
+            if (metricValue <= alertEvent.getCritical()) {
+                return AlertLevel.CRITICAL;
+            }
+            if (metricValue <= alertEvent.getDanger()) {
+                return AlertLevel.DANGER;
+            }
+            if (metricValue <= alertEvent.getWarning()) {
+                return AlertLevel.WARNING;
+            }
+            return null;
+        } else {
+            // 기본: 높을수록 심각
+            if (metricValue >= alertEvent.getCritical()) {
+                return AlertLevel.CRITICAL;
+            }
+            if (metricValue >= alertEvent.getDanger()) {
+                return AlertLevel.DANGER;
+            }
+            if (metricValue >= alertEvent.getWarning()) {
+                return AlertLevel.WARNING;
+            }
+            return null;
         }
-        
-        // DANGER 체크
-        if (metricValue >= alertEvent.getDanger()) {
-            return AlertLevel.DANGER;
-        }
-        
-        // WARNING 체크
-        if (metricValue >= alertEvent.getWarning()) {
-            return AlertLevel.WARNING;
-        }
-        
-        // 임계값 미만
-        return null;
     }
 
     /**
@@ -329,16 +342,34 @@ public class AlertCheckService {
      * 초과한 임계값 결정
      */
     private Double determineThresholdValue(Double currentValue, AlertEvent alertEvent) {
-        if (currentValue >= alertEvent.getCritical()) {
-            return (double) alertEvent.getCritical();
-        }
-        if (currentValue >= alertEvent.getDanger()) {
-            return (double) alertEvent.getDanger();
-        }
-        if (currentValue >= alertEvent.getWarning()) {
+        boolean isReverse = Boolean.TRUE.equals(alertEvent.getIsReverse());
+        ThresholdFormat format = alertEvent.getThresholdFormat();
+
+        if (isReverse && format != ThresholdFormat.PERCENT) {
+            // 낮을수록 심각: 임계값 이하일 때 해당 임계값을 반환
+            if (currentValue <= alertEvent.getCritical()) {
+                return (double) alertEvent.getCritical();
+            }
+            if (currentValue <= alertEvent.getDanger()) {
+                return (double) alertEvent.getDanger();
+            }
+            if (currentValue <= alertEvent.getWarning()) {
+                return (double) alertEvent.getWarning();
+            }
+            return (double) alertEvent.getWarning();
+        } else {
+            // 높을수록 심각
+            if (currentValue >= alertEvent.getCritical()) {
+                return (double) alertEvent.getCritical();
+            }
+            if (currentValue >= alertEvent.getDanger()) {
+                return (double) alertEvent.getDanger();
+            }
+            if (currentValue >= alertEvent.getWarning()) {
+                return (double) alertEvent.getWarning();
+            }
             return (double) alertEvent.getWarning();
         }
-        return (double) alertEvent.getWarning();
     }
 }
 
