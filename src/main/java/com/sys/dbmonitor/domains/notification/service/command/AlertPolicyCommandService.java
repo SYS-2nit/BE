@@ -91,6 +91,15 @@ public class AlertPolicyCommandService {
         AlertPolicy policy = alertPolicyRepository.findByIdAndNotDeleted(id)
             .orElseThrow(() -> new IllegalArgumentException("AlertPolicy not found: " + id));
 
+        // 연쇄 소프트 삭제: 자식 알림 규칙들도 함께 소프트 삭제
+        if (policy.getAlertEvents() != null && !policy.getAlertEvents().isEmpty()) {
+            policy.getAlertEvents().forEach(event -> {
+                if (event != null && Boolean.FALSE.equals(event.getIsDeleted())) {
+                    event.markAsDeleted();
+                }
+            });
+        }
+
         policy.markAsDeleted();
     }
 
