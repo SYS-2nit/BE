@@ -4,8 +4,12 @@ import com.sys.dbmonitor.domains.member.domain.Member;
 import com.sys.dbmonitor.domains.member.dto.request.MemberAddressUpdateRequest;
 import com.sys.dbmonitor.domains.member.dto.request.MemberCreateRequest;
 import com.sys.dbmonitor.domains.member.dto.request.MemberUpdateRequest;
+import com.sys.dbmonitor.domains.member.dto.request.NotificationSettingsUpdateRequest;
+import com.sys.dbmonitor.domains.member.dto.request.NotificationTestRequest;
 import com.sys.dbmonitor.domains.member.dto.response.MemberResponse;
+import com.sys.dbmonitor.domains.member.dto.response.NotificationSettingsResponse;
 import com.sys.dbmonitor.domains.member.service.command.MemberCommandService;
+import com.sys.dbmonitor.domains.member.service.query.MemberQueryService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class MemberCommandController {
 
     private final MemberCommandService memberCommandService;
+    private final MemberQueryService memberQueryService;
 
     @Operation(summary = "회원 등록", description = "새로운 회원을 등록합니다. (slackAddress, warningChannel, criticalChannel 제외)")
     @PostMapping
@@ -53,5 +58,30 @@ public class MemberCommandController {
             @Valid @RequestBody MemberAddressUpdateRequest request, @PathVariable(name = "id") Long id) {
         Member updated = memberCommandService.updateMemberAddress(request, id);
         return ApiResponse.ok(200, MemberResponse.from(updated), "회원 주소 정보가 업데이트되었습니다.");
+    }
+
+    @Operation(summary = "알림 설정 조회", description = "회원의 알림 설정을 조회합니다.")
+    @GetMapping("/{id}/notification-settings")
+    public ApiResponse<NotificationSettingsResponse> getNotificationSettings(@PathVariable Long id) {
+        Member member = memberQueryService.getMemberById(id);
+        return ApiResponse.ok(200, NotificationSettingsResponse.from(member), "알림 설정 조회 성공");
+    }
+
+    @Operation(summary = "알림 설정 저장", description = "회원의 알림 설정을 저장합니다. (email, slackAddress, warningChannel, dangerChannel, criticalChannel)")
+    @PutMapping("/{id}/notification-settings")
+    public ApiResponse<NotificationSettingsResponse> updateNotificationSettings(
+            @PathVariable Long id,
+            @Valid @RequestBody NotificationSettingsUpdateRequest request) {
+        Member updated = memberCommandService.updateNotificationSettings(request, id);
+        return ApiResponse.ok(200, NotificationSettingsResponse.from(updated), "알림 설정이 저장되었습니다.");
+    }
+
+    @Operation(summary = "알림 테스트", description = "설정된 이메일과 Slack으로 테스트 알림을 전송합니다.")
+    @PostMapping("/{id}/notification-settings/test")
+    public ApiResponse<String> testNotification(
+            @PathVariable Long id,
+            @Valid @RequestBody NotificationTestRequest request) {
+        String result = memberCommandService.testNotification(id, request);
+        return ApiResponse.ok(200, result, "테스트 알림 전송 완료");
     }
 }
