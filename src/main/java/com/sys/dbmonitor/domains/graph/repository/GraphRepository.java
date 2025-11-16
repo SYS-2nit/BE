@@ -18,5 +18,7 @@ public interface GraphRepository extends JpaRepository<Graph, Long> {
     boolean existsByName(String name);
 
     boolean existsByNameAndIdNot(String name, Long id);
+
+    List<Graph> findByIdBetween(Long startId, Long endId);
 }
 
