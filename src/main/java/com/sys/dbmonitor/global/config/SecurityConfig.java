@@ -38,13 +38,7 @@ public class SecurityConfig {
                 )
 
                 // 인증 설정
-                .authorizeHttpRequests(authz -> authz
-                        // 공개 엔드포인트 (모든 경로 공개 - 개발 환경용)
-                        .requestMatchers("/**").permitAll()
-
-                        // 나머지 모든 요청은 인증 필요
-                        .anyRequest().authenticated()
-                )
+                .authorizeHttpRequests(authz -> authz.anyRequest().permitAll())
 
                 // HTTP Basic 인증 사용 (API 서버에 적합)
                 .httpBasic(httpBasic -> httpBasic
