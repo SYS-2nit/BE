@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 
-@ConditionalOnProperty(prefix = "app.batch", name = "enabled", havingValue = "true")
+
 
 
 public class MetricAggregationScheduler {
