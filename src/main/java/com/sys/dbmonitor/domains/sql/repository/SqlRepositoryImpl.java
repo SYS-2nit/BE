@@ -62,6 +62,13 @@ public class SqlRepositoryImpl implements SqlRepositoryCustom {
 
         long totalCount = total != null ? total : 0L;
 
+        System.out.println("[DEBUG] findFilteredSqlStats rows=" + content.size()
+                + " instance=" + instanceId
+                + " start=" + start
+                + " end=" + end
+                + " keyword=" + keyword);
+
+
         return new PageImpl<>(content, pageable, totalCount);
     }
 

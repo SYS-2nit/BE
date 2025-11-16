@@ -71,6 +71,10 @@ public class Sql extends BaseEntity {
     @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
+    @Lob
+    @Column(name = "PLAN_TEXT_CLOB")
+    private String planTextClob;
+
     /** 평균 컬럼 계산 */
     public Long getAvgElapsed() {
         if (executionsDelta == null || executionsDelta == 0) {

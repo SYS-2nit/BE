@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 // 인터페이스
 @Repository
@@ -61,5 +62,14 @@ public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCu
             String sqlId,
             LocalDateTime start,
             LocalDateTime end
+    );
+
+    /** Plan History 조회용: 특정 SQL_ID의 전체 이력 ASC */
+    List<Sql> findBySqlIdOrderByCreatedAtAsc(String sqlId);
+
+    /** Plan Change Detail 조회용: 특정 sqlId + planHash 에서 가장 최신 row */
+    Optional<Sql> findTopBySqlIdAndPlanHashValueOrderByCreatedAtDesc(
+            String sqlId,
+            Long planHashValue
     );
 }
