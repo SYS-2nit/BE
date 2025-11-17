@@ -1,16 +1,14 @@
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
+import com.sys.dbmonitor.domains.sql.dto.request.SqlCompareRequest;
+import com.sys.dbmonitor.domains.sql.dto.request.SqlDailyGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
-import com.sys.dbmonitor.domains.sql.dto.response.SqlStatsPageResponse;
+import com.sys.dbmonitor.domains.sql.dto.response.*;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
-import lombok.Getter;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,7 +123,10 @@ public class SqlStatsQueryService {
         LocalDateTime startAt = start.atStartOfDay();
         LocalDateTime endAt = end.plusDays(1).atStartOfDay();
 
-        int interval = request.intervalMinutes() == null ? 30 : request.intervalMinutes();
+        int interval = (request.intervalMinutes() == null || request.intervalMinutes() <= 0)
+                ? 30
+                : request.intervalMinutes();
+
 
         // 1) 원본 DB 데이터 조회
         List<Sql> list = sqlRepository.findForGraph(
@@ -236,7 +237,9 @@ public class SqlStatsQueryService {
         List<Sql> list = sqlRepository.findBySqlIdAndDateRange(sqlId, startAt, endAt);
 
         if (list.isEmpty()) {
-            throw new RuntimeException("SQL 데이터가 존재하지 않습니다.");
+            // throw new RuntimeException("SQL 데이터가 존재하지 않습니다.");
+            // FE는 빈 상세 데이터를 받아도 정상 처리해야 하므로
+            return SqlDetailResponse.empty(sqlId, startDate, endDate);
         }
 
         // 누적값 계산
@@ -349,6 +352,160 @@ public class SqlStatsQueryService {
         }
 
         return trend;
+    }
+
+    /* ====== Top SQL 비교 ====== */
+    public SqlComparePageResponse getSqlCompareStats(@Valid SqlCompareRequest req) {
+
+        // base 구간 (하루 기준)
+        LocalDate baseStart = req.baseDate();
+        LocalDate baseEnd = req.baseDate();
+
+        // compare 구간 (하루 기준)
+        LocalDate compStart = req.compareDate();
+        LocalDate compEnd = req.compareDate();
+
+
+        // 기준 구간 SQL 조회
+        SqlStatsQueryRequest baseReq = new SqlStatsQueryRequest(
+                req.instanceId(),     // instanceId
+                baseStart,            // startDate
+                baseEnd,              // endDate
+                req.keyword(),        // keyword
+                null,                 // minExecCount
+                null,                 // maxExecCount
+                "elapsed",            // orderBy
+                "DESC",               // direction
+                0,                    // page
+                100                   // size
+        );
+        SqlStatsPageResponse base = getSqlStats(baseReq);
+
+
+        // 비교 구간 SQL 조회
+        SqlStatsQueryRequest compareReq = new SqlStatsQueryRequest(
+                req.instanceId(),
+                compStart,
+                compEnd,
+                req.keyword(),
+                null,
+                null,
+                "elapsed",
+                "DESC",
+                0,
+                100
+        );
+        SqlStatsPageResponse compare = getSqlStats(compareReq);
+
+
+        // 비교 결과 응답
+        return new SqlComparePageResponse(
+                base.content(),
+                compare.content()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<SqlDailyGraphResponse> getDailySqlGraph(
+            String date,
+            String metric,
+            Long instanceId,
+            Integer intervalMinutes
+    ) {
+
+        LocalDate target = LocalDate.parse(date);
+        LocalDateTime start = target.atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
+
+        List<Sql> raw = sqlRepository.findForGraph(
+                instanceId,
+                null,
+                start,
+                end
+        );
+
+        // 시간 버킷팅
+        Map<Integer, Long> bucket = new LinkedHashMap<>();
+        int buckets = (24 * 60) / intervalMinutes;
+
+        for (int i = 0; i < buckets; i++) {
+            bucket.put(i, 0L);
+        }
+
+        for (Sql s : raw) {
+            int minutes = s.getCreatedAt().getHour() * 60 + s.getCreatedAt().getMinute();
+            int idx = minutes / intervalMinutes;
+
+            long metricValue = switch (metric) {
+                case "elapsed" -> s.getElapsedUsDelta();
+                case "wait" -> s.getWaitTimeUsDelta();
+                case "avg" -> s.getAvgElapsed();
+                case "execute" -> s.getExecutionsDelta();
+                default -> 0L;
+            };
+
+            bucket.put(idx, bucket.get(idx) + metricValue);
+        }
+
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+
+        List<SqlDailyGraphResponse> result = new ArrayList<>();
+
+        for (int i = 0; i < buckets; i++) {
+            LocalDateTime t = start.plusMinutes((long) i * intervalMinutes);
+
+            result.add(new SqlDailyGraphResponse(
+                    t.format(fmt),
+                    bucket.get(i)
+            ));
+        }
+
+        return result;
+    }
+
+    public List<SqlDailyGraphResponse> getDailySqlGraph(SqlDailyGraphRequest req) {
+        return getDailySqlGraph(
+                req.date(),
+                req.metric(),
+                req.instanceId(),
+                req.intervalMinutes()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<SqlPeriodGraphResponse> getPeriodGraph(
+            String startDate,
+            String endDate,
+            String metric,
+            Integer intervalMinutes,
+            Long instanceId
+    ) {
+
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+
+        List<SqlPeriodGraphResponse> result = new ArrayList<>();
+
+        // 하루씩 반복
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+
+            SqlDailyGraphRequest req = new SqlDailyGraphRequest(
+                    day.toString(),
+                    metric,
+                    instanceId,
+                    intervalMinutes
+            );
+
+            // 오버로드된 함수 호출
+            List<SqlDailyGraphResponse> dailyGraph = getDailySqlGraph(req);
+
+            for (SqlDailyGraphResponse d : dailyGraph) {
+                String full = day + " " + d.time();
+                result.add(new SqlPeriodGraphResponse(full, d.value()));
+            }
+        }
+
+        return result;
     }
 
 }

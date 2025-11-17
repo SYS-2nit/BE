@@ -15,8 +15,12 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Sql extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID")
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sqlDataSeq")
+    @SequenceGenerator(
+            name = "sqlDataSeq",
+            sequenceName = "SEQ_SQL_DATA",
+            allocationSize = 1
+    )
     private Long id;
 
     @Column(name = "INSTANCE_ID", nullable = false)
@@ -67,20 +71,9 @@ public class Sql extends BaseEntity {
     @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
-    /** soft delete */
-    public void softDelete() {
-        markAsDeleted();
-        setUpdatedAt(java.time.LocalDateTime.now());
-    }
-
-    /** SQL 데이터 갱신 */
-    public void updateFrom(Sql newSql) {
-        if (newSql.sqlText != null) this.sqlText = newSql.sqlText;
-        if (newSql.cpuUsDelta != null) this.cpuUsDelta = newSql.cpuUsDelta;
-        if (newSql.elapsedUsDelta != null) this.elapsedUsDelta = newSql.elapsedUsDelta;
-        if (newSql.executionsDelta != null) this.executionsDelta = newSql.executionsDelta;
-        setUpdatedAt(java.time.LocalDateTime.now());
-    }
+    @Lob
+    @Column(name = "PLAN_TEXT_CLOB")
+    private String planTextClob;
 
     /** 평균 컬럼 계산 */
     public Long getAvgElapsed() {
