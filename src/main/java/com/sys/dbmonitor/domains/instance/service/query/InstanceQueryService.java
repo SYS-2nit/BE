@@ -6,10 +6,12 @@ import com.sys.dbmonitor.domains.instance.repository.DBInfoRepository;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceListResponse;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceResponse;
+import com.sys.dbmonitor.domains.notification.repository.EventRepository;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -27,6 +30,7 @@ public class InstanceQueryService {
     private final InstanceRepository instanceRepository;
     private final DBInfoRepository dbInfoRepository;
     private final DynamicDataSourceFactory dynamicDataSourceFactory;
+    private final EventRepository eventRepository;
 
     /**
      * 타겟 DB 목록 조회 (전체)
@@ -129,8 +133,28 @@ public class InstanceQueryService {
         return instances.stream()
                 .filter(instance -> instance.getDbInfo() == null
                         || Boolean.FALSE.equals(instance.getDbInfo().getIsDeleted()))
-                .map(InstanceListResponse::from)
+                .map(instance -> {
+                    // 인스턴스별 최고 심각도 조회
+                    Integer maxSeverity = getMaxSeverityForInstance(instance.getId());
+                    return InstanceListResponse.from(instance, maxSeverity);
+                })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 인스턴스별 최고 심각도 조회
+     * 
+     * @param instanceId 인스턴스 ID
+     * @return 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
+     */
+    private Integer getMaxSeverityForInstance(Long instanceId) {
+        try {
+            return eventRepository.findMaxSeverityByInstanceId(instanceId);
+        } catch (Exception e) {
+            log.warn("[InstanceQueryService] 인스턴스별 최고 심각도 조회 중 오류 발생: instanceId={}, error={}",
+                    instanceId, e.getMessage());
+            return null; // 오류 발생 시 null 반환 (정상으로 표시)
+        }
     }
 }
 

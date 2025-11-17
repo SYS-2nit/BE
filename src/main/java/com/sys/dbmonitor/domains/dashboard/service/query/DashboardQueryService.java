@@ -11,6 +11,8 @@ import com.sys.dbmonitor.domains.graph.domain.Graph;
 import com.sys.dbmonitor.domains.graph.domain.GraphCategory;
 import com.sys.dbmonitor.domains.graph.repository.GraphRepository;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
+import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +33,8 @@ public class DashboardQueryService {
     private final InstanceRepository instanceRepository;
     private final MetricDataRepository metricDataRepository;
     private final MemberWidgetQueryService memberWidgetQueryService;
+    private final AlertEventRepository alertEventRepository;
+    private final AlertSeverityCalculator alertSeverityCalculator;
 
     /**
      * 대시보드 데이터 조회
@@ -58,19 +62,41 @@ public class DashboardQueryService {
         // DB에서 데이터 조회 (최신 10개)
         List<GraphDataPoint> dataPoints = fetchGraphDataFromDb(graph, instanceId, timeUnit);
 
+        // 알림 심각도 계산
+        Integer alertSeverity = calculateAlertSeverity(graph, instanceId, dataPoints);
+
         GraphDataResponse response = new GraphDataResponse(
                 graph.getId(),
                 graph.getName(),
                 graph.getInfo(),
                 graph.getType(),
-                dataPoints
+                dataPoints,
+                alertSeverity
         );
         
-        log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}", 
+        log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}, alertSeverity={}", 
                 response.id(), response.name(), response.type(), 
-                response.data() != null ? response.data().size() : 0);
-        log.debug(response.toString());
+                response.data() != null ? response.data().size() : 0,
+                response.alertSeverity());
         return response;
+    }
+
+    /**
+     * 그래프의 알림 심각도 계산
+     */
+    private Integer calculateAlertSeverity(Graph graph, Long instanceId, List<GraphDataPoint> dataPoints) {
+        try {
+            // 해당 그래프와 인스턴스에 대한 활성화된 알림 규칙 조회
+            List<AlertEvent> activeAlerts = alertEventRepository.findActiveByGraphIdAndInstanceId(
+                    graph.getId(), instanceId);
+
+            // 알림 심각도 계산
+            return alertSeverityCalculator.calculateSeverity(activeAlerts, dataPoints);
+        } catch (Exception e) {
+            log.warn("[DashboardQueryService] 알림 심각도 계산 중 오류 발생: graphId={}, instanceId={}, error={}",
+                    graph.getId(), instanceId, e.getMessage());
+            return null; // 오류 발생 시 null 반환 (정상으로 표시)
+        }
     }
 
     /**

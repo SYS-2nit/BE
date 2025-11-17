@@ -90,5 +90,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
      */
     @Query("SELECT e FROM Event e WHERE e.id = :id AND e.isDeleted = false")
     Optional<Event> findByIdAndNotDeleted(@Param("id") Long id);
+
+    /**
+     * 특정 인스턴스의 PENDING 상태 알림 중 최고 심각도 조회
+     * @return 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
+     */
+    @Query("SELECT MAX(e.severity) FROM Event e " +
+           "WHERE e.instance.id = :instanceId " +
+           "AND e.status = 'PENDING' " +
+           "AND e.isDeleted = false")
+    Integer findMaxSeverityByInstanceId(@Param("instanceId") Long instanceId);
 }
 

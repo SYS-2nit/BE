@@ -60,5 +60,18 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, Long> {
      */
     @Query("SELECT ae FROM AlertEvent ae WHERE ae.id = :id AND ae.isDeleted = false")
     Optional<AlertEvent> findByIdAndNotDeleted(@Param("id") Long id);
+
+    /**
+     * 특정 그래프와 인스턴스에 대한 활성화된 알림 규칙 목록 조회
+     * (정책이 활성화되어 있고, 알림 규칙도 활성화되어 있으며, 삭제되지 않은 것만)
+     */
+    @Query("SELECT ae FROM AlertEvent ae " +
+           "WHERE ae.graph.id = :graphId " +
+           "AND ae.policy.instance.id = :instanceId " +
+           "AND ae.policy.isActive = true " +
+           "AND ae.state = true " +
+           "AND ae.policy.isDeleted = false " +
+           "AND ae.isDeleted = false")
+    List<AlertEvent> findActiveByGraphIdAndInstanceId(@Param("graphId") Long graphId, @Param("instanceId") Long instanceId);
 }
 
