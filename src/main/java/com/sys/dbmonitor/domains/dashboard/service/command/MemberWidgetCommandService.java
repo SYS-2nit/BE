@@ -77,9 +77,15 @@ public class MemberWidgetCommandService {
      * Redis 캐시 무효화
      */
     private void invalidateCache(Long memberId) {
-        String cacheKey = REDIS_KEY_PREFIX + memberId;
-        redisTemplate.delete(cacheKey);
-        log.debug("Redis 캐시 무효화: {}", cacheKey);
+        try {
+            String cacheKey = REDIS_KEY_PREFIX + memberId;
+            redisTemplate.delete(cacheKey);
+            log.debug("Redis 캐시 무효화: {}", cacheKey);
+        } catch (Exception e) {
+            // Redis 연결 실패 등 예외 발생 시 로그만 남기고 계속 진행
+            // 캐시 무효화 실패는 DB 저장에 영향을 주지 않아야 함
+            log.warn("Redis 캐시 무효화 실패 (무시): {}", e.getMessage());
+        }
     }
 
     private void validateDuplicatePositions(MemberWidgetSaveRequest request) {
