@@ -96,3 +96,6 @@ swingbench:
 app:
   encryption:
     key: ${ENCRYPTION_KEY:defaultEncryptionKey1234567890123456}  # 최소 16자 (AES-128)
+  metric:
+    # 운영 환경 기본값: true → metric_data 저장 허용
+    persist: true
