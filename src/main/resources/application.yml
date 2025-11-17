@@ -24,9 +24,11 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
 
-  # batch 설정 (false)
-  batch:
-    enabled: false
+  # Redis Repository 자동 설정 제외 (JPA Repository와 충돌 방지)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
 
   security:
     require-ssl: true
