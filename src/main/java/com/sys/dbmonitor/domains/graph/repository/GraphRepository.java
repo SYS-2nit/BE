@@ -14,6 +14,8 @@ public interface GraphRepository extends JpaRepository<Graph, Long> {
     Optional<Graph> findByName(String name);
 
     List<Graph> findByCategory(GraphCategory category);
+    
+    List<Graph> findByCategoryIn(List<GraphCategory> categories);
 
     boolean existsByName(String name);
 
