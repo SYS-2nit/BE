@@ -7,9 +7,7 @@ import jakarta.validation.constraints.NotEmpty;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * 보고서 생성 요청 DTO
- */
+
 public record ReportGenerateRequest(
         @NotNull(message = "보고서 타입은 필수입니다.")
         ReportType reportType,
@@ -28,9 +26,7 @@ public record ReportGenerateRequest(
         @NotEmpty(message = "보고서 구성은 필수 최소 1개 이상 선태해주세요.")
         List<ReportContent> contents
 ) {
-    /**
-     * 보고서 타입
-     */
+
     public enum ReportType {
         DAILY,      // 일일 보고서
         WEEKLY,     // 주간 보고서
@@ -38,9 +34,7 @@ public record ReportGenerateRequest(
         PERFORMANCE // 성능 분석 보고서
     }
 
-    /**
-     * 보고서 종류
-     */
+
     public enum ReportContent {
         AI,      // AI 요약
         GRAPH,     // 차트

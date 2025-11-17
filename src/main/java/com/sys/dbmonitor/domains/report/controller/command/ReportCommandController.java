@@ -20,9 +20,7 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 
-/**
- * 보고서 생성 API
- */
+
 @RestController
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor

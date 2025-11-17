@@ -6,9 +6,7 @@ import com.sys.dbmonitor.domains.graph.domain.GraphCategory;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 보고서 데이터 응답 DTO
- */
+
 public record ReportDataResponse(
         Long graphId,
         String graphName,

@@ -13,9 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * 보고서 조회 API
- */
+
 @RestController
 @RequestMapping("/api/reports")
 @RequiredArgsConstructor

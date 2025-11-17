@@ -34,10 +34,7 @@ public class ReportQueryService {
     private final GraphRepository graphRepository;
     private final InstanceRepository instanceRepository;
 
-    /**
-     * 보고서 데이터 조회
-     * 트랜잭션 타임아웃 설정 (30초) - connection leak 방지
-     */
+
     @Transactional(readOnly = true, timeout = 120)
     public List<ReportDataResponse> getReportData(ReportGenerateRequest request) {
         // 인스턴스 존재 확인
@@ -103,8 +100,7 @@ public class ReportQueryService {
 
         return reportDataList;
     }
-
-    // ========== Private Helper Methods ==========
+    
 
     private void validatePeriod(ReportGenerateRequest request, LocalDate endDate) {
         // 일일 보고서의 경우 endDate가 null이면 startDate와 동일하게 처리

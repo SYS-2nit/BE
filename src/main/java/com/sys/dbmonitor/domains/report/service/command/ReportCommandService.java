@@ -14,8 +14,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType0Font;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
@@ -37,9 +35,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 보고서 생성 서비스 (PDF 문서 생성, AI 요약)
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -47,23 +42,17 @@ public class ReportCommandService {
 
     private final ReportQueryService reportQueryService;
     private final ChatModel chatModel;
-    
+
     // 한글 폰트 캐시
     private PDFont koreanFont = null;
 
-    /**
-     * 별도 트랜잭션에서 보고서 데이터 조회 (트랜잭션 분리)
-     * 타임아웃 설정으로 connection leak 방지 (120초로 증가)
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true, timeout = 120)
     private List<ReportDataResponse> getReportDataInNewTransaction(ReportGenerateRequest request) {
         return reportQueryService.getReportData(request);
     }
 
-    /**
-     * AI 요약 생성 (이미 조회된 데이터 사용)
-     * 예외를 throw하여 상위에서 처리하도록 함
-     */
+
+    // AI 생성 프로폼트
     private ReportSummaryResponse generateAISummaryWithData(ReportGenerateRequest request, List<ReportDataResponse> reportData) throws Exception {
         // 데이터를 텍스트로 변환
         String dataSummary = formatDataForAI(reportData);
@@ -91,7 +80,7 @@ public class ReportCommandService {
         Map<String, Object> variables = new HashMap<>();
         variables.put("reportType", request.reportType().name());
         variables.put("startDate", request.startDate().format(DateTimeFormatter.ISO_DATE));
-        
+
         // endDate가 null이면 startDate와 동일하게 설정
         LocalDate endDate = request.endDate() != null ? request.endDate() : request.startDate();
         variables.put("endDate", endDate.format(DateTimeFormatter.ISO_DATE));
@@ -104,9 +93,7 @@ public class ReportCommandService {
         return parseAIResponse(aiResponse);
     }
 
-    /**
-     * AI 요약 생성 (기존 메서드 - 외부 호출용)
-     */
+    // AI API 요청
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public ReportSummaryResponse generateAISummary(ReportGenerateRequest request) {
         try {
@@ -134,8 +121,6 @@ public class ReportCommandService {
 
     /**
      * PDF 문서 생성
-     * 트랜잭션을 비활성화하여 connection leak 방지 (오래 걸리는 작업)
-     * 데이터 조회는 별도 트랜잭션에서 먼저 완료하고, 이후 PDF 문서 생성 진행
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public byte[] generatePdfDocument(ReportGenerateRequest request) throws IOException {
@@ -183,7 +168,7 @@ public class ReportCommandService {
             PDFont titleFont = getKoreanFont(document, 20, true);
             PDFont normalFont = getKoreanFont(document, 12, false);
             PDFont boldFont = getKoreanFont(document, 12, true);
-            
+
             // 제목
             contentStream.beginText();
             contentStream.setFont(titleFont, 20);
@@ -227,7 +212,7 @@ public class ReportCommandService {
                     estimatedHeight += lineHeight * 2; // 여백
                     currentY -= estimatedHeight;
                 }
-                
+
                 // AI 요약과 데이터 섹션 사이 여백 추가
                 currentY -= lineHeight * 2;
             }
@@ -235,15 +220,12 @@ public class ReportCommandService {
             // 데이터 섹션 (차트 및 테이블)
             // addDataSectionToPdf가 마지막 contentStream을 반환하고 닫아야 함
             PDPageContentStream lastContentStream = addDataSectionToPdf(document, contentStream, reportData, request, margin, currentY, lineHeight, pageWidth, normalFont, boldFont);
-            
+
             // 마지막 contentStream 닫기 (새 페이지가 생성되었을 수 있으므로)
             if (lastContentStream != null) {
                 lastContentStream.close();
             }
-            
-            // 원래 contentStream이 lastContentStream과 다르면 (새 페이지가 생성된 경우)
-            // 원래 contentStream은 이미 addDataSectionToPdf 내에서 닫혔으므로 여기서는 닫지 않음
-            // 하지만 같은 경우 (새 페이지가 생성되지 않은 경우)는 이미 lastContentStream.close()로 닫혔으므로 중복 닫기 방지
+
             contentStream = null; // finally에서 닫지 않도록 null로 설정
         } finally {
             // contentStream이 null이 아니면 (새 페이지가 생성되지 않은 경우) 닫기
@@ -264,16 +246,14 @@ public class ReportCommandService {
         return outputStream.toByteArray();
     }
 
-    // ========== Private Helper Methods ==========
-
     private String formatDataForAI(List<ReportDataResponse> reportData) {
         StringBuilder sb = new StringBuilder();
-        
+
         for (ReportDataResponse data : reportData) {
             sb.append("그래프: ").append(data.graphName()).append("\n");
             sb.append("카테고리: ").append(data.category()).append("\n");
             sb.append("데이터 포인트 수: ").append(data.dataPoints().size()).append("\n");
-            
+
             // 통계 요약 추가
             if (data.summary() != null && !data.summary().isEmpty()) {
                 sb.append("통계 요약:\n");
@@ -289,7 +269,7 @@ public class ReportCommandService {
                     }
                 });
             }
-            
+
             // 주요 데이터 포인트 샘플 (최대 10개)
             int sampleSize = Math.min(10, data.dataPoints().size());
             if (sampleSize > 0) {
@@ -302,7 +282,7 @@ public class ReportCommandService {
             }
             sb.append("\n");
         }
-        
+
         return sb.toString();
     }
 
@@ -314,7 +294,7 @@ public class ReportCommandService {
 
         // "문제점:" 또는 "개선방안:" 키워드로 분리 시도
         String[] parts = aiResponse.split("(문제점|개선방안|2\\.|3\\.)");
-        
+
         if (parts.length > 1) {
             summary = parts[0].replace("요약:", "").trim();
             if (parts.length > 1) {
@@ -346,7 +326,7 @@ public class ReportCommandService {
         };
     }
 
-    private float addReportInfoToPdf(PDPageContentStream contentStream, ReportGenerateRequest request, 
+    private float addReportInfoToPdf(PDPageContentStream contentStream, ReportGenerateRequest request,
                                      float margin, float currentY, float lineHeight, float pageWidth,
                                      PDFont normalFont, PDFont boldFont) throws IOException {
         // 제목
@@ -393,11 +373,11 @@ public class ReportCommandService {
         return currentY;
     }
 
-    private PDPageContentStream addAISummarySectionToPdf(PDDocument document, PDPageContentStream contentStream, 
-                                           ReportSummaryResponse aiSummary, float margin, float currentY, 
+    private PDPageContentStream addAISummarySectionToPdf(PDDocument document, PDPageContentStream contentStream,
+                                           ReportSummaryResponse aiSummary, float margin, float currentY,
                                            float lineHeight, float pageWidth, PDFont normalFont, PDFont boldFont) throws IOException {
         float minY = 50; // 페이지 하단 여백
-        
+
         // 제목을 표시할 충분한 공간이 있는지 확인 (제목 + 여백)
         if (currentY < minY + lineHeight * 3) {
             contentStream.close();
@@ -406,7 +386,7 @@ public class ReportCommandService {
             contentStream = new PDPageContentStream(document, newPage);
             currentY = PDRectangle.A4.getHeight() - margin;
         }
-        
+
         // 제목
         contentStream.beginText();
         contentStream.setFont(boldFont, 14);
@@ -426,7 +406,7 @@ public class ReportCommandService {
                 contentStream = new PDPageContentStream(document, newPage);
                 currentY = PDRectangle.A4.getHeight() - margin;
             }
-            
+
             contentStream.beginText();
             contentStream.setFont(normalFont, 12);
             contentStream.newLineAtOffset(margin, currentY);
@@ -446,7 +426,7 @@ public class ReportCommandService {
                 contentStream = new PDPageContentStream(document, newPage);
                 currentY = PDRectangle.A4.getHeight() - margin;
             }
-            
+
             contentStream.beginText();
             contentStream.setFont(boldFont, 12);
             contentStream.newLineAtOffset(margin, currentY);
@@ -465,7 +445,7 @@ public class ReportCommandService {
                         contentStream = new PDPageContentStream(document, newPage);
                         currentY = PDRectangle.A4.getHeight() - margin;
                     }
-                    
+
                     contentStream.beginText();
                     contentStream.setFont(normalFont, 11);
                     contentStream.newLineAtOffset(margin + 10, currentY);
@@ -487,7 +467,7 @@ public class ReportCommandService {
                 contentStream = new PDPageContentStream(document, newPage);
                 currentY = PDRectangle.A4.getHeight() - margin;
             }
-            
+
             contentStream.beginText();
             contentStream.setFont(boldFont, 12);
             contentStream.newLineAtOffset(margin, currentY);
@@ -506,7 +486,7 @@ public class ReportCommandService {
                         contentStream = new PDPageContentStream(document, newPage);
                         currentY = PDRectangle.A4.getHeight() - margin;
                     }
-                    
+
                     contentStream.beginText();
                     contentStream.setFont(normalFont, 11);
                     contentStream.newLineAtOffset(margin + 10, currentY);
@@ -521,25 +501,25 @@ public class ReportCommandService {
         return contentStream;
     }
 
-    private PDPageContentStream addDataSectionToPdf(PDDocument document, PDPageContentStream contentStream, 
+    private PDPageContentStream addDataSectionToPdf(PDDocument document, PDPageContentStream contentStream,
                                      List<ReportDataResponse> reportData, ReportGenerateRequest request,
                                      float margin, float currentY, float lineHeight, float pageWidth,
                                      PDFont normalFont, PDFont boldFont) throws IOException {
         float minY = 50; // 페이지 하단 여백
-        
+
         // 카테고리별로 데이터 그룹화
         Map<GraphCategory, List<ReportDataResponse>> dataByCategory = reportData.stream()
                 .collect(Collectors.groupingBy(ReportDataResponse::category));
-        
+
         // 카테고리 순서 유지 (요청된 카테고리 순서대로)
         List<GraphCategory> orderedCategories = request.categories().stream()
                 .filter(dataByCategory::containsKey)
                 .collect(Collectors.toList());
-        
+
         // 각 카테고리별로 처리
         for (GraphCategory category : orderedCategories) {
             List<ReportDataResponse> categoryData = dataByCategory.get(category);
-            
+
             // 카테고리 제목 추가
             // 새 페이지가 필요한지 확인 (카테고리 제목 + 구분선 + 그래프 제목 공간 확보)
             if (currentY < minY + lineHeight * 5) {
@@ -549,7 +529,7 @@ public class ReportCommandService {
                 contentStream = new PDPageContentStream(document, newPage);
                 currentY = PDRectangle.A4.getHeight() - margin;
             }
-            
+
             // 카테고리 제목 (큰 제목)
             String categoryTitle = getCategoryTitle(category);
             contentStream.beginText();
@@ -558,14 +538,14 @@ public class ReportCommandService {
             contentStream.showText(categoryTitle);
             contentStream.endText();
             currentY -= lineHeight * 2f;
-            
+
             // 카테고리 구분선
             contentStream.setLineWidth(1.5f);
             contentStream.moveTo(margin, currentY);
             contentStream.lineTo(margin + pageWidth - 20, currentY);
             contentStream.stroke();
             currentY -= lineHeight * 1.5f;
-            
+
             // 해당 카테고리의 그래프들 출력
             for (ReportDataResponse data : categoryData) {
                 // 새 페이지가 필요한지 확인
@@ -593,7 +573,7 @@ public class ReportCommandService {
                             if (chartImage != null) {
                                 float imageWidth = 500;
                                 float imageHeight = 300;
-                                
+
                                 // 새 페이지가 필요한지 확인
                                 if (currentY - imageHeight < minY) {
                                     contentStream.close();
@@ -602,7 +582,7 @@ public class ReportCommandService {
                                     contentStream = new PDPageContentStream(document, newPage);
                                     currentY = PDRectangle.A4.getHeight() - margin;
                                 }
-                                
+
                                 PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, chartImage, "chart");
                                 contentStream.drawImage(pdImage, margin + (pageWidth - imageWidth) / 2, currentY - imageHeight, imageWidth, imageHeight);
                                 currentY -= imageHeight + lineHeight;
@@ -611,7 +591,7 @@ public class ReportCommandService {
                             log.warn("그래프 이미지 생성 실패: {}", e.getMessage(), e);
                         }
                     }
-                    
+
                     // 데이터 테이블 생성
                     if (request.contents().contains(ReportGenerateRequest.ReportContent.TABLE)) {
                         PDPageContentStream tableContentStream = createDataTableToPdf(document, contentStream, data, request, margin, currentY, lineHeight, pageWidth, minY, normalFont, boldFont);
@@ -625,18 +605,18 @@ public class ReportCommandService {
                         currentY -= (maxRows + 1) * rowHeight; // 헤더 + 데이터 행
                     }
                 }
-            
+
                 currentY -= lineHeight;
             }
-            
+
             // 카테고리 간 여백
             currentY -= lineHeight;
         }
-        
+
         // 마지막 contentStream 반환 (호출하는 쪽에서 닫아야 함)
         return contentStream;
     }
-    
+
     /**
      * 카테고리 이름을 한글로 변환
      */
@@ -653,8 +633,8 @@ public class ReportCommandService {
         };
     }
 
-    private PDPageContentStream createDataTableToPdf(PDDocument document, PDPageContentStream contentStream, 
-                                       ReportDataResponse data, ReportGenerateRequest request, float margin, float currentY, 
+    private PDPageContentStream createDataTableToPdf(PDDocument document, PDPageContentStream contentStream,
+                                       ReportDataResponse data, ReportGenerateRequest request, float margin, float currentY,
                                        float lineHeight, float pageWidth, float minY,
                                        PDFont normalFont, PDFont boldFont) throws IOException {
         // 컬럼명 가져오기
@@ -662,15 +642,15 @@ public class ReportCommandService {
         for (GraphDataPoint point : data.dataPoints()) {
             columns.addAll(point.values().keySet());
         }
-        
+
         int colCount = columns.size() + 1; // 시간 컬럼 포함
         float colWidth = (pageWidth - 20) / colCount;
         float tableStartY = currentY;
         float rowHeight = lineHeight * 1.2f;
-        
+
         // 데이터 행 (최대 20개만 표시)
         int maxRows = Math.min(20, data.dataPoints().size());
-        
+
         // 테이블이 페이지를 넘어가는지 확인
         float tableHeight = (maxRows + 1) * rowHeight; // 헤더 + 데이터 행
         if (currentY - tableHeight < minY) {
@@ -682,35 +662,35 @@ public class ReportCommandService {
             currentY = PDRectangle.A4.getHeight() - margin;
             tableStartY = currentY;
         }
-        
+
         // 테이블 경계선 그리기 (상단)
         contentStream.setLineWidth(0.5f);
         contentStream.moveTo(margin, tableStartY);
         contentStream.lineTo(margin + pageWidth - 20, tableStartY);
         contentStream.stroke();
-        
+
         // 헤더 행
         List<String> columnList = new ArrayList<>(columns);
         contentStream.setFont(boldFont, 10);
-        
+
         // 헤더 배경 (선택사항)
         float headerBottomY = currentY - rowHeight;
         contentStream.setNonStrokingColor(0.9f, 0.9f, 0.9f);
         contentStream.addRect(margin, headerBottomY, pageWidth - 20, rowHeight);
         contentStream.fill();
         contentStream.setNonStrokingColor(0f, 0f, 0f); // 색상 리셋
-        
+
         // 시간 헤더
         contentStream.beginText();
         contentStream.newLineAtOffset(margin + 5, currentY - rowHeight / 2 - 3);
         contentStream.showText("시간");
         contentStream.endText();
-        
+
         // 세로 경계선 (시간 컬럼)
         contentStream.moveTo(margin + colWidth, tableStartY);
         contentStream.lineTo(margin + colWidth, headerBottomY);
         contentStream.stroke();
-        
+
         // 메트릭 헤더
         float xPos = margin + colWidth;
         for (String column : columnList) {
@@ -718,7 +698,7 @@ public class ReportCommandService {
             contentStream.moveTo(xPos, tableStartY);
             contentStream.lineTo(xPos, headerBottomY);
             contentStream.stroke();
-            
+
             contentStream.beginText();
             contentStream.newLineAtOffset(xPos + 3, currentY - rowHeight / 2 - 3);
             String[] wrapped = wrapText(column, colWidth - 6, 10);
@@ -726,30 +706,30 @@ public class ReportCommandService {
             contentStream.endText();
             xPos += colWidth;
         }
-        
+
         // 헤더 하단 경계선
         contentStream.moveTo(margin, headerBottomY);
         contentStream.lineTo(margin + pageWidth - 20, headerBottomY);
         contentStream.stroke();
-        
+
         currentY = headerBottomY;
-        
+
         // 데이터 행
         contentStream.setFont(normalFont, 9);
         for (int i = 0; i < maxRows; i++) {
             GraphDataPoint point = data.dataPoints().get(i);
-            
+
             // 행 하단 경계선
             currentY -= rowHeight;
             contentStream.moveTo(margin, currentY);
             contentStream.lineTo(margin + pageWidth - 20, currentY);
             contentStream.stroke();
-            
+
             // 시간 (세로 경계선 포함)
             contentStream.moveTo(margin + colWidth, currentY + rowHeight);
             contentStream.lineTo(margin + colWidth, currentY);
             contentStream.stroke();
-            
+
             // 시간 표시 형식 결정 (보고서 타입에 따라)
             String timeStr;
             if (request.reportType() == ReportGenerateRequest.ReportType.DAILY) {
@@ -759,16 +739,16 @@ public class ReportCommandService {
                 // 주간/월간 보고서: 날짜만 표시 (예: 11-10)
                 timeStr = point.timestamp().format(DateTimeFormatter.ofPattern("MM-dd"));
             }
-            
+
             // 시간 텍스트 너비 계산 및 중앙 정렬
             float timeTextWidth = getStringWidth(normalFont, timeStr, 9);
             float timeXPos = margin + (colWidth - timeTextWidth) / 2;
-            
+
             contentStream.beginText();
             contentStream.newLineAtOffset(timeXPos, currentY + rowHeight / 2 - 3);
             contentStream.showText(timeStr);
             contentStream.endText();
-            
+
             // 데이터 값 (세로 경계선 포함)
             xPos = margin + colWidth;
             for (String column : columnList) {
@@ -776,10 +756,10 @@ public class ReportCommandService {
                 contentStream.moveTo(xPos, currentY + rowHeight);
                 contentStream.lineTo(xPos, currentY);
                 contentStream.stroke();
-                
+
                 Object value = point.values().get(column);
                 String valueStr = value != null ? value.toString() : "-";
-                
+
                 // 값이 너무 길면 줄임
                 float maxValueWidth = colWidth - 6;
                 if (getStringWidth(normalFont, valueStr, 9) > maxValueWidth) {
@@ -795,11 +775,11 @@ public class ReportCommandService {
                         }
                     }
                 }
-                
+
                 // 값 텍스트 너비 계산 및 중앙 정렬
                 float valueTextWidth = getStringWidth(normalFont, valueStr, 9);
                 float valueXPos = xPos + (colWidth - valueTextWidth) / 2;
-                
+
                 contentStream.beginText();
                 contentStream.newLineAtOffset(valueXPos, currentY + rowHeight / 2 - 3);
                 contentStream.showText(valueStr);
@@ -807,21 +787,21 @@ public class ReportCommandService {
                 xPos += colWidth;
             }
         }
-        
+
         // 테이블 오른쪽 경계선
         contentStream.moveTo(margin + pageWidth - 20, tableStartY);
         contentStream.lineTo(margin + pageWidth - 20, currentY);
         contentStream.stroke();
-        
+
         // 하단 경계선
         contentStream.moveTo(margin, currentY);
         contentStream.lineTo(margin + pageWidth - 20, currentY);
         contentStream.stroke();
-        
+
         // contentStream 반환 (호출하는 쪽에서 닫아야 함)
         return contentStream;
     }
-    
+
     /**
      * 한글 폰트 로드 (리소스 폰트 우선, 시스템 폰트는 fallback)
      */
@@ -844,7 +824,7 @@ public class ReportCommandService {
         } catch (Exception e) {
             log.warn("리소스 폰트 로드 실패: {}", e.getMessage());
         }
-        
+
         // 2. 시스템 폰트 경로 목록 (fallback) - TTF 파일만 사용
         String[] fontPaths = {
             // macOS - AppleGothic (TTF 파일만)
@@ -860,7 +840,7 @@ public class ReportCommandService {
             "C:/Windows/Fonts/malgun.ttf",  // 맑은 고딕
             "C:/Windows/Fonts/malgunbd.ttf",  // 맑은 고딕 Bold
         };
-        
+
         // Bold 폰트 우선 검색
         if (bold) {
             String[] boldFontPaths = {
@@ -872,7 +852,7 @@ public class ReportCommandService {
                 // Windows
                 "C:/Windows/Fonts/malgunbd.ttf",
             };
-            
+
             for (String fontPath : boldFontPaths) {
                 try {
                     java.io.File fontFile = new java.io.File(fontPath);
@@ -889,7 +869,7 @@ public class ReportCommandService {
                 }
             }
         }
-        
+
         // 일반 폰트 검색 (모든 경로 시도)
         for (String fontPath : fontPaths) {
             try {
@@ -906,23 +886,23 @@ public class ReportCommandService {
                 log.warn("폰트 로드 실패 ({}): {} - {}", fontPath, e.getClass().getSimpleName(), e.getMessage());
             }
         }
-        
+
         // 폰트를 찾을 수 없으면 예외 발생
         throw new IOException("한글 폰트를 찾을 수 없습니다. " +
                 "리소스 폴더(src/main/resources/fonts/)에 NanumGothic.ttf 또는 NanumGothicBold.ttf 파일을 추가해주세요.");
     }
-    
+
     /**
      * 폰트 파일 로드 (TTF 파일만 지원, TTC는 스킵)
      */
     private PDFont loadFontFile(PDDocument document, java.io.File fontFile) throws IOException {
         String fileName = fontFile.getName().toLowerCase();
-        
+
         // TTC 파일은 PDFBox에서 직접 로드하기 어려우므로 스킵
         if (fileName.endsWith(".ttc")) {
             throw new IOException("TTC 파일은 현재 지원되지 않습니다. TTF 파일을 사용해주세요.");
         }
-        
+
         // TTF 파일 로드
         try {
             return PDType0Font.load(document, fontFile);
@@ -931,7 +911,7 @@ public class ReportCommandService {
             throw e;
         }
     }
-    
+
     /**
      * 문자열 너비 계산 (한글 폰트 지원)
      */
@@ -943,7 +923,7 @@ public class ReportCommandService {
             return text.length() * fontSize * 0.6f;
         }
     }
-    
+
     /**
      * 텍스트를 지정된 너비에 맞게 줄바꿈 처리
      */
@@ -951,13 +931,13 @@ public class ReportCommandService {
         if (text == null || text.isEmpty()) {
             return new String[]{""};
         }
-        
+
         // 간단한 줄바꿈 (한글 문자 고려)
         List<String> lines = new ArrayList<>();
         // 한글은 영문보다 약 2배 넓으므로 대략적인 계산
         float charWidth = fontSize * 0.6f; // 영문 기준
         int maxChars = (int) (maxWidth / charWidth);
-        
+
         if (text.length() <= maxChars) {
             lines.add(text);
         } else {
@@ -979,7 +959,7 @@ public class ReportCommandService {
                 }
             }
         }
-        
+
         return lines.toArray(new String[0]);
     }
 
@@ -993,7 +973,7 @@ public class ReportCommandService {
 
         // 데이터셋 생성
         DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-        
+
         // 보고서 타입에 따라 시간 레이블 형식 결정
         DateTimeFormatter timeFormatter;
         if (request.reportType() == ReportGenerateRequest.ReportType.DAILY) {
@@ -1003,10 +983,10 @@ public class ReportCommandService {
             // 주간/월간 보고서: 하루 단위
             timeFormatter = DateTimeFormatter.ofPattern("MM-dd");
         }
-        
+
         // 시간별로 데이터 그룹화 및 집계
         Map<String, Map<String, List<Double>>> groupedData = new LinkedHashMap<>();
-        
+
         for (GraphDataPoint point : data.dataPoints()) {
             String timeLabel;
             if (request.reportType() == ReportGenerateRequest.ReportType.DAILY) {
@@ -1016,15 +996,15 @@ public class ReportCommandService {
                 // 주간/월간 보고서: 날짜 단위로 그룹화
                 timeLabel = point.timestamp().format(DateTimeFormatter.ofPattern("MM-dd"));
             }
-            
+
             groupedData.putIfAbsent(timeLabel, new HashMap<>());
             Map<String, List<Double>> metricValues = groupedData.get(timeLabel);
-            
+
             // 각 메트릭 값을 그룹화
             for (Map.Entry<String, Object> entry : point.values().entrySet()) {
                 String metricName = entry.getKey();
                 Object value = entry.getValue();
-                
+
                 if (value instanceof Number) {
                     metricValues.putIfAbsent(metricName, new ArrayList<>());
                     metricValues.get(metricName).add(((Number) value).doubleValue());
@@ -1039,16 +1019,16 @@ public class ReportCommandService {
                 }
             }
         }
-        
+
         // 그룹화된 데이터를 데이터셋에 추가 (평균값 사용)
         for (Map.Entry<String, Map<String, List<Double>>> timeEntry : groupedData.entrySet()) {
             String timeLabel = timeEntry.getKey();
             Map<String, List<Double>> metricValues = timeEntry.getValue();
-            
+
             for (Map.Entry<String, List<Double>> metricEntry : metricValues.entrySet()) {
                 String metricName = metricEntry.getKey();
                 List<Double> values = metricEntry.getValue();
-                
+
                 // 평균값 계산
                 double avgValue = values.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
                 dataset.addValue(avgValue, metricName, timeLabel);
@@ -1071,7 +1051,7 @@ public class ReportCommandService {
         org.jfree.chart.plot.CategoryPlot plot = chart.getCategoryPlot();
         org.jfree.chart.axis.CategoryAxis domainAxis = plot.getDomainAxis();
         domainAxis.setCategoryLabelPositions(org.jfree.chart.axis.CategoryLabelPositions.UP_45);
-        
+
         // X축 레이블 표시 개수 제한 (너무 많으면 표시 안됨)
         if (request.reportType() == ReportGenerateRequest.ReportType.DAILY) {
             // 일일 보고서: 24개 시간 모두 표시
@@ -1085,7 +1065,7 @@ public class ReportCommandService {
         BufferedImage chartImage = chart.createBufferedImage(800, 500);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageIO.write(chartImage, "png", baos);
-        
+
         return baos.toByteArray();
     }
 }
