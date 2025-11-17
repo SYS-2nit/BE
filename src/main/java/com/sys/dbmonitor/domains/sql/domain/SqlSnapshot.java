@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.sql.domain;
 
+import com.sys.dbmonitor.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -22,7 +23,7 @@ import java.time.LocalDateTime;
 @Table(name = "SQL_DATA")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SqlSnapshot {
+public class SqlSnapshot extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,15 +32,6 @@ public class SqlSnapshot {
 
     @Column(name = "INSTANCE_ID", nullable = false)
     private Long instanceId;
-
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @Column(name = "IS_DELETED", nullable = false)
-    private Integer isDeleted;
 
     @Column(name = "SQL_ID", nullable = false, length = 13)
     private String sqlId;
@@ -110,9 +102,6 @@ public class SqlSnapshot {
                        String sqlText,
                        String planTextClob) {
         this.instanceId = instanceId;
-        this.createdAt = createdAt;
-        this.updatedAt = createdAt;
-        this.isDeleted = 0;
         this.sqlId = sqlId;
         this.planHashValue = planHashValue;
         this.bufferGetsDelta = bufferGetsDelta;
