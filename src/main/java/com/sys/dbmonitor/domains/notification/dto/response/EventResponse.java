@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.notification.dto.response;
 
+import com.sys.dbmonitor.domains.notification.domain.AlertCategory;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
 import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
@@ -19,6 +20,9 @@ public class EventResponse {
 
     @Schema(description = "알림 규칙 ID", example = "55")
     private final Long alertEventId;
+
+    @Schema(description = "알림 카테고리", example = "CPU")
+    private final AlertCategory category;
 
     @Schema(description = "인스턴스 ID", example = "1")
     private final Long instanceId;
@@ -66,6 +70,7 @@ public class EventResponse {
         return EventResponse.builder()
             .id(event.getId())
             .alertEventId(event.getAlertEvent() != null ? event.getAlertEvent().getId() : null)
+            .category(event.getAlertEvent() != null ? event.getAlertEvent().getCategory() : null)
             .instanceId(event.getInstance() != null ? event.getInstance().getId() : null)
             .memberId(event.getMember() != null ? event.getMember().getId() : null)
             .status(event.getStatus())

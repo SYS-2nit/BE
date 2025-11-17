@@ -18,13 +18,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * 특정 사용자에게 발생한 알림 이벤트 목록 조회 (삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
     List<Event> findByMemberId(@Param("memberId") Long memberId);
 
     /**
      * 특정 사용자에게 발생한 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
     Page<Event> findByMemberId(@Param("memberId") Long memberId, Pageable pageable);
 
     /**
@@ -66,7 +66,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * 복합 조건으로 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE " +
+    @Query("SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE " +
            "(:memberId IS NULL OR e.member.id = :memberId) AND " +
            "(:instanceId IS NULL OR e.instance.id = :instanceId) AND " +
            "(:status IS NULL OR e.status = :status) AND " +
@@ -88,7 +88,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * ID로 조회 (삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.id = :id AND e.isDeleted = false")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.id = :id AND e.isDeleted = false")
     Optional<Event> findByIdAndNotDeleted(@Param("id") Long id);
 
     /**
