@@ -75,7 +75,7 @@ public class Event extends BaseEntity {
     /**
      * 초과한 임계값
      */
-    @Column(name = "THRESHOLD_VALUE", nullable = false, columnDefinition = "NUMBER(5,2)")
+    @Column(name = "THRESHOLD_VALUE", nullable = false, columnDefinition = "NUMBER(10,3)")
     private Double thresholdValue;
 
     /**
