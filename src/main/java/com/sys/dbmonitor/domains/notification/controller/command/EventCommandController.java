@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * 알림 이벤트 처리 컨트롤러
- * - POST /api/alerts/events/{id}/acknowledge: 이벤트 확인 처리
+ * - POST /api/alerts/events/{id}/acknowledge: 이벤트 읽음 처리
+ * - POST /api/alerts/events/{id}/unacknowledge: 이벤트 읽음 상태 되돌리기
  * - POST /api/alerts/events/{id}/resolve: 이벤트 해결 처리
  * - POST /api/alerts/events/{id}/history: 이벤트 처리 이력 추가
  */
@@ -34,6 +35,13 @@ public class EventCommandController {
             @Valid @RequestBody EventAcknowledgeRequest request) {
         return ApiResponse.ok(200, eventCommandService.acknowledge(id, request.getMemberId()), 
             "이벤트가 읽음 처리되었습니다.");
+    }
+
+    @Operation(summary = "알림 이벤트 읽음 상태 되돌리기", description = "알림 이벤트의 읽음 상태를 안읽음으로 되돌립니다. acknowledgedAt과 acknowledgedBy가 null로 설정됩니다.")
+    @PostMapping("/{id}/unacknowledge")
+    public ApiResponse<EventResponse> unacknowledge(@PathVariable Long id) {
+        return ApiResponse.ok(200, eventCommandService.unacknowledge(id), 
+            "이벤트가 안읽음 상태로 되돌려졌습니다.");
     }
 
     @Operation(summary = "알림 이벤트 해결", description = "알림 이벤트를 해결 처리합니다.")

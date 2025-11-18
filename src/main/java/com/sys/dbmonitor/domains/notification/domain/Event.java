@@ -149,6 +149,16 @@ public class Event extends BaseEntity {
     }
 
     /**
+     * 알림 읽음 상태 되돌리기 (안읽음으로 변경)
+     * acknowledgedAt과 acknowledgedBy를 null로 설정
+     */
+    public void unmarkAsRead() {
+        this.acknowledgedAt = null;
+        this.acknowledgedBy = null;
+        // status는 변경하지 않음
+    }
+
+    /**
      * 알림 확인 (deprecated - markAsRead 사용 권장)
      * 기존 호환성을 위해 유지하지만, 읽음 처리는 markAsRead() 사용
      */

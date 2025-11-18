@@ -52,6 +52,24 @@ public class EventCommandService {
         return EventResponse.from(event);
     }
 
+    /**
+     * 알림 읽음 상태 되돌리기 (안읽음으로 변경)
+     * acknowledgedAt과 acknowledgedBy를 null로 설정
+     */
+    @Transactional
+    public EventResponse unacknowledge(Long eventId) {
+        // 필수 인자 널 체크
+        Long checkedEventId = Objects.requireNonNull(eventId, "eventId must not be null");
+
+        // 알림 이벤트 조회
+        Event event = eventRepository.findByIdAndNotDeleted(checkedEventId)
+            .orElseThrow(() -> new IllegalArgumentException("Event not found: " + checkedEventId));
+
+        // 알림 읽음 상태 되돌리기
+        event.unmarkAsRead();
+        return EventResponse.from(event);
+    }
+
     @Transactional
     public EventResponse resolve(Long eventId, Long memberId) {
         // 필수 인자 널 체크 및 캐스팅
