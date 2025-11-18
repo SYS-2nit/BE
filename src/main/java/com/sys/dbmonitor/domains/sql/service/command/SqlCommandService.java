@@ -1,7 +1,10 @@
 package com.sys.dbmonitor.domains.sql.service.command;
 
+<<<<<<< HEAD
 import com.sys.dbmonitor.domains.sql.domain.Sql;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlCreateRequest;
+=======
+>>>>>>> dev
 import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ public class SqlCommandService {
 
     private final SqlRepository sqlRepository;
 
+<<<<<<< HEAD
     /** SQL 등록 */
     public Sql createSql(SqlCreateRequest request) {
         Sql sql = Sql.builder()
@@ -56,6 +60,8 @@ public class SqlCommandService {
         sql.updateFrom(updated);
         return sqlRepository.save(sql);
     }
+=======
+>>>>>>> dev
 
     /** SQL 리스트 */
     @Transactional(readOnly = true)
@@ -64,6 +70,7 @@ public class SqlCommandService {
                 .map(SqlResponse::from)
                 .collect(Collectors.toList());
     }
+<<<<<<< HEAD
 
     /** SQL 삭제 */
     public void deleteSql(Long id) {
@@ -72,4 +79,6 @@ public class SqlCommandService {
         sql.softDelete();
         sqlRepository.save(sql);
     }
+=======
+>>>>>>> dev
 }

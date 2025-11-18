@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,7 +34,16 @@ public class GraphQueryService {
      * 카테고리별 그래프 목록 조회
      */
     public List<GraphResponse> getGraphsByCategory(GraphCategory category) {
-        List<Graph> graphs = graphRepository.findByCategory(category);
+        List<Graph> graphs;
+
+        if(category.equals(GraphCategory.IMPROVEMENTS)){
+            graphs = graphRepository.findByIdBetween(1L, 7L);
+        }else if(category.equals(GraphCategory.PREVENTION)){
+            graphs = graphRepository.findByIdBetween(8L, 12L);
+        }else{
+            graphs = graphRepository.findByCategory(category);
+        }
+
         return graphs.stream()
                 .map(GraphResponse::from)
                 .collect(Collectors.toList());

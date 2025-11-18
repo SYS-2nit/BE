@@ -4,6 +4,7 @@ import com.sys.dbmonitor.domains.sql.domain.Sql;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+<<<<<<< HEAD
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -52,6 +53,27 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
     /** ===== 통계 상세 탭 조회용 ===== */
     @Query("""
         SELECT s
+=======
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+// 인터페이스
+@Repository
+public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCustom {
+
+    /**
+     * 데이터 전체 조회용
+     */
+    List<Sql> findByIsDeletedFalse();
+
+    /**
+     * ===== 통계 상세 탭 조회용 =====
+     */
+    @Query("""
+
+            SELECT s
+>>>>>>> dev
         FROM Sql s
         WHERE s.isDeleted = false
           AND s.sqlId = :sqlId
@@ -64,7 +86,13 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
             LocalDateTime end
     );
 
+<<<<<<< HEAD
     /** 전체 elapsed 합계 (비중 계산용) */
+=======
+    /**
+     * 전체 elapsed 합계 (비중 계산용)
+     */
+>>>>>>> dev
     @Query("""
         SELECT COALESCE(SUM(s.elapsedUsDelta), 0)
         FROM Sql s
@@ -77,7 +105,13 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
             LocalDateTime end
     );
 
+<<<<<<< HEAD
     /** 특정 SQL의 랭킹 조회: elapsed 기준으로 몇 등인지 */
+=======
+    /**
+     * 특정 SQL의 랭킹 조회: elapsed 기준으로 몇 등인지
+     */
+>>>>>>> dev
     @Query("""
         SELECT COUNT(s) + 1
         FROM Sql s
@@ -97,4 +131,35 @@ public interface SqlRepository extends JpaRepository<Sql, Long> {
             LocalDateTime start,
             LocalDateTime end
     );
+<<<<<<< HEAD
+=======
+
+    /**
+     * Plan History 조회용: 특정 SQL_ID의 전체 이력 ASC
+     */
+    List<Sql> findBySqlIdOrderByCreatedAtAsc(String sqlId);
+
+    /**
+     * Plan Change Detail 조회용
+     * 특정 순간(createdAt)에서의 PlanHashValue를 가진 행 조회
+     */
+
+    /**
+     * Before Plan: 기준 시간 이전에서 가장 최신 1개
+     */
+    Optional<Sql> findTopBySqlIdAndPlanHashValueAndCreatedAtLessThanEqualOrderByCreatedAtDesc(
+            String sqlId,
+            Long planHashValue,
+            LocalDateTime createdAt
+    );
+
+    /**
+     * After Plan: 기준 시간 이후에서 가장 첫 번째 1개
+     */
+    Optional<Sql> findTopBySqlIdAndPlanHashValueAndCreatedAtGreaterThanEqualOrderByCreatedAtAsc(
+            String sqlId,
+            Long planHashValue,
+            LocalDateTime createdAt
+    );
+>>>>>>> dev
 }

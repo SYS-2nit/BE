@@ -2,6 +2,14 @@ spring:
   application:
     name: DBMonitor
 
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.2 # 응답의 창의성을 낮춰 일관된 결과를 유도
+
   jpa:
     open-in-view: false
     show-sql: false
@@ -16,9 +24,17 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
 
+<<<<<<< HEAD
   # batch 설정 (false)
   batch:
     enabled: false
+=======
+  # Redis Repository 자동 설정 제외 (JPA Repository와 충돌 방지)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+>>>>>>> dev
 
   security:
     require-ssl: true
@@ -88,3 +104,6 @@ swingbench:
 app:
   encryption:
     key: ${ENCRYPTION_KEY:defaultEncryptionKey1234567890123456}  # 최소 16자 (AES-128)
+  metric:
+    # 운영 환경 기본값: true → metric_data 저장 허용
+    persist: true

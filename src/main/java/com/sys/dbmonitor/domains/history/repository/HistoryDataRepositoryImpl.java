@@ -135,7 +135,6 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
 
     /**
      * 컬럼명에 해당하는 QueryDSL 필드 반환
-     * (MetricDataRepositoryImpl과 동일한 로직 사용)
      */
     private Expression<?> getFieldByColumnName(String columnName) {
         return switch (columnName.toLowerCase()) {
@@ -150,20 +149,20 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "load_threshold" -> metricData.loadThreshold;
             case "load_threshold_min" -> metricData.loadThresholdMin;
             case "load_threshold_max" -> metricData.loadThresholdMax;
-            
+
             // SESSION 관련
             case "sessions_limit_util_pct" -> metricData.sessionsLimitUtilPct;
             case "processes_usage_pct" -> metricData.processesUsagePct;
             case "sessions_usage_pct" -> metricData.sessionsUsagePct;
             case "open_cursors_max_session_pct" -> metricData.openCursorsMaxSessionPct;
-            
+
             // I/O 관련
             case "single_block_read_latency_ms" -> metricData.singleBlockReadLatencyMs;
             case "direct_path_read_latency_ms" -> metricData.directPathReadLatencyMs;
             case "direct_path_write_latency_ms" -> metricData.directPathWriteLatencyMs;
             case "physical_read_mb_per_sec" -> metricData.physicalReadMbPerSec;
             case "physical_write_mb_per_sec" -> metricData.physicalWriteMbPerSec;
-            
+
             // Wait Class 관련
             case "wait_class_aas_user_io" -> metricData.waitClassAasUserIo;
             case "wait_class_aas_commit" -> metricData.waitClassAasCommit;
@@ -172,7 +171,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "wait_class_aas_network" -> metricData.waitClassAasNetwork;
             case "wait_class_aas_cluster" -> metricData.waitClassAasCluster;
             case "wait_class_aas_other" -> metricData.waitClassAasOther;
-            
+
             // MEMORY 관련
             case "workarea_spill_rate_pct" -> metricData.workareaSpillRatePct;
             case "workarea_spill_exec" -> metricData.workareaSpillExec;
@@ -183,54 +182,10 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "hard_parses_per_sec" -> metricData.hardParsesPerSec;
             case "spill_mb_per_min" -> metricData.spillMbPerMin;
             case "shared_pool_free_bytes" -> metricData.sharedPoolFreeBytes;
-            
+
             // STORAGE 관련
             case "fra_usage_pct" -> metricData.fraUsagePct;
-            case "fra_usage_percent" -> metricData.fraUsagePercent;
-            case "fra_free_gb" -> metricData.fraFreeGb;
-            case "undo_usage_pct" -> metricData.undoUsagePct;
-            case "undo_usage_percent" -> metricData.undoUsagePct;
-            case "undo_tablespace_name" -> metricData.undoTablespaceName;
-            case "long_transaction_count" -> metricData.longTransactionCount;
-            case "long_transaction_undo_mb" -> metricData.longTransactionUndoMb;
-            case "undo_retention_sec" -> metricData.undoRetentionSec;
-            case "temp_usage_pct" -> metricData.tempUsagePct;
-            case "temp_usage_percent" -> metricData.tempUsagePercent;
-            case "max_ts_name" -> metricData.maxTsName;
-            case "system_ts_usage_pct" -> metricData.systemTsUsagePct;
-            case "system_ts_used_mb" -> metricData.systemTsUsedMb;
-            case "system_ts_free_mb" -> metricData.systemTsFreeMb;
-            case "sysaux_ts_usage_pct" -> metricData.sysauxTsUsagePct;
-            case "sysaux_ts_used_mb" -> metricData.sysauxTsUsedMb;
-            case "sysaux_ts_free_mb" -> metricData.sysauxTsFreeMb;
-            case "users_ts_usage_pct" -> metricData.usersTsUsagePct;
-            case "users_ts_used_mb" -> metricData.usersTsUsedMb;
-            case "users_ts_free_mb" -> metricData.usersTsFreeMb;
-            case "undo_ts_usage_pct" -> metricData.undoTsUsagePct;
-            case "undo_ts_used_mb" -> metricData.undoTsUsedMb;
-            case "undo_ts_free_mb" -> metricData.undoTsFreeMb;
-            case "temp_ts_usage_pct" -> metricData.tempTsUsagePct;
-            case "temp_ts_used_mb" -> metricData.tempTsUsedMb;
-            case "temp_ts_free_mb" -> metricData.tempTsFreeMb;
-            case "system_tablespace_name" -> metricData.systemTablespaceName;
-            case "sysaux_tablespace_name" -> metricData.sysauxTablespaceName;
-            case "undotbs1_tablespace_name" -> metricData.undotbs1TablespaceName;
-            case "users_tablespace_name" -> metricData.usersTablespaceName;
-            case "system_used_percent" -> metricData.systemUsedPercent;
-            case "sysaux_used_percent" -> metricData.sysauxUsedPercent;
-            case "undotbs1_used_percent" -> metricData.undotbs1UsedPercent;
-            case "users_used_percent" -> metricData.usersUsedPercent;
-            case "system_tablespace_name_inc" -> metricData.systemTablespaceNameInc;
-            case "sysaux_tablespace_name_inc" -> metricData.sysauxTablespaceNameInc;
-            case "undotbs1_tablespace_name_inc" -> metricData.undotbs1TablespaceNameInc;
-            case "users_tablespace_name_inc" -> metricData.usersTablespaceNameInc;
-            case "space_limit_gb" -> metricData.spaceLimitGb;
-            case "space_used_gb" -> metricData.spaceUsedGb;
-            case "space_reclaimable_gb" -> metricData.spaceReclaimableGb;
-            case "usage_pct" -> metricData.usagePct;
-            case "hourly_growth_pct" -> metricData.hourlyGrowthPct;
-            case "time_to_95_pct_hours" -> metricData.timeTo95PctHours;
-            
+
             // Background Process 관련
             case "lgwr_active" -> metricData.lgwrActive;
             case "dbwr_active" -> metricData.dbwrActive;
@@ -238,7 +193,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "smon_active" -> metricData.smonActive;
             case "ckpt_active" -> metricData.ckptActive;
             case "arcn_active" -> metricData.arcnActive;
-            
+
             // CPU 추가 컬럼
             case "cpu_saturation_pct" -> metricData.cpuSaturationPct;
             case "run_q_per_core_load_proxy" -> metricData.runQPerCoreLoadProxy;
@@ -252,7 +207,19 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "aas_bg_sessions" -> metricData.aasBgSessions;
             case "aas_oncpu_sessions" -> metricData.aasOncpuSessions;
             case "aas_wait_sessions" -> metricData.aasWaitSessions;
-            
+
+            // CPU Top SQL
+            case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
+            case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
+            case "top_sql_by_cpu_sql_id_03" -> metricData.topSqlByCpuSqlId03;
+            case "top_sql_by_cpu_sql_id_04" -> metricData.topSqlByCpuSqlId04;
+            case "top_sql_by_cpu_sql_id_05" -> metricData.topSqlByCpuSqlId05;
+            case "top_sql_by_cpu_value_01" -> metricData.topSqlByCpuValue01;
+            case "top_sql_by_cpu_value_02" -> metricData.topSqlByCpuValue02;
+            case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
+            case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
+            case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
+
             // MEMORY 추가 컬럼
             case "pga_used_bytes" -> metricData.pgaUsedBytes;
             case "pga_target_bytes" -> metricData.pgaTargetBytes;
@@ -280,19 +247,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "dictionary_cache_hit_pct" -> metricData.dictionaryCacheHitPct;
             case "latch_hit_pct" -> metricData.latchHitPct;
             case "redo_buffer_wait_pct" -> metricData.redoBufferWaitPct;
-            
-            // CPU Top SQL
-            case "top_sql_by_cpu_sql_id_01" -> metricData.topSqlByCpuSqlId01;
-            case "top_sql_by_cpu_sql_id_02" -> metricData.topSqlByCpuSqlId02;
-            case "top_sql_by_cpu_sql_id_03" -> metricData.topSqlByCpuSqlId03;
-            case "top_sql_by_cpu_sql_id_04" -> metricData.topSqlByCpuSqlId04;
-            case "top_sql_by_cpu_sql_id_05" -> metricData.topSqlByCpuSqlId05;
-            case "top_sql_by_cpu_value_01" -> metricData.topSqlByCpuValue01;
-            case "top_sql_by_cpu_value_02" -> metricData.topSqlByCpuValue02;
-            case "top_sql_by_cpu_value_03" -> metricData.topSqlByCpuValue03;
-            case "top_sql_by_cpu_value_04" -> metricData.topSqlByCpuValue04;
-            case "top_sql_by_cpu_value_05" -> metricData.topSqlByCpuValue05;
-            
+
             // MEMORY Top SQL
             case "top_sql_by_shared_pool_sql_id_01" -> metricData.topSqlBySharedPoolSqlId01;
             case "top_sql_by_shared_pool_sql_id_02" -> metricData.topSqlBySharedPoolSqlId02;
@@ -304,7 +259,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "top_sql_by_shared_pool_value_03" -> metricData.topSqlBySharedPoolValue03;
             case "top_sql_by_shared_pool_value_04" -> metricData.topSqlBySharedPoolValue04;
             case "top_sql_by_shared_pool_value_05" -> metricData.topSqlBySharedPoolValue05;
-            
+
             // SESSION 추가 컬럼
             case "active_user_sessions_now" -> metricData.activeUserSessionsNow;
             case "inactive_user_sessions_now" -> metricData.inactiveUserSessionsNow;
@@ -326,7 +281,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "session_headroom" -> metricData.sessionHeadroom;
             case "session_growth_rate_per_min" -> metricData.sessionGrowthRatePerMin;
             case "session_breach_eta_min" -> metricData.sessionBreachEtaMin;
-            
+
             // SESSION Top Blocker
             case "top_blocker_session_sid_01" -> metricData.topBlockerSessionSid01;
             case "top_blocker_session_sid_02" -> metricData.topBlockerSessionSid02;
@@ -338,14 +293,13 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "top_blocker_session_victims_03" -> metricData.topBlockerSessionVictims03;
             case "top_blocker_session_victims_04" -> metricData.topBlockerSessionVictims04;
             case "top_blocker_session_victims_05" -> metricData.topBlockerSessionVictims05;
-            
+
             // I/O 추가 컬럼
             case "hard_parse_ratio_pct" -> metricData.hardParseRatioPct;
             case "db_files_usage_pct" -> metricData.dbFilesUsagePct;
             case "redo_generation_mbps" -> metricData.redoGenerationMbps;
             case "redo_generation_mbps_total" -> metricData.redoGenerationMbpsTotal;
             case "redo_generation_24h_avg" -> metricData.redoGeneration24hAvg;
-            case "redo_generation_mb_per_sec" -> metricData.redoGenerationMbps;
             case "redo_size_mb_per_sec" -> metricData.redoSizeMbPerSec;
             case "physical_reads_per_sec" -> metricData.physicalReadsPerSec;
             case "physical_reads_per_diff_sec" -> metricData.physicalReadsPerDiffSec;
@@ -389,8 +343,19 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "3_data_io_share_pct" -> metricData.dataIoSharePct03;
             case "4_data_io_share_pct" -> metricData.dataIoSharePct04;
             case "5_data_io_share_pct" -> metricData.dataIoSharePct05;
-            
+
             // STORAGE 추가 컬럼
+            case "fra_usage_percent" -> metricData.fraUsagePercent;
+            case "fra_free_gb" -> metricData.fraFreeGb;
+            case "undo_usage_pct" -> metricData.undoUsagePct;
+            case "undo_usage_percent" -> metricData.undoUsagePct;
+            case "undo_tablespace_name" -> metricData.undoTablespaceName;
+            case "long_transaction_count" -> metricData.longTransactionCount;
+            case "long_transaction_undo_mb" -> metricData.longTransactionUndoMb;
+            case "undo_retention_sec" -> metricData.undoRetentionSec;
+            case "temp_usage_pct" -> metricData.tempUsagePct;
+            case "temp_usage_percent" -> metricData.tempUsagePercent;
+            case "max_ts_name" -> metricData.maxTsName;
             case "max_ts_usage_pct" -> metricData.maxTsUsagePct;
             case "total_db_usage_pct" -> metricData.totalDbUsagePct;
             case "total_db_usage_percent" -> metricData.totalDbUsagePercent;
@@ -399,11 +364,44 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "temp_max_size_gb" -> metricData.tempMaxSizeGb;
             case "temp_peak_usage_24h_gb" -> metricData.tempPeakUsage24hGb;
             case "temp_usage_pct_of_max" -> metricData.tempUsagePctOfMax;
+            case "system_ts_usage_pct" -> metricData.systemTsUsagePct;
+            case "system_ts_used_mb" -> metricData.systemTsUsedMb;
+            case "system_ts_free_mb" -> metricData.systemTsFreeMb;
+            case "sysaux_ts_usage_pct" -> metricData.sysauxTsUsagePct;
+            case "sysaux_ts_used_mb" -> metricData.sysauxTsUsedMb;
+            case "sysaux_ts_free_mb" -> metricData.sysauxTsFreeMb;
+            case "users_ts_usage_pct" -> metricData.usersTsUsagePct;
+            case "users_ts_used_mb" -> metricData.usersTsUsedMb;
+            case "users_ts_free_mb" -> metricData.usersTsFreeMb;
+            case "undo_ts_usage_pct" -> metricData.undoTsUsagePct;
+            case "undo_ts_used_mb" -> metricData.undoTsUsedMb;
+            case "undo_ts_free_mb" -> metricData.undoTsFreeMb;
+            case "temp_ts_usage_pct" -> metricData.tempTsUsagePct;
+            case "temp_ts_used_mb" -> metricData.tempTsUsedMb;
+            case "temp_ts_free_mb" -> metricData.tempTsFreeMb;
+            case "system_tablespace_name" -> metricData.systemTablespaceName;
+            case "sysaux_tablespace_name" -> metricData.sysauxTablespaceName;
+            case "undotbs1_tablespace_name" -> metricData.undotbs1TablespaceName;
+            case "users_tablespace_name" -> metricData.usersTablespaceName;
+            case "system_used_percent" -> metricData.systemUsedPercent;
+            case "sysaux_used_percent" -> metricData.sysauxUsedPercent;
+            case "undotbs1_used_percent" -> metricData.undotbs1UsedPercent;
+            case "users_used_percent" -> metricData.usersUsedPercent;
+            case "system_tablespace_name_inc" -> metricData.systemTablespaceNameInc;
+            case "sysaux_tablespace_name_inc" -> metricData.sysauxTablespaceNameInc;
+            case "undotbs1_tablespace_name_inc" -> metricData.undotbs1TablespaceNameInc;
+            case "users_tablespace_name_inc" -> metricData.usersTablespaceNameInc;
             case "system_used_space_gb_inc" -> metricData.systemUsedSpaceGbInc;
             case "sysaux_used_space_gb_inc" -> metricData.sysauxUsedSpaceGbInc;
             case "undotbs1_used_space_gb_inc" -> metricData.undotbs1UsedSpaceGbInc;
             case "users_used_space_gb_inc" -> metricData.usersUsedSpaceGbInc;
-            
+            case "space_limit_gb" -> metricData.spaceLimitGb;
+            case "space_used_gb" -> metricData.spaceUsedGb;
+            case "space_reclaimable_gb" -> metricData.spaceReclaimableGb;
+            case "usage_pct" -> metricData.usagePct;
+            case "hourly_growth_pct" -> metricData.hourlyGrowthPct;
+            case "time_to_95_pct_hours" -> metricData.timeTo95PctHours;
+
             // STORAGE 대용량 세그먼트 Top 5
             case "1_owner_seg" -> metricData.ownerSeg01;
             case "2_owner_seg" -> metricData.ownerSeg02;
@@ -425,7 +423,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "3_compression_seg" -> metricData.compressionSeg03;
             case "4_compression_seg" -> metricData.compressionSeg04;
             case "5_compression_seg" -> metricData.compressionSeg05;
-            
+
             // Background Process PID
             case "lgwr_pid" -> metricData.lgwrPid;
             case "dbwr_pid" -> metricData.dbwrPid;
@@ -433,7 +431,7 @@ public class HistoryDataRepositoryImpl implements HistoryDataRepositoryCustom {
             case "smon_pid" -> metricData.smonPid;
             case "ckpt_pid" -> metricData.ckptPid;
             case "arcn_pid" -> metricData.arcnPid;
-            
+
             default -> null;
         };
     }

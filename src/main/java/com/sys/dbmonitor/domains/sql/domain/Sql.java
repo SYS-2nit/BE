@@ -15,8 +15,17 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Sql extends BaseEntity {
 
     @Id
+<<<<<<< HEAD
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "ID")
+=======
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sqlDataSeq")
+    @SequenceGenerator(
+            name = "sqlDataSeq",
+            sequenceName = "SEQ_SQL_DATA",
+            allocationSize = 1
+    )
+>>>>>>> dev
     private Long id;
 
     @Column(name = "INSTANCE_ID", nullable = false)
@@ -67,6 +76,7 @@ public class Sql extends BaseEntity {
     @Column(name = "SQL_TEXT", length = 4000)
     private String sqlText;
 
+<<<<<<< HEAD
     /** soft delete */
     public void softDelete() {
         markAsDeleted();
@@ -83,6 +93,13 @@ public class Sql extends BaseEntity {
     }
 
     /* 평균 컬럼 계산 */
+=======
+    @Lob
+    @Column(name = "PLAN_TEXT_CLOB")
+    private String planTextClob;
+
+    /** 평균 컬럼 계산 */
+>>>>>>> dev
     public Long getAvgElapsed() {
         if (executionsDelta == null || executionsDelta == 0) {
             return 0L;
