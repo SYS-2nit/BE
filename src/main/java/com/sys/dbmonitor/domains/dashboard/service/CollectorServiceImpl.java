@@ -4,6 +4,8 @@ import com.sys.dbmonitor.domains.dashboard.dao.CollectorRepository;
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
 import com.sys.dbmonitor.domains.dashboard.engine.MetricsEngine;
 import com.sys.dbmonitor.domains.dashboard.state.DeltaStateStore;
+import com.sys.dbmonitor.domains.sql.service.SqlSnapshotService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -20,18 +22,20 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CollectorServiceImpl implements CollectorService {
 
     private final CollectorRepository repo;
     private final DeltaStateStore store;
+    private final SqlSnapshotService sqlSnapshotService;
 
     private static final String CACHE_HIT_FAMILY = "CACHE_HIT";
 
-    public CollectorServiceImpl(@Qualifier("collectorRepositoryImpl") CollectorRepository repo,
-                                @Qualifier("inMemoryDeltaStateStore") DeltaStateStore store) {
-        this.repo = repo;
-        this.store = store;
-    }
+//    public CollectorServiceImpl(@Qualifier("collectorRepositoryImpl") CollectorRepository repo,
+//                                @Qualifier("inMemoryDeltaStateStore") DeltaStateStore store) {
+//        this.repo = repo;
+//        this.store = store;
+//    }
 
     // System SQL 필터링 상수 (SqlSnapshotService와 동일)
     private static final java.util.Set<String> SYSTEM_SCHEMA_BLACKLIST = java.util.Set.of(
@@ -62,9 +66,8 @@ public class CollectorServiceImpl implements CollectorService {
      * SQL 데이터 수집
      * @param instanceId
      */
-    @Override
     public void sqlRunOnce(Long instanceId) {
-
+        sqlSnapshotService.sqlRunOnce(instanceId);
     }
 
     /** 1회 실행: 수집 → Δ/Σ/window_sec → 클러스터(Σ_inst) 최종 지표 산출 + Top Blockers/Top SQL 매핑(부족분 0/공백 패딩) */

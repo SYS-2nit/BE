@@ -17,13 +17,14 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.batch", name = "enabled", havingValue = "true")
+//@ConditionalOnProperty(prefix = "app.batch", name = "enabled", havingValue = "true")
 public class SqlCollectionScheduler {
 
     private final JobLauncher jobLauncher;
     private final Job sqlCollectionJob;
 
-    @Scheduled(cron = "0 */30 * * * *")
+//    @Scheduled(cron = "0 */30 * * * *")
+    @Scheduled(cron = "0 * * * * *")
     public void launchSqlCollectionJob() {
         JobParameters jobParameters = new JobParametersBuilder()
                 .addLong("requestedAt", System.currentTimeMillis())
