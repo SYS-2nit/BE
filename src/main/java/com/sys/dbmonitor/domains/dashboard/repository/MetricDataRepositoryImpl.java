@@ -5,9 +5,11 @@ import com.querydsl.core.types.Expression;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataPoint;
+import com.sys.dbmonitor.domains.instance.dto.InstanceDataDTO;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -29,6 +31,193 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         this.queryFactory = new JPAQueryFactory(entityManager);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<InstanceDataDTO> findInstanceDataByInstance(Long instanceId) {
+        // 각 컬럼별 graph_id 매핑
+        // graph_id 35: active_user_sessions_now, total_user_sessions_now
+        // graph_id 31: lock_wait_total
+        // graph_id 4: host_cpu_util_pct
+        // graph_id 21: pga_used_bytes, pga_target_bytes (PGA 퍼센트 계산용)
+        // graph_id 22: sga_used_bytes, sga_total_bytes (SGA 퍼센트 계산용)
+        
+        Map<Long, Map<String, Expression<?>>> graphColumnMap = new HashMap<>();
+        
+        // graph_id 4: host_cpu_util_pct
+        Expression<?> cpuField = getFieldByColumnName("host_cpu_util_pct");
+        if (cpuField != null) {
+            graphColumnMap.put(4L, Map.of("host_cpu_util_pct", cpuField));
+        }
+        
+        // graph_id 35: active_user_sessions_now, total_user_sessions_now
+        Expression<?> activeSessionField = getFieldByColumnName("active_user_sessions_now");
+        Expression<?> totalSessionField = getFieldByColumnName("total_user_sessions_now");
+        if (activeSessionField != null && totalSessionField != null) {
+            Map<String, Expression<?>> sessionMap = new HashMap<>();
+            sessionMap.put("active_user_sessions_now", activeSessionField);
+            sessionMap.put("total_user_sessions_now", totalSessionField);
+            graphColumnMap.put(35L, sessionMap);
+        }
+        
+        // graph_id 31: lock_wait_total
+        Expression<?> lockWaitField = getFieldByColumnName("lock_wait_total");
+        if (lockWaitField != null) {
+            graphColumnMap.put(31L, Map.of("lock_wait_total", lockWaitField));
+        }
+        
+        // graph_id 21: pga_used_bytes, pga_target_bytes (PGA 퍼센트 계산용)
+        Expression<?> pgaUsedField = getFieldByColumnName("pga_used_bytes");
+        Expression<?> pgaTargetField = getFieldByColumnName("pga_target_bytes");
+        if (pgaUsedField != null && pgaTargetField != null) {
+            Map<String, Expression<?>> pgaMap = new HashMap<>();
+            pgaMap.put("pga_used_bytes", pgaUsedField);
+            pgaMap.put("pga_target_bytes", pgaTargetField);
+            graphColumnMap.put(21L, pgaMap);
+        } else if (pgaUsedField != null) {
+            graphColumnMap.put(21L, Map.of("pga_used_bytes", pgaUsedField));
+        }
+        
+        // graph_id 22: sga_used_bytes, sga_total_bytes (SGA 퍼센트 계산용)
+        Expression<?> sgaUsedField = getFieldByColumnName("sga_used_bytes");
+        Expression<?> sgaTotalField = getFieldByColumnName("sga_total_bytes");
+        if (sgaUsedField != null && sgaTotalField != null) {
+            Map<String, Expression<?>> sgaMap = new HashMap<>();
+            sgaMap.put("sga_used_bytes", sgaUsedField);
+            sgaMap.put("sga_total_bytes", sgaTotalField);
+            graphColumnMap.put(22L, sgaMap);
+        } else if (sgaUsedField != null) {
+            graphColumnMap.put(22L, Map.of("sga_used_bytes", sgaUsedField));
+        }
+        
+        if (graphColumnMap.isEmpty()) {
+            log.warn("유효한 graph_id 매핑이 없습니다. instanceId={}", instanceId);
+            return new ArrayList<>();
+        }
+        
+        log.debug("인스턴스 데이터 조회 시작: instanceId={}, graphIds={}", 
+                instanceId, graphColumnMap.keySet());
+        
+        // 각 graph_id별로 최신 데이터 조회
+        Map<String, Object> metricValues = new HashMap<>();
+        
+        for (Map.Entry<Long, Map<String, Expression<?>>> graphEntry : graphColumnMap.entrySet()) {
+            Long graphId = graphEntry.getKey();
+            Map<String, Expression<?>> columns = graphEntry.getValue();
+            
+            // 각 graph_id별로 필요한 필드 선택
+            List<Expression<?>> selectFields = new ArrayList<>();
+            selectFields.add(metricData.collectedAt);
+            selectFields.addAll(columns.values());
+            
+            // 해당 graph_id의 최신 데이터 조회
+            Tuple result = queryFactory
+                    .select(selectFields.toArray(new Expression[0]))
+                    .from(metricData)
+                    .where(
+                            instanceIdEq(instanceId),
+                            graphIdEq(graphId),
+                            intervalTypeEq("1m")
+                    )
+                    .orderBy(metricData.collectedAt.desc())
+                    .limit(1)
+                    .fetchFirst();
+            
+            if (result != null) {
+                LocalDateTime collectedAt = result.get(metricData.collectedAt);
+                log.debug("graph_id={} 최신 데이터 조회: instanceId={}, collectedAt={}", 
+                        graphId, instanceId, collectedAt);
+                
+                // 각 컬럼의 값 추출
+                for (Map.Entry<String, Expression<?>> columnEntry : columns.entrySet()) {
+                    String columnName = columnEntry.getKey();
+                    Expression<?> field = columnEntry.getValue();
+                    Object value = result.get(field);
+                    
+                    if (value != null && value instanceof Number) {
+                        metricValues.put(columnName, value);
+                        log.debug("graph_id={}, column={}, value={}", graphId, columnName, value);
+                    }
+                }
+            } else {
+                log.warn("graph_id={}에 대한 최신 데이터가 없습니다: instanceId={}", 
+                        graphId, instanceId);
+            }
+        }
+        
+        // 추출된 값들을 DTO에 매핑
+        Double cpuUsage = getDoubleValue(metricValues, "host_cpu_util_pct");
+        Double sessionCount = getDoubleValue(metricValues, "total_user_sessions_now");
+        Double activeSessionCount = getDoubleValue(metricValues, "active_user_sessions_now");
+        Double lockWait = getDoubleValue(metricValues, "lock_wait_total");
+        
+        // PGA 퍼센트 계산: pgaUsed / pgaTarget * 100
+        Double pgaUsed = getDoubleValue(metricValues, "pga_used_bytes");
+        Double pgaTarget = getDoubleValue(metricValues, "pga_target_bytes");
+        String pgaStr = null;
+        if (pgaUsed != null && pgaTarget != null && pgaTarget > 0) {
+            Double pgaPercent = (pgaUsed / pgaTarget) * 100.0;
+            pgaStr = String.format("%.2f", pgaPercent);
+            log.debug("PGA 퍼센트 계산: pgaUsed={}, pgaTarget={}, pgaPercent={}%", 
+                    pgaUsed, pgaTarget, pgaPercent);
+        } else if (pgaUsed != null) {
+            // pgaTarget이 없으면 원시 값 반환
+            pgaStr = String.valueOf(pgaUsed.longValue());
+        }
+        
+        // SGA 퍼센트 계산: sgaUsed / sgaTotal * 100
+        // sgaUsed = max(0, sgaTotal - sgaFree)이지만, sgaFree가 없으므로 sgaUsed를 직접 사용
+        Double sgaUsed = getDoubleValue(metricValues, "sga_used_bytes");
+        Double sgaTotal = getDoubleValue(metricValues, "sga_total_bytes");
+        String sgaStr = null;
+        if (sgaUsed != null && sgaTotal != null && sgaTotal > 0) {
+            // sgaUsed가 이미 계산된 값이므로 그대로 사용
+            Double sgaPercent = (sgaUsed / sgaTotal) * 100.0;
+            sgaStr = String.format("%.2f", sgaPercent);
+            log.debug("SGA 퍼센트 계산: sgaUsed={}, sgaTotal={}, sgaPercent={}%", 
+                    sgaUsed, sgaTotal, sgaPercent);
+        } else if (sgaUsed != null) {
+            // sgaTotal이 없으면 원시 값 반환
+            sgaStr = String.valueOf(sgaUsed.longValue());
+        }
+        
+        log.info("최종 조회된 데이터: instanceId={}, cpuUsage={}, sessionCount={}, activeSessionCount={}, lockWait={}, pga={}%, sga={}%",
+                instanceId, cpuUsage, sessionCount, activeSessionCount, lockWait, pgaStr, sgaStr);
+        
+        // 원시 데이터를 문자열로 변환 (null이면 null)
+        String cpuUsageStr = cpuUsage != null ? String.valueOf(cpuUsage) : null;
+        String sessionCountStr = sessionCount != null ? String.valueOf(sessionCount.intValue()) : null;
+        String activeSessionCountStr = activeSessionCount != null ? String.valueOf(activeSessionCount.intValue()) : null;
+        String lockWaitStr = lockWait != null ? String.valueOf(lockWait.intValue()) : null;
+        
+        return List.of(new InstanceDataDTO(
+                cpuUsageStr,
+                sessionCountStr,
+                activeSessionCountStr,
+                lockWaitStr,
+                pgaStr,
+                sgaStr
+        ));
+    }
+    
+    /**
+     * Map에서 Number 값을 Double로 변환하여 반환
+     */
+    private Double getDoubleValue(Map<String, Object> values, String key) {
+        Object value = values.get(key);
+        if (value != null && value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        return null;
+    }
+
+    /**
+     * 설정한 시간에 따라 그래프 데이터 가져옴
+     * @param instanceId
+     * @param graphId
+     * @param intervalType
+     * @param columns
+     * @return
+     */
     @Override
     public List<GraphDataPoint> findGraphDataPoints(Long instanceId, Long graphId, String intervalType, List<String> columns) {
         if (columns == null || columns.isEmpty()) {
@@ -531,5 +720,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
 
         return dataPoints;
     }
+
+
 }
 
