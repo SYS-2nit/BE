@@ -1,7 +1,10 @@
 package com.sys.dbmonitor.domains.instance.service.query;
 
+import com.sys.dbmonitor.domains.dashboard.engine.MetricsEngine;
+import com.sys.dbmonitor.domains.dashboard.repository.MetricDataRepository;
 import com.sys.dbmonitor.domains.instance.domain.DBInfo;
 import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.domains.instance.dto.InstanceDataDTO;
 import com.sys.dbmonitor.domains.instance.repository.DBInfoRepository;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceListResponse;
@@ -21,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static java.lang.System.out;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -31,6 +36,7 @@ public class InstanceQueryService {
     private final DBInfoRepository dbInfoRepository;
     private final DynamicDataSourceFactory dynamicDataSourceFactory;
     private final EventRepository eventRepository;
+    private final MetricDataRepository metricDataRepository;
 
     /**
      * 타겟 DB 목록 조회 (전체)
@@ -130,20 +136,49 @@ public class InstanceQueryService {
 
         List<Instance> instances = instanceRepository.findByDbInfoIdAndIsDeletedFalse(dbInfoId);
 
+        // 각 인스턴스별로 데이터 조회 및 계산
         return instances.stream()
                 .filter(instance -> instance.getDbInfo() == null
                         || Boolean.FALSE.equals(instance.getDbInfo().getIsDeleted()))
                 .map(instance -> {
+                    // 인스턴스별 최신 데이터 조회
+                    List<InstanceDataDTO> dataList = metricDataRepository.findInstanceDataByInstance(instance.getId());
+                    InstanceDataDTO instanceData = dataList.isEmpty() ? null : dataList.get(0);
+
+                    // 계산이 필요한 값들 처리
+                    String cpuUsage = null;
+                    String sga = null;
+
+                    if (instanceData != null) {
+                        // cpuUsage는 이미 계산된 값이므로 그대로 사용
+                        cpuUsage = instanceData.cpuUsage();
+
+                        sga = instanceData.sga();
+                    }
+
+                    // 계산된 값으로 새로운 DTO 생성
+                    InstanceDataDTO calculatedData = instanceData != null
+                            ? new InstanceDataDTO(
+                                    cpuUsage,
+                                    instanceData.sessionCount(),
+                                    instanceData.activeSessionCount(),
+                                    instanceData.lockWait(),
+                                    instanceData.pga(),
+                                    sga
+                            )
+                            : null;
+
                     // 인스턴스별 최고 심각도 조회
                     Integer maxSeverity = getMaxSeverityForInstance(instance.getId());
-                    return InstanceListResponse.from(instance, maxSeverity);
+
+                    return InstanceListResponse.from(instance, calculatedData, maxSeverity);
                 })
                 .collect(Collectors.toList());
     }
 
     /**
      * 인스턴스별 최고 심각도 조회
-     * 
+     *
      * @param instanceId 인스턴스 ID
      * @return 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
      */

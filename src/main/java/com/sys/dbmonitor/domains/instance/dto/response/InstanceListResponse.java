@@ -1,6 +1,7 @@
 package com.sys.dbmonitor.domains.instance.dto.response;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
+import com.sys.dbmonitor.domains.instance.dto.InstanceDataDTO;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -51,16 +52,10 @@ public record InstanceListResponse(
 ) {
 
     public static InstanceListResponse from(Instance instance) {
-        return from(instance, null);
+        return from(instance, null, null);
     }
 
-    /**
-     * 알림 심각도를 포함한 인스턴스 목록 응답 생성
-     * 
-     * @param instance 인스턴스 엔티티
-     * @param maxSeverity 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
-     */
-    public static InstanceListResponse from(Instance instance, Integer maxSeverity) {
+    public static InstanceListResponse from(Instance instance, InstanceDataDTO instanceData, Integer maxSeverity) {
         var dbInfo = instance.getDbInfo();
 
         String status = determineStatus(maxSeverity, dbInfo);
@@ -76,6 +71,14 @@ public record InstanceListResponse(
             databaseName = dbInfo.getName();
         }
 
+        // InstanceDataDTO가 있으면 해당 값 사용, 없으면 null
+        String cpuUsage = instanceData != null ? instanceData.cpuUsage() : null;
+        String sessionCount = instanceData != null ? instanceData.sessionCount() : null;
+        String activeSessionCount = instanceData != null ? instanceData.activeSessionCount() : null;
+        String lockWait = instanceData != null ? instanceData.lockWait() : null;
+        String pga = instanceData != null ? instanceData.pga() : null;
+        String sga = instanceData != null ? instanceData.sga() : null;
+
         return new InstanceListResponse(
                 instance.getId(),
                 status,
@@ -84,15 +87,16 @@ public record InstanceListResponse(
                 port,
                 databaseName,
                 instance.getSid(),
-                null,   // CPU 사용률 (미수집)
-                null,   // 세션 수 (미수집)
-                null,   // Active Session 수 (미수집)
-                null,   // Lock Wait (미수집)
-                null,   // PGA (미수집)
-                null,   // SGA (미수집)
+                cpuUsage,
+                sessionCount,
+                activeSessionCount,
+                lockWait,
+                pga,
+                sga,
                 instance.getCreatedAt()
         );
     }
+
 
     /**
      * 알림 심각도에 따라 상태 결정

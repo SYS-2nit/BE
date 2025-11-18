@@ -1,11 +1,13 @@
 package com.sys.dbmonitor.domains.sql.domain;
 
+import com.sys.dbmonitor.global.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -22,29 +24,21 @@ import java.time.LocalDateTime;
 @Table(name = "SQL_DATA")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SqlSnapshot {
+public class SqlSnapshot extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sqlData_seq")
+    @SequenceGenerator(name = "sqlData_seq", sequenceName = "SEQ_SQL_DATA", allocationSize = 1)
     @Column(name = "ID")
     private Long id;
 
     @Column(name = "INSTANCE_ID", nullable = false)
     private Long instanceId;
 
-    @Column(name = "CREATED_AT", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "UPDATED_AT", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @Column(name = "IS_DELETED", nullable = false)
-    private Integer isDeleted;
-
-    @Column(name = "SQL_ID", nullable = false, length = 13)
+    @Column(name = "SQL_ID", length = 50)
     private String sqlId;
 
-    @Column(name = "PLAN_HASH_VALUE", nullable = false)
+    @Column(name = "PLAN_HASH_VALUE")
     private Long planHashValue;
 
     @Column(name = "BUFFER_GETS_DELTA")
@@ -90,6 +84,9 @@ public class SqlSnapshot {
     @Column(name = "PLAN_TEXT_CLOB", columnDefinition = "CLOB")
     private String planTextClob;
 
+    @Column(name = "INTERVAL_TYPE", length = 10)
+    private String intervalType;
+
     @Builder
     public SqlSnapshot(Long instanceId,
                        LocalDateTime createdAt,
@@ -108,11 +105,9 @@ public class SqlSnapshot {
                        Long waitPlsqlUsDelta,
                        Long waitJavaUsDelta,
                        String sqlText,
-                       String planTextClob) {
+                       String planTextClob,
+                       String intervalType) {
         this.instanceId = instanceId;
-        this.createdAt = createdAt;
-        this.updatedAt = createdAt;
-        this.isDeleted = 0;
         this.sqlId = sqlId;
         this.planHashValue = planHashValue;
         this.bufferGetsDelta = bufferGetsDelta;
@@ -129,6 +124,7 @@ public class SqlSnapshot {
         this.waitJavaUsDelta = waitJavaUsDelta;
         this.sqlText = sqlText;
         this.planTextClob = planTextClob;
+        this.intervalType = intervalType;
     }
 }
 

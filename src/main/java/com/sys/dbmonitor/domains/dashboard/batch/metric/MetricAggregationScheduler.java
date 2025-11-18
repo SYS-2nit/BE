@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.batch;
+package com.sys.dbmonitor.domains.dashboard.batch.metric;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,8 +18,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.batch", name = "enabled", havingValue = "true")
-
 public class MetricAggregationScheduler {
 
     private final JobLauncher jobLauncher;

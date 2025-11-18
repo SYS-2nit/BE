@@ -28,6 +28,11 @@ spring:
       host: ${REDIS_HOST:redis}
       port: ${REDIS_PORT:6379}
 
+  # Redis Repository 자동 설정 제외 (JPA Repository와 충돌 방지)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
 # SwingBench 설정
 swingbench:
   jar:

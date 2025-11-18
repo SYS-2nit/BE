@@ -149,7 +149,7 @@ public class DashboardQueryService {
     /**
      * 그래프별 필요한 컬럼 리스트 반환
      */
-    private List<String> getGraphColumns(Graph graph) {
+    public List<String> getGraphColumns(Graph graph) {
         // GraphRegistry에서 그래프 정보 조회
         Optional<GraphRule> ruleOpt = GraphRegistry.findByName(graph.getName());
 
