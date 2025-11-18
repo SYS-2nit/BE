@@ -906,7 +906,7 @@ public class CollectorServiceImpl implements CollectorService {
 
 
         // 168 p95_wait_time_ms — 히스토리 필요 → 일단 null
-        out.put("p95_wait_time_ms", null);
+        out.put("p95_wait_time_ms", 0);
 
         // 169/170
         out.put("io_waits_per_sec",    dIoWaits / Math.max(1, windowSec));
@@ -915,11 +915,11 @@ public class CollectorServiceImpl implements CollectorService {
         // 171/172/173
         out.put("redo_generation_mbps",       redoMBps);
         out.put("redo_generation_mbps_total", redoMBps); // 클러스터 합산 결과이므로 동일
-        out.put("redo_generation_24h_avg",    null);     // 롤링 평균(24h) 필요 → null
+        out.put("redo_generation_24h_avg",    0);     // 롤링 평균(24h) 필요 → null
 
         // 174/175 로그 스위치
         out.put("log_switch_count_1min", dLogSeqDeltaSum * (60.0 / Math.max(1, windowSec)));
-        out.put("log_switch_count_5min", null); // 최근 5샘플 합 필요 → null
+        out.put("log_switch_count_5min", 0); // 최근 5샘플 합 필요 → null
 
         // 176/177/178 DBWR
         out.put("dbwr_write_count_per_min", dDbwrCheckpoints * (60.0 / Math.max(1, windowSec)));
@@ -929,7 +929,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("dbwr_write_volume_mb_per_min_total", dbwrWriteMBPerMin); // 클러스터 합산 결과
 
         // 179 체크포인트 경고 카운트 — 알럿로그 파서 필요 → null
-        out.put("checkpoint_not_complete_count", null);
+        out.put("checkpoint_not_complete_count", 0);
 
         // 180~194 데이터파일 Top 5
         List<Map<String, Object>> dfRows = firstNonNullTable(raw,
@@ -1021,7 +1021,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("temp_max_size_gb", round1OrNull(tempSumMaxBytes / 1_073_741_824.0)); // 204
         out.put("temp_usage_percent", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumCurrentBytes))); // 205
         out.put("temp_usage_pct_of_max", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumMaxBytes))); // 206
-        out.put("temp_peak_usage_24h_gb", null); // 207 (null 고정)
+        out.put("temp_peak_usage_24h_gb", 0); // 207 (null 고정)
 
         // --- 테이블스페이스 사용률 추세 (208-215)
         out.put("system_tablespace_name", "SYSTEM"); // 208
@@ -1072,8 +1072,8 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("space_used_gb", round1OrNull(fraSpaceUsedBytes / 1_073_741_824.0)); // 225
         out.put("space_reclaimable_gb", round1OrNull(fraSpaceReclaimableBytes / 1_073_741_824.0)); // 226
         out.put("usage_pct", round1OrNull(pctOrNull(fraSpaceUsedBytes, fraSpaceLimitBytes))); // 227
-        out.put("hourly_growth_pct", null); // 228 (null 고정)
-        out.put("time_to_95_pct_hours", null); // 229 (null 고정)
+        out.put("hourly_growth_pct", 0); // 228 (null 고정)
+        out.put("time_to_95_pct_hours", 0); // 229 (null 고정)
 
         // --- Undo 사용률 추세 (230-234)
         // undo_tablespace_name: ResultSet #5에서 UNDO 타입 테이블스페이스 찾기

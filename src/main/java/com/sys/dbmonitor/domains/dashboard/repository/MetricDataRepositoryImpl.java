@@ -455,5 +455,81 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         }
         return metricData.collectedAt.between(from, to);
     }
+
+    @Override
+    public List<GraphDataPoint> findGraphDataPointsByPeriod(
+            Long instanceId, Long graphId, String intervalType, List<String> columns,
+            LocalDateTime startDateTime, LocalDateTime endDateTime) {
+        
+        if (columns == null || columns.isEmpty()) {
+            log.warn("컬럼 리스트가 비어있습니다. instanceId={}, graphId={}, intervalType={}", 
+                    instanceId, graphId, intervalType);
+            return new ArrayList<>();
+        }
+
+        // 동적으로 선택할 필드들을 구성
+        List<Expression<?>> selectFields = new ArrayList<>();
+        selectFields.add(metricData.collectedAt); // timestamp는 항상 포함
+
+        // 컬럼명에 따라 필드 추가
+        Map<String, Expression<?>> columnMap = new HashMap<>();
+        for (String column : columns) {
+            Expression<?> field = getFieldByColumnName(column);
+            if (field != null) {
+                selectFields.add(field);
+                columnMap.put(column, field);
+            } else {
+                log.warn("컬럼 '{}'에 해당하는 필드를 찾을 수 없습니다.", column);
+            }
+        }
+
+        if (columnMap.isEmpty()) {
+            log.warn("유효한 컬럼이 없습니다. columns={}", columns);
+            return new ArrayList<>();
+        }
+
+        log.debug("기간별 데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, startDateTime={}, endDateTime={}",
+                instanceId, graphId, intervalType, columnMap.keySet(), startDateTime, endDateTime);
+
+        // 쿼리 실행 - 기간별 조회 (보고서용: 최대 2000개로 제한하여 성능 개선)
+        List<Tuple> results = queryFactory
+                .select(selectFields.toArray(new Expression[0]))
+                .from(metricData)
+                .where(
+                        instanceIdEq(instanceId),
+                        graphIdEq(graphId),
+                        intervalTypeEq(intervalType),
+                        collectedAtBetween(startDateTime, endDateTime)
+                )
+                .orderBy(metricData.collectedAt.asc())
+                .limit(2000) // 보고서에 충분한 데이터량으로 제한
+                .fetch();
+
+        log.debug("기간별 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
+                instanceId, graphId, intervalType, results.size());
+
+        // GraphDataPoint로 변환
+        List<GraphDataPoint> dataPoints = new ArrayList<>();
+        for (Tuple tuple : results) {
+            LocalDateTime collectedAt = tuple.get(metricData.collectedAt);
+            if (collectedAt == null) {
+                collectedAt = LocalDateTime.now();
+            }
+
+            Map<String, Object> values = new HashMap<>();
+            for (Map.Entry<String, Expression<?>> entry : columnMap.entrySet()) {
+                String columnName = entry.getKey();
+                Expression<?> field = entry.getValue();
+                Object value = tuple.get(field);
+                if (value != null) {
+                    values.put(columnName, value);
+                }
+            }
+
+            dataPoints.add(new GraphDataPoint(collectedAt, values));
+        }
+
+        return dataPoints;
+    }
 }
 

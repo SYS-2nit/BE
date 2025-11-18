@@ -40,23 +40,32 @@ public class MemberWidgetQueryService {
             Long memberId = UserIdInterceptor.getCurrentUserId();
             String cacheKey = REDIS_KEY_PREFIX + memberId;
 
-            // 1. Redis 캐시에서 조회 시도
-            Object cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                log.debug("Redis 캐시에서 위젯 설정 조회: {}", cacheKey);
-                // StringRedisSerializer 사용 시 JSON 문자열로 저장되므로 파싱 필요
-                if (cached instanceof String) {
-                    try {
-                        return objectMapper.readValue((String) cached, MemberWidgetResponse.class);
-                    } catch (JsonProcessingException e) {
-                        log.error("Redis 캐시 데이터 파싱 실패: {}", e.getMessage(), e);
-                        // 파싱 실패 시 캐시를 무효화하고 DB에서 조회
-                        redisTemplate.delete(cacheKey);
+            // 1. Redis 캐시에서 조회 시도 (예외 발생 시 DB에서 조회)
+            try {
+                Object cached = redisTemplate.opsForValue().get(cacheKey);
+                if (cached != null) {
+                    log.debug("Redis 캐시에서 위젯 설정 조회: {}", cacheKey);
+                    // StringRedisSerializer 사용 시 JSON 문자열로 저장되므로 파싱 필요
+                    if (cached instanceof String) {
+                        try {
+                            return objectMapper.readValue((String) cached, MemberWidgetResponse.class);
+                        } catch (JsonProcessingException e) {
+                            log.error("Redis 캐시 데이터 파싱 실패: {}", e.getMessage(), e);
+                            // 파싱 실패 시 캐시를 무효화하고 DB에서 조회
+                            try {
+                                redisTemplate.delete(cacheKey);
+                            } catch (Exception deleteEx) {
+                                log.warn("Redis 캐시 삭제 실패 (무시): {}", deleteEx.getMessage());
+                            }
+                        }
+                    } else {
+                        // GenericJackson2JsonRedisSerializer 사용 시
+                        return (MemberWidgetResponse) cached;
                     }
-                } else {
-                    // GenericJackson2JsonRedisSerializer 사용 시
-                    return (MemberWidgetResponse) cached;
                 }
+            } catch (Exception e) {
+                // Redis 연결 실패 등 예외 발생 시 DB에서 조회하도록 계속 진행
+                log.warn("Redis 캐시 조회 실패, DB에서 조회합니다: {}", e.getMessage());
             }
 
             // 2. DB에서 조회
@@ -73,7 +82,7 @@ public class MemberWidgetQueryService {
                             .collect(Collectors.toList())
             );
 
-            // 4. Redis에 캐싱 (JSON 문자열로 변환하여 저장)
+            // 4. Redis에 캐싱 (JSON 문자열로 변환하여 저장) - 실패해도 예외를 던지지 않음
             try {
                 String jsonValue = objectMapper.writeValueAsString(response);
                 redisTemplate.opsForValue().set(
@@ -85,8 +94,9 @@ public class MemberWidgetQueryService {
                 log.debug("Redis 캐시 저장: {}", cacheKey);
             } catch (JsonProcessingException e) {
                 log.error("Redis 캐시 저장 시 JSON 변환 실패: {}", e.getMessage(), e);
-                // JSON 변환 실패는 Redis 연결 실패와는 별개의 문제이므로 예외를 던지지 않음
-                // 하지만 Redis는 필수 서비스이므로 연결 실패는 예외로 전파됨
+            } catch (Exception e) {
+                // Redis 연결 실패 등 예외 발생 시 로그만 남기고 계속 진행
+                log.warn("Redis 캐시 저장 실패 (무시): {}", e.getMessage());
             }
 
             return response;
