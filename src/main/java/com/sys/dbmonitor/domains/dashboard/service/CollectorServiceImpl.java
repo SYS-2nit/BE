@@ -58,6 +58,15 @@ public class CollectorServiceImpl implements CollectorService {
     @Override // 가공전 데이터를 수집해서 CollectorRawDTO 로 반환한다
     public CollectorRawDTO collectRaw(Long instanceId) { return repo.collectSnapshot(instanceId); }
 
+    /**
+     * SQL 데이터 수집
+     * @param instanceId
+     */
+    @Override
+    public void sqlRunOnce(Long instanceId) {
+
+    }
+
     /** 1회 실행: 수집 → Δ/Σ/window_sec → 클러스터(Σ_inst) 최종 지표 산출 + Top Blockers/Top SQL 매핑(부족분 0/공백 패딩) */
     @Override
     public Map<String, Object> runOnce(Long instanceId) {
