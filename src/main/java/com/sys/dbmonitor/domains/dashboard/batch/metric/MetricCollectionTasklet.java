@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.batch;
+package com.sys.dbmonitor.domains.dashboard.batch.metric;
 
 import com.sys.dbmonitor.domains.dashboard.domain.MetricData;
 import com.sys.dbmonitor.domains.dashboard.repository.MetricDataRepository;
