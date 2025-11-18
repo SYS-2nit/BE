@@ -75,7 +75,7 @@ public class SqlSnapshotService {
      * @param instanceId 인스턴스 ID
      */
     @Transactional
-    public void runOnce(Long instanceId) {
+    public void sqlRunOnce(Long instanceId) {
         Instant now = Instant.now();
         LocalDateTime ts = LocalDateTime.ofInstant(now, ZoneId.systemDefault());
 

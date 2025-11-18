@@ -45,24 +45,13 @@ OPEN rc_bundle FOR
   /* -------- GV$SYS_TIME_MODEL: DB time/CPU and background CPU -------- */
   tm AS (
       SELECT
-        s.inst_id,
-        SUM(CASE WHEN stm.stat_name='DB time' THEN stm.value ELSE 0 END) AS db_time_us,
-        SUM(CASE WHEN stm.stat_name='DB CPU'  THEN stm.value ELSE 0 END) AS db_cpu_us,
-        MAX(bg.bg_cpu_us) AS bg_cpu_us
-      FROM gv$session s
-      JOIN gv$sess_time_model stm
-        ON stm.inst_id=s.inst_id AND stm.sid=s.sid
-      LEFT JOIN (
-        SELECT m.inst_id,
-               SUM(CASE WHEN m.stat_name='background cpu time' THEN m.value ELSE 0 END) AS bg_cpu_us
-        FROM gv$sys_time_model m
-        WHERE m.stat_name='background cpu time'
-        GROUP BY m.inst_id
-      ) bg ON bg.inst_id=s.inst_id
-      WHERE s.username IS NOT NULL
-        AND s.status <> 'KILLED'
-        AND stm.stat_name IN ('DB time','DB CPU')
-      GROUP BY s.inst_id
+        m.inst_id,
+        SUM(CASE WHEN m.stat_name='DB time' THEN m.value ELSE 0 END) AS db_time_us,
+        SUM(CASE WHEN m.stat_name='DB CPU' THEN m.value ELSE 0 END) AS db_cpu_us,
+        SUM(CASE WHEN m.stat_name='background cpu time' THEN m.value ELSE 0 END) AS bg_cpu_us
+      FROM gv$sys_time_model m
+      WHERE m.stat_name IN ('DB time', 'DB CPU', 'background cpu time')
+      GROUP BY m.inst_id
     ),
   /* -------- GV$PARAMETER: cpu_count -------- */
   prm AS (
