@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.batch;
+package com.sys.dbmonitor.domains.dashboard.batch.metric;
 
 import com.sys.dbmonitor.domains.dashboard.service.aggregation.MetricAggregationService;
 import lombok.RequiredArgsConstructor;

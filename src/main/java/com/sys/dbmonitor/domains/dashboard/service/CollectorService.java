@@ -15,4 +15,10 @@ public interface CollectorService {
      *  @param instanceId 대상 Instance ID
      */
     CollectorRawDTO collectRaw(Long instanceId);
+
+    /**
+     * SQL 배치 동작
+     */
+    void sqlRunOnce(Long instanceId);
+
 }

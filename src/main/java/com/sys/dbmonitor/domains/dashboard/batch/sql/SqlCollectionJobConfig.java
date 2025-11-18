@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.batch;
+package com.sys.dbmonitor.domains.dashboard.batch.sql;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
@@ -13,24 +13,24 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 @RequiredArgsConstructor
-public class MetricCollectionJobConfig {
+public class SqlCollectionJobConfig {
 
     private final JobRepository jobRepository;
-    private final MetricCollectionTasklet metricCollectionTasklet;
+    private final SqlCollectionTasklet sqlCollectionTasklet;
     @Qualifier("oracleTransactionManager")
     private final PlatformTransactionManager transactionManager;
 
     @Bean
-    public Job metricCollectionJob() {
-        return new JobBuilder("metricCollectionJob", jobRepository)
-                .start(metricCollectionStep())
+    public Job sqlCollectionJob() {
+        return new JobBuilder("sqlCollectionJob", jobRepository)
+                .start(sqlCollectionStep())
                 .build();
     }
 
     @Bean
-    public Step metricCollectionStep() {
-        return new StepBuilder("metricCollectionStep", jobRepository)
-                .tasklet(metricCollectionTasklet, transactionManager)
+    public Step sqlCollectionStep() {
+        return new StepBuilder("sqlCollectionStep", jobRepository)
+                .tasklet(sqlCollectionTasklet, transactionManager)
                 .build();
     }
 }
