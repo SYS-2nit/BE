@@ -43,107 +43,107 @@ public final class GraphRegistry {
             "processes_usage_pct","sessions_usage_pct","open_cursors_max_session_pct","db_files_usage_pct");
 
         // ===== CPU(2) =====
-        put(13, CPU, "CPU Activity Overview Tiles",
+        put(13, CPU, "CPU 사용 현황",
             "HOST_BUSY_CORES","HOST_TOTAL_CORES","HOST_CPU_UTIL_PCT","AAS_ONCPU_SESSIONS","CORE_BASELINE_SESSIONS",
             "CPU_SATURATION_PCT","DB_OF_HOST_SHARE_PCT","RunQ_per_Core_LOAD_PROXY","TPS_PER_SEC","EXECS_PER_SEC");
-        put(14, CPU, "DB CPU Saturation (AAS vs Core)",
+        put(14, CPU, "DB CPU 포화도 (AAS On-CPU)",
             "AAS_ONCPU_SESSIONS","CORE_BASELINE_SESSIONS");
-        put(15, CPU, "Host CPU Utilization (%) – Trend",
+        put(15, CPU, "호스트 CPU 사용률 (%)",
             "HOST_CPU_UTIL_PCT");
-        put(16, CPU, "DB CPU Share of Host (%) – Trend",
+        put(16, CPU, "DB CPU 점유율 (%)",
             "DB_OF_HOST_SHARE_PCT","OTHER_PROCESSES_PCT");
-        put(17, CPU, "Run Queue per Core (Scheduler Load)",
+        put(17, CPU, "Run Q (process/core)",
             "RunQ_per_Core_LOAD_PROXY","Load_threshold","load_threshold_min","load_threshold_max");
-        put(18, CPU, "CPU Cost per Commit/Execution (ms)",
+        put(18, CPU, "커밋/실행당 CPU 소요시간 (ms)",
             "CPU_per_Commit_ms","CPU_per_Exec_ms");
-        put(19, CPU, "Foreground vs Background CPU — AAS Trend",
+        put(19, CPU, "포그라운드 & 백그라운드 CPU 사용량 (AAS)",
             "AAS_FG_SESSIONS","AAS_BG_SESSIONS");
-        put(20, CPU, "Top SQL by CPU_1m",
+        put(20, CPU, "Top SQL CPU 사용량",
             "TOP_SQL_BY_CPU_SQL_ID_01","TOP_SQL_BY_CPU_SQL_ID_02","TOP_SQL_BY_CPU_SQL_ID_03","TOP_SQL_BY_CPU_SQL_ID_04","TOP_SQL_BY_CPU_SQL_ID_05",
             "TOP_SQL_BY_CPU_VALUE_01","TOP_SQL_BY_CPU_VALUE_02","TOP_SQL_BY_CPU_VALUE_03","TOP_SQL_BY_CPU_VALUE_04","TOP_SQL_BY_CPU_VALUE_05");
 
         // ===== Memory(3) =====
-        put(21, MEMORY, "PGA Execution Memory & Processes",
+        put(21, MEMORY, "PGA 메모리 & 프로세스 현황",
             "MEMORY_SORT_PCT","DEDICATED_SESS_CNT","PARALLEL_PROC_CNT","SHARED_SERVER_PROC_CNT","DISPATCHER_PROC_CNT","JOB_PROC_CNT",
             "PGA_USED_BYTES","PGA_TARGET_BYTES","PGA_UTIL_PCT","WORKAREA_SPILL_EXEC","WORKAREA_TOTAL_EXEC","WORKAREA_SPILL_RATE_PCT");
-        put(22, MEMORY, "SGA Efficiency & Memory Pools",
+        put(22, MEMORY, "SGA 메모리 구성 & 풀 사용 현황",
             "BUFFER_CACHE_HIT_PCT","LIBRARY_CACHE_HIT_PCT","DICTIONARY_CACHE_HIT_PCT","LATCH_HIT_PCT","REDO_BUFFER_WAIT_PCT",
             "LARGE_POOL_MB","JAVA_POOL_MB","LOG_BUFFER_MB","BUFFER_CACHE_MB","LIBRARY_CACHE_MB","DICTIONARY_CACHE_MB",
             "SGA_USED_BYTES","SGA_TOTAL_BYTES","SGA_UTIL_PCT","SHARED_POOL_FREE_BYTES","SHARED_POOL_BYTES","SHARED_POOL_FREE_PCT");
-        put(23, MEMORY, "PGA Utilization (%) – Trend",
+        put(23, MEMORY, "PGA 사용률 (%)",
             "PGA_UTIL_PCT");
-        put(24, MEMORY, "SGA Utilization (%) — Trend",
+        put(24, MEMORY, "SGA 사용률 (%)",
             "SGA_UTIL_PCT");
-        put(25, MEMORY, "Workarea Spill Rate (%) – Trend",
+        put(25, MEMORY, "Workarea Spill 비율 (%)",
             "WORKAREA_SPILL_RATE_PCT");
-        put(26, MEMORY, "Library Cache Reloads per Second – Trend",
+        put(26, MEMORY, "LibraryCache 재적재 빈도 (Reload/s)",
             "LIBRARY_CACHE_RELOADS_PER_SEC");
-        put(27, MEMORY, "Buffer Cache Miss Rate (%) – Proxy – Trend",
+        put(27, MEMORY, "Buffer Cache 미스 비율 (%)",
             "BUFFER_MISS_PCT");
-        put(28, MEMORY, "Top SQL by Shared Pool Memory — Bar",
+        put(28, MEMORY, "TOP SQL Shared Pool 사용량",
             "TOP_SQL_BY_SHARED_POOL_SQL_ID_01","TOP_SQL_BY_SHARED_POOL_SQL_ID_02","TOP_SQL_BY_SHARED_POOL_SQL_ID_03","TOP_SQL_BY_SHARED_POOL_SQL_ID_04","TOP_SQL_BY_SHARED_POOL_SQL_ID_05",
             "TOP_SQL_BY_SHARED_POOL_VALUE_01","TOP_SQL_BY_SHARED_POOL_VALUE_02","TOP_SQL_BY_SHARED_POOL_VALUE_03","TOP_SQL_BY_SHARED_POOL_VALUE_04","TOP_SQL_BY_SHARED_POOL_VALUE_05");
 
         // ===== Session(4) =====
-        put(29, SESSION, "Active vs Inactive Sessions — Trend",
+        put(29, SESSION, "활성 세션 & 비활성 세션",
             "ACTIVE_USER_SESSIONS_NOW","INACTIVE_USER_SESSIONS_NOW");
-        put(30, SESSION, "On-CPU vs Wait (AAS 분해) — Trend",
+        put(30, SESSION, "On-CPU vs Wait (AAS 분해)",
             "AAS_ONCPU_SESSIONS","AAS_WAIT_SESSIONS");
-        put(31, SESSION, "Lock Wait Sessions — TX vs TM vs Total",
+        put(31, SESSION, "대기 세션 (TX & TM)",
             "lock_wait_tx","lock_wait_tm","lock_wait_total");
-        put(32, SESSION, "TPS — Trend",
+        put(32, SESSION, "TPS",
             "TPS_PER_SEC");
-        put(33, SESSION, "Exec/s — Trend",
+        put(33, SESSION, "SQL 실행량 (Exec/s)",
             "EXECS_PER_SEC");
-        put(34, SESSION, "Logons/sec & Disconnects/sec — Trend",
+        put(34, SESSION, "로그 인·아웃(Session/s)",
             "LOGONS_PER_SEC","DISCONNECTS_PER_SEC");
-        put(35, SESSION, "Session Activity & Resource Summary",
+        put(35, SESSION, "세션 활동·자원 현황",
             "ACTIVE_USER_SESSIONS_NOW","TOTAL_USER_SESSIONS_NOW","ACTIVE_USER_RATIO_PCT",
             "SESSIONS_USED_CURRENT","SESSIONS_LIMIT","SESSIONS_LIMIT_UTIL_PCT",
             "PROCESSES_CURRENT","PROCESSES_LIMIT","PROCESSES_LIMIT_UTIL_PCT",
             "BLOCKERS_NOW","BLOCKED_NOW","USER_CALLS_PER_SEC");
-        put(36, SESSION, "Top Blocker Sessions — Snapshot Top 5",
+        put(36, SESSION, "TOP 블로커 세션",
             "TOP_BLOCKER_SESSION_SID_01","TOP_BLOCKER_SESSION_SID_02","TOP_BLOCKER_SESSION_SID_03","TOP_BLOCKER_SESSION_SID_04","TOP_BLOCKER_SESSION_SID_05",
             "TOP_BLOCKER_SESSION_VICTIMS_01","TOP_BLOCKER_SESSION_VICTIMS_02","TOP_BLOCKER_SESSION_VICTIMS_03","TOP_BLOCKER_SESSION_VICTIMS_04","TOP_BLOCKER_SESSION_VICTIMS_05");
 
         // ===== I/O(5) =====
-        put(37, IO, "I/O Performance Dashboard",
+        put(37, IO, "I/O 성능 현황",
             "cache_hit_ratio_pct","avg_io_wait_time_ms","physical_reads_per_sec","redo_size_mb_per_sec","parse_execute_ratio","direct_path_io_per_sec");
-        put(38, IO, "Direct Path I/O (개/초)",
+        put(38, IO, "Direct Path I/O (Read·Write/s)",
             "physical_reads_direct_per_sec","physical_writes_direct_per_sec","direct_io_ratio_pct");
-        put(39, IO, "SQL Parsing & Execution (개/초)",
+        put(39, IO, "SQL 실행/파싱 비율",
             "parser_request_per_sec","sql_execute_per_sec","sql_parse_execute_ratio");
-        put(40, IO, "Physical Reads vs Logical Reads (개/초)",
+        put(40, IO, "Physical Reads & Logical Reads (Read/s)",
             "physical_reads_per_diff_sec","logical_reads_per_sec","cache_hit_ratio_diff_pct","total_reads_per_sec");
-        put(41, IO, "Average I/O Wait Time (ms)",
+        put(41, IO, "평균 I/O 지연 (ms)",
             "avg_wait_time_ms","p95_wait_time_ms","io_waits_per_sec","io_time_per_sec_ms");
-        put(42, IO, "Redo Generation Rate (MB/초)",
+        put(42, IO, "Redo 생성량 (MB/s)",
             "redo_generation_mbps","redo_generation_mbps_total","redo_generation_24h_avg","log_switch_count_1min","log_switch_count_5min");
-        put(43, IO, "DBWR Checkpoint Activity",
+        put(43, IO, "DBWR 체크포인트 활동",
             "dbwr_write_count_per_min","dbwr_write_volume_mb_per_min","dbwr_write_volume_mb_per_min_total","checkpoint_not_complete_count");
-        put(44, IO, "데이터파일별 I/O 통계 (Top 5)",
+        put(44, IO, "데이터파일별 Top I/O 통계",
             "1_data_file_name","2_data_file_name","3_data_file_name","4_data_file_name","5_data_file_name",
             "1_data_tablespace_name","2_data_tablespace_name","3_data_tablespace_name","4_data_tablespace_name","5_data_tablespace_name",
             "1_data_io_share_pct","2_data_io_share_pct","3_data_io_share_pct","4_data_io_share_pct","5_data_io_share_pct");
 
         // ===== Storage(6) =====
-        put(45, STORAGE, "Storage Health Dashboard",
+        put(45, STORAGE, "스토리지 상태 요약",
             "FRA_USAGE_PERCENT","FRA_FREE_GB","UNDO_USAGE_PCT","TEMP_USAGE_PCT","MAX_TS_NAME","MAX_TS_USAGE_PCT","TOTAL_DB_USAGE_PCT");
-        put(46, STORAGE, "Temp Tablespace Active Usage (GB)",
+        put(46, STORAGE, "TEMP 사용량 (GB)",
             "temp_active_usage_gb","temp_current_size_gb","temp_max_size_gb","temp_usage_percent","temp_usage_pct_of_max","temp_peak_usage_24h_gb");
-        put(47, STORAGE, "테이블스페이스 사용률 추세 (%)",
+        put(47, STORAGE, "테이블스페이스 사용률 (%)",
             "system_tablespace_name","sysaux_tablespace_name","undotbs1_tablespace_name","users_tablespace_name",
             "system_used_percent","sysaux_used_percent","undotbs1_used_percent","users_used_percent");
-        put(48, STORAGE, "테이블스페이스 증가 추세 (GB/일)",
+        put(48, STORAGE, "테이블스페이스 사용량(GB)",
             "system_tablespace_name_inc","sysaux_tablespace_name_inc","undotbs1_tablespace_name_inc","users_tablespace_name_inc",
             "system_used_space_gb_inc","sysaux_used_space_gb_inc","undotbs1_used_space_gb_inc","users_used_space_gb_inc");
-        put(49, STORAGE, "FRA 사용률 추세 (%)",
+        put(49, STORAGE, "FRA 사용률 (%)",
             "space_limit_gb","space_used_gb","space_reclaimable_gb","usage_pct","hourly_growth_pct","time_to_95_pct_hours");
-        put(50, STORAGE, "Undo 사용률 추세 (%)",
+        put(50, STORAGE, "Undo 사용률 (%)",
             "undo_tablespace_name","undo_usage_percent","long_transaction_count","long_transaction_undo_mb","undo_retention_sec");
-        put(51, STORAGE, "Total Database Usage Trend (%)",
+        put(51, STORAGE, "DB 저장공간 사용률 (%)",
             "total_db_usage_percent");
-        put(52, STORAGE, "대용량 세그먼트 (Top 5)",
+        put(52, STORAGE, "대용량 세그먼트 Top 5",
             "1_owner_seg","2_owner_seg","3_owner_seg","4_owner_seg","5_owner_seg",
             "1_tablespace_name_seg","2_tablespace_name_seg","3_tablespace_name_seg","4_tablespace_name_seg","5_tablespace_name_seg",
             "1_size_gb_seg","2_size_gb_seg","3_size_gb_seg","4_size_gb_seg","5_size_gb_seg",
