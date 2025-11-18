@@ -243,3 +243,4 @@ BOOT-INF/**
 /src/components/
 /src/pages/Dashboard/InstanceMap/Dashboard/Dashboard.tsx
 /src/pages/Diagnosis/DiagnosisPage.example.tsx
+plan.md

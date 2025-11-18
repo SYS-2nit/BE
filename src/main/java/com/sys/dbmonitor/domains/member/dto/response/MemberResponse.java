@@ -25,7 +25,10 @@ public record MemberResponse(
         @Schema(description = "경고 채널")
         String warningChannel,
 
-        @Schema(description = "심각 채널")
+        @Schema(description = "위험 채널")
+        String dangerChannel,
+
+        @Schema(description = "치명 채널")
         String criticalChannel,
 
         @Schema(description = "생성일시")
@@ -43,6 +46,7 @@ public record MemberResponse(
                 member.getCompany(),
                 member.getSlackAddress(),
                 member.getWarningChannel(),
+                member.getDangerChannel(),
                 member.getCriticalChannel(),
                 member.getCreatedAt(),
                 member.getUpdatedAt()

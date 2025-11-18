@@ -16,12 +16,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 public class Member extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "member_seq")
+    @SequenceGenerator(name = "member_seq", sequenceName = "SEQ_MEMBER_ID", allocationSize = 1)
     private Long id;
 
-    /**
-     * 사용자명
-     */
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
@@ -50,13 +48,19 @@ public class Member extends BaseEntity {
     private String slackAddress;
 
     /**
-     * 경고 채널 (nullable)
+     * 경고 채널 (nullable) - "email" 또는 "slack"
      */
     @Column(length = 200)
     private String warningChannel;
 
     /**
-     * 심각 채널 (nullable)
+     * 위험 채널 (nullable) - "email" 또는 "slack"
+     */
+    @Column(length = 200)
+    private String dangerChannel;
+
+    /**
+     * 치명 채널 (nullable) - "email" 또는 "slack"
      */
     @Column(length = 200)
     private String criticalChannel;
@@ -79,7 +83,16 @@ public class Member extends BaseEntity {
     }
 
 
-    public void updateAddress(String email, String slackAddress, String warningChannel, String criticalChannel) {
+    /**
+     * 알림 설정 업데이트 (email, slackAddress, warningChannel, dangerChannel, criticalChannel)
+     * 
+     * @param email 이메일 주소
+     * @param slackAddress Slack 웹훅 URL
+     * @param warningChannel 주의(WARNING) 알림 채널 ("email" 또는 "slack")
+     * @param dangerChannel 위험(DANGER) 알림 채널 ("email" 또는 "slack")
+     * @param criticalChannel 치명(CRITICAL) 알림 채널 ("email" 또는 "slack")
+     */
+    public void updateAddress(String email, String slackAddress, String warningChannel, String dangerChannel, String criticalChannel) {
         // 1. email을 먼저 업데이트 (최신 값 보장)
         if (email != null) {
             this.email = email;
@@ -90,17 +103,17 @@ public class Member extends BaseEntity {
             this.slackAddress = slackAddress;
         }
         
-        // 3. warningChannel 처리 (email이 최신화된 후 처리)
+        // 3. warningChannel 업데이트 ("email" 또는 "slack")
         if (warningChannel != null) {
-            if (warningChannel.equals("email")) {
-                // email이 최신화된 후이므로 this.email은 최신 값임
-                this.warningChannel = this.email;
-            } else {
-                this.warningChannel = warningChannel;
-            }
+            this.warningChannel = warningChannel;
         }
         
-        // 4. criticalChannel 업데이트
+        // 4. dangerChannel 업데이트 ("email" 또는 "slack")
+        if (dangerChannel != null) {
+            this.dangerChannel = dangerChannel;
+        }
+        
+        // 5. criticalChannel 업데이트 ("email" 또는 "slack")
         if (criticalChannel != null) {
             this.criticalChannel = criticalChannel;
         }
