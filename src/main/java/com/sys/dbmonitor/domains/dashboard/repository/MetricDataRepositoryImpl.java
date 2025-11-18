@@ -40,15 +40,15 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         // graph_id 4: host_cpu_util_pct
         // graph_id 21: pga_used_bytes, pga_target_bytes (PGA 퍼센트 계산용)
         // graph_id 22: sga_used_bytes, sga_total_bytes (SGA 퍼센트 계산용)
-        
+
         Map<Long, Map<String, Expression<?>>> graphColumnMap = new HashMap<>();
-        
+
         // graph_id 4: host_cpu_util_pct
         Expression<?> cpuField = getFieldByColumnName("host_cpu_util_pct");
         if (cpuField != null) {
             graphColumnMap.put(4L, Map.of("host_cpu_util_pct", cpuField));
         }
-        
+
         // graph_id 35: active_user_sessions_now, total_user_sessions_now
         Expression<?> activeSessionField = getFieldByColumnName("active_user_sessions_now");
         Expression<?> totalSessionField = getFieldByColumnName("total_user_sessions_now");
@@ -58,13 +58,13 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             sessionMap.put("total_user_sessions_now", totalSessionField);
             graphColumnMap.put(35L, sessionMap);
         }
-        
+
         // graph_id 31: lock_wait_total
         Expression<?> lockWaitField = getFieldByColumnName("lock_wait_total");
         if (lockWaitField != null) {
             graphColumnMap.put(31L, Map.of("lock_wait_total", lockWaitField));
         }
-        
+
         // graph_id 21: pga_used_bytes, pga_target_bytes (PGA 퍼센트 계산용)
         Expression<?> pgaUsedField = getFieldByColumnName("pga_used_bytes");
         Expression<?> pgaTargetField = getFieldByColumnName("pga_target_bytes");
@@ -76,7 +76,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         } else if (pgaUsedField != null) {
             graphColumnMap.put(21L, Map.of("pga_used_bytes", pgaUsedField));
         }
-        
+
         // graph_id 22: sga_used_bytes, sga_total_bytes (SGA 퍼센트 계산용)
         Expression<?> sgaUsedField = getFieldByColumnName("sga_used_bytes");
         Expression<?> sgaTotalField = getFieldByColumnName("sga_total_bytes");
@@ -88,27 +88,27 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         } else if (sgaUsedField != null) {
             graphColumnMap.put(22L, Map.of("sga_used_bytes", sgaUsedField));
         }
-        
+
         if (graphColumnMap.isEmpty()) {
             log.warn("유효한 graph_id 매핑이 없습니다. instanceId={}", instanceId);
             return new ArrayList<>();
         }
-        
-        log.debug("인스턴스 데이터 조회 시작: instanceId={}, graphIds={}", 
+
+        log.debug("인스턴스 데이터 조회 시작: instanceId={}, graphIds={}",
                 instanceId, graphColumnMap.keySet());
-        
+
         // 각 graph_id별로 최신 데이터 조회
         Map<String, Object> metricValues = new HashMap<>();
-        
+
         for (Map.Entry<Long, Map<String, Expression<?>>> graphEntry : graphColumnMap.entrySet()) {
             Long graphId = graphEntry.getKey();
             Map<String, Expression<?>> columns = graphEntry.getValue();
-            
+
             // 각 graph_id별로 필요한 필드 선택
             List<Expression<?>> selectFields = new ArrayList<>();
             selectFields.add(metricData.collectedAt);
             selectFields.addAll(columns.values());
-            
+
             // 해당 graph_id의 최신 데이터 조회
             Tuple result = queryFactory
                     .select(selectFields.toArray(new Expression[0]))
@@ -121,35 +121,35 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                     .orderBy(metricData.collectedAt.desc())
                     .limit(1)
                     .fetchFirst();
-            
+
             if (result != null) {
                 LocalDateTime collectedAt = result.get(metricData.collectedAt);
-                log.debug("graph_id={} 최신 데이터 조회: instanceId={}, collectedAt={}", 
+                log.debug("graph_id={} 최신 데이터 조회: instanceId={}, collectedAt={}",
                         graphId, instanceId, collectedAt);
-                
+
                 // 각 컬럼의 값 추출
                 for (Map.Entry<String, Expression<?>> columnEntry : columns.entrySet()) {
                     String columnName = columnEntry.getKey();
                     Expression<?> field = columnEntry.getValue();
                     Object value = result.get(field);
-                    
+
                     if (value != null && value instanceof Number) {
                         metricValues.put(columnName, value);
                         log.debug("graph_id={}, column={}, value={}", graphId, columnName, value);
                     }
                 }
             } else {
-                log.warn("graph_id={}에 대한 최신 데이터가 없습니다: instanceId={}", 
+                log.warn("graph_id={}에 대한 최신 데이터가 없습니다: instanceId={}",
                         graphId, instanceId);
             }
         }
-        
+
         // 추출된 값들을 DTO에 매핑
         Double cpuUsage = getDoubleValue(metricValues, "host_cpu_util_pct");
         Double sessionCount = getDoubleValue(metricValues, "total_user_sessions_now");
         Double activeSessionCount = getDoubleValue(metricValues, "active_user_sessions_now");
         Double lockWait = getDoubleValue(metricValues, "lock_wait_total");
-        
+
         // PGA 퍼센트 계산: pgaUsed / pgaTarget * 100
         Double pgaUsed = getDoubleValue(metricValues, "pga_used_bytes");
         Double pgaTarget = getDoubleValue(metricValues, "pga_target_bytes");
@@ -157,13 +157,13 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         if (pgaUsed != null && pgaTarget != null && pgaTarget > 0) {
             Double pgaPercent = (pgaUsed / pgaTarget) * 100.0;
             pgaStr = String.format("%.2f", pgaPercent);
-            log.debug("PGA 퍼센트 계산: pgaUsed={}, pgaTarget={}, pgaPercent={}%", 
+            log.debug("PGA 퍼센트 계산: pgaUsed={}, pgaTarget={}, pgaPercent={}%",
                     pgaUsed, pgaTarget, pgaPercent);
         } else if (pgaUsed != null) {
             // pgaTarget이 없으면 원시 값 반환
             pgaStr = String.valueOf(pgaUsed.longValue());
         }
-        
+
         // SGA 퍼센트 계산: sgaUsed / sgaTotal * 100
         // sgaUsed = max(0, sgaTotal - sgaFree)이지만, sgaFree가 없으므로 sgaUsed를 직접 사용
         Double sgaUsed = getDoubleValue(metricValues, "sga_used_bytes");
@@ -173,22 +173,22 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             // sgaUsed가 이미 계산된 값이므로 그대로 사용
             Double sgaPercent = (sgaUsed / sgaTotal) * 100.0;
             sgaStr = String.format("%.2f", sgaPercent);
-            log.debug("SGA 퍼센트 계산: sgaUsed={}, sgaTotal={}, sgaPercent={}%", 
+            log.debug("SGA 퍼센트 계산: sgaUsed={}, sgaTotal={}, sgaPercent={}%",
                     sgaUsed, sgaTotal, sgaPercent);
         } else if (sgaUsed != null) {
             // sgaTotal이 없으면 원시 값 반환
             sgaStr = String.valueOf(sgaUsed.longValue());
         }
-        
+
         log.info("최종 조회된 데이터: instanceId={}, cpuUsage={}, sessionCount={}, activeSessionCount={}, lockWait={}, pga={}%, sga={}%",
                 instanceId, cpuUsage, sessionCount, activeSessionCount, lockWait, pgaStr, sgaStr);
-        
+
         // 원시 데이터를 문자열로 변환 (null이면 null)
         String cpuUsageStr = cpuUsage != null ? String.valueOf(cpuUsage) : null;
         String sessionCountStr = sessionCount != null ? String.valueOf(sessionCount.intValue()) : null;
         String activeSessionCountStr = activeSessionCount != null ? String.valueOf(activeSessionCount.intValue()) : null;
         String lockWaitStr = lockWait != null ? String.valueOf(lockWait.intValue()) : null;
-        
+
         return List.of(new InstanceDataDTO(
                 cpuUsageStr,
                 sessionCountStr,
@@ -198,7 +198,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                 sgaStr
         ));
     }
-    
+
     /**
      * Map에서 Number 값을 Double로 변환하여 반환
      */
@@ -649,9 +649,9 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
     public List<GraphDataPoint> findGraphDataPointsByPeriod(
             Long instanceId, Long graphId, String intervalType, List<String> columns,
             LocalDateTime startDateTime, LocalDateTime endDateTime) {
-        
+
         if (columns == null || columns.isEmpty()) {
-            log.warn("컬럼 리스트가 비어있습니다. instanceId={}, graphId={}, intervalType={}", 
+            log.warn("컬럼 리스트가 비어있습니다. instanceId={}, graphId={}, intervalType={}",
                     instanceId, graphId, intervalType);
             return new ArrayList<>();
         }
@@ -694,7 +694,7 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                 .limit(2000) // 보고서에 충분한 데이터량으로 제한
                 .fetch();
 
-        log.debug("기간별 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
+        log.debug("기간별 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}",
                 instanceId, graphId, intervalType, results.size());
 
         // GraphDataPoint로 변환

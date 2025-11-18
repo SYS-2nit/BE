@@ -135,6 +135,11 @@ public class SqlSnapshotService {
      * 델타 계산 및 엔티티 생성
      */
     private SqlSnapshot calculateDeltaAndCreateEntity(Long instanceId, SqlSnapshotRawDTO raw, LocalDateTime createdAt) {
+        // PL/SQL 블록 필터링 (plan_hash_value = 0)
+        if (raw.getPlanHashValue() == null || raw.getPlanHashValue() == 0) {
+            return null;
+        }
+
         // 현재 누적값 맵 생성
         Map<String, Long> currentValues = new HashMap<>();
         currentValues.put("executions", raw.getExecutionsTot());
@@ -276,6 +281,7 @@ public class SqlSnapshotService {
                 .waitJavaUsDelta(waitJavaUsDelta)
                 .sqlText(raw.getSqlText())
                 .planTextClob(raw.getPlanTextClob())
+                .intervalType("30m")
                 .build();
 
         // 상태 저장
