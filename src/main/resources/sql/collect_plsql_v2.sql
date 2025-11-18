@@ -619,6 +619,7 @@ SELECT
 FROM   gv$sqlarea
 WHERE  last_active_time >= SYSDATE - NUMTODSINTERVAL(v_lookback_min,'MINUTE')
   AND parsing_schema_name = 'ADMIN'
+  AND plan_hash_value != 0
 GROUP  BY inst_id, sql_id
 ORDER  BY value_num DESC
     FETCH FIRST v_max_candidates ROWS ONLY;
@@ -675,6 +676,7 @@ FROM (
     MAX(s.parsing_schema_name) AS parsing_schema_name
     FROM gv$sql s
     WHERE s.parsing_schema_name = 'ADMIN'
+      AND s.plan_hash_value != 0
     /* Optional PDB filter (caller may set :pdb_name); in non-CDB, ignore by leaving :pdb_name NULL */
     /* AND s.con_id IN (SELECT con_id FROM v$pdbs WHERE name = :pdb_name) */
     GROUP BY s.inst_id, s.sql_id
