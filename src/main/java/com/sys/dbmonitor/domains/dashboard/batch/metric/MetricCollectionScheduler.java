@@ -1,4 +1,4 @@
-package com.sys.dbmonitor.domains.dashboard.batch;
+package com.sys.dbmonitor.domains.dashboard.batch.metric;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
