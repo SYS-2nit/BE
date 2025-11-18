@@ -27,7 +27,7 @@ public class Graph {
     @Column(name = "CATEGORY", nullable = false, length = 32)
     private GraphCategory category;
 
-    @Column(name = "INFO")
+    @Column(name = "INFO", length = 1500)
     private String info;
 
     @Column(name = "TYPE", nullable = false)
