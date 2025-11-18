@@ -139,7 +139,18 @@ public class Event extends BaseEntity {
     }
 
     /**
-     * 알림 확인
+     * 알림 읽음 처리 (status 변경 없음)
+     * 알림 아이콘 클릭 시 사용 - acknowledgedAt만 설정
+     */
+    public void markAsRead(Member acknowledgedBy) {
+        this.acknowledgedAt = LocalDateTime.now();
+        this.acknowledgedBy = acknowledgedBy;
+        // status는 변경하지 않음 (PENDING 유지)
+    }
+
+    /**
+     * 알림 확인 (deprecated - markAsRead 사용 권장)
+     * 기존 호환성을 위해 유지하지만, 읽음 처리는 markAsRead() 사용
      */
     public void acknowledge(Member acknowledgedBy) {
         this.status = AlertStatus.CLOSED;
@@ -149,6 +160,7 @@ public class Event extends BaseEntity {
 
     /**
      * 알림 해결
+     * 처리내역 작성 시 호출 - status를 CLOSED로 변경
      */
     public void resolve(Member resolvedBy) {
         this.status = AlertStatus.CLOSED;

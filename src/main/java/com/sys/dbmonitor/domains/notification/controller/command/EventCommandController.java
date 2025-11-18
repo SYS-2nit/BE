@@ -27,13 +27,13 @@ public class EventCommandController {
 
     private final EventCommandService eventCommandService;
 
-    @Operation(summary = "알림 이벤트 확인", description = "알림 이벤트를 확인 처리합니다.")
+    @Operation(summary = "알림 이벤트 읽음 처리", description = "알림 이벤트를 읽음 처리합니다. status는 변경되지 않고 acknowledgedAt만 설정됩니다.")
     @PostMapping("/{id}/acknowledge")
     public ApiResponse<EventResponse> acknowledge(
             @PathVariable Long id,
             @Valid @RequestBody EventAcknowledgeRequest request) {
         return ApiResponse.ok(200, eventCommandService.acknowledge(id, request.getMemberId()), 
-            "이벤트가 확인되었습니다.");
+            "이벤트가 읽음 처리되었습니다.");
     }
 
     @Operation(summary = "알림 이벤트 해결", description = "알림 이벤트를 해결 처리합니다.")
@@ -45,13 +45,13 @@ public class EventCommandController {
             "이벤트가 해결되었습니다.");
     }
 
-    @Operation(summary = "알림 이벤트 처리 이력 추가", description = "알림 이벤트에 처리 이력을 추가합니다.")
+    @Operation(summary = "알림 이벤트 처리 이력 추가", description = "알림 이벤트에 처리 이력을 추가합니다. 처리내역 작성 시 자동으로 status가 CLOSED로 변경됩니다.")
     @PostMapping("/{id}/history")
     public ApiResponse<ProgressHistoryResponse> addHistory(
             @PathVariable Long id,
             @Valid @RequestBody ProgressHistoryCreateRequest request) {
         return ApiResponse.ok(200, eventCommandService.addHistory(id, request.getMemberId(), request.getContent()), 
-            "처리 이력이 추가되었습니다.");
+            "처리 이력이 추가되었고 이벤트가 해결 상태로 변경되었습니다.");
     }
 }
 

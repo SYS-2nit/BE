@@ -30,6 +30,10 @@ public class EventCommandService {
     private final MemberRepository memberRepository;
     private final ProgressHistoryRepository progressHistoryRepository;
 
+    /**
+     * 알림 읽음 처리 (status 변경 없음)
+     * 알림 아이콘 클릭 시 사용 - acknowledgedAt만 설정
+     */
     @Transactional
     public EventResponse acknowledge(Long eventId, Long memberId) {
         // 필수 인자 널 체크 및 캐스팅
@@ -43,8 +47,8 @@ public class EventCommandService {
         Member member = memberRepository.findById(operatorId)
             .orElseThrow(() -> new IllegalArgumentException("Member not found: " + operatorId));
 
-        // 알림을 확인 처리하고 결과 DTO로 반환
-        event.acknowledge(member);
+        // 알림을 읽음 처리 (status 변경 없음)
+        event.markAsRead(member);
         return EventResponse.from(event);
     }
 
@@ -66,6 +70,10 @@ public class EventCommandService {
         return EventResponse.from(event);
     }
 
+    /**
+     * 처리내역 추가 및 이벤트 해결 처리
+     * 처리내역 작성 시 자동으로 status를 CLOSED로 변경
+     */
     @Transactional
     public ProgressHistoryResponse addHistory(Long eventId, Long memberId, String content) {
         // 이력 내용 필수 여부 검증
@@ -84,7 +92,7 @@ public class EventCommandService {
         Member member = memberRepository.findById(operatorId)
             .orElseThrow(() -> new IllegalArgumentException("Member not found: " + operatorId));
 
-        // 이력 엔터티 생성 후 저장, DTO 변환
+        // 이력 엔터티 생성 후 저장
         ProgressHistory history = ProgressHistory.builder()
             .event(event)
             .content(content)
@@ -92,6 +100,12 @@ public class EventCommandService {
             .build();
 
         progressHistoryRepository.save(history);
+
+        // 처리내역 작성 시 이벤트를 해결 상태로 변경 (status = CLOSED)
+        if (event.getStatus() != com.sys.dbmonitor.domains.notification.domain.AlertStatus.CLOSED) {
+            event.resolve(member);
+        }
+
         return ProgressHistoryResponse.from(history);
     }
 }
