@@ -14,6 +14,9 @@ public record InstanceListResponse(
         @Schema(description = "상태")
         String status,
 
+        @Schema(description = "현재 심각도 (null=정상, 1=주의, 2=위험, 3=치명)")
+        Integer currentSeverity,
+
         @Schema(description = "서버명")
         String serverName,
 
@@ -82,6 +85,7 @@ public record InstanceListResponse(
         return new InstanceListResponse(
                 instance.getId(),
                 status,
+                maxSeverity, // currentSeverity 필드에 할당
                 serverName,
                 ip,
                 port,
