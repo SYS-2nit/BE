@@ -147,13 +147,18 @@ public class MemberCommandService {
         Member member = memberRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "회원을 찾을 수 없습니다."));
 
+        // 빈 문자열을 null로 변환 (프론트에서 "선택하세요" 등으로 전송된 경우)
+        String warningChannel = normalizeChannel(request.warningChannel());
+        String dangerChannel = normalizeChannel(request.dangerChannel());
+        String criticalChannel = normalizeChannel(request.criticalChannel());
+
         // 알림 설정 업데이트
         member.updateAddress(
                 request.email(),
                 request.slackAddress(),
-                request.warningChannel(),
-                request.dangerChannel(),
-                request.criticalChannel()
+                warningChannel,
+                dangerChannel,
+                criticalChannel
         );
 
         Member saved = memberRepository.save(member);
@@ -162,6 +167,23 @@ public class MemberCommandService {
                 saved.getWarningChannel(), saved.getDangerChannel(), saved.getCriticalChannel());
 
         return saved;
+    }
+
+    /**
+     * 채널 값을 정규화 (빈 문자열, "선택하세요" 등을 null로 변환)
+     * 
+     * @param channel 원본 채널 값
+     * @return 정규화된 채널 값 (null, "email", "slack", "all" 중 하나)
+     */
+    private String normalizeChannel(String channel) {
+        if (channel == null) {
+            return null;
+        }
+        String trimmed = channel.trim();
+        if (trimmed.isEmpty() || "선택하세요".equals(trimmed)) {
+            return null;
+        }
+        return trimmed;
     }
 
     /**
@@ -192,14 +214,52 @@ public class MemberCommandService {
 
         for (String channel : channels) {
             try {
-                if ("email".equalsIgnoreCase(channel)) {
+                String channelLower = channel != null ? channel.toLowerCase().trim() : "";
+                
+                if ("all".equals(channelLower) || "both".equals(channelLower)) {
+                    // 전체 선택 시: 이메일과 Slack 둘 다 테스트 (각각 주소가 있는 경우에만)
+                    boolean emailSent = false;
+                    boolean slackSent = false;
+                    
+                    // 이메일 테스트
+                    if (member.getEmail() != null && !member.getEmail().trim().isEmpty()) {
+                        try {
+                            emailAlertService.sendEmail(member.getEmail(), testEvent);
+                            emailSent = true;
+                            result.append("이메일 테스트 전송 완료: ").append(member.getEmail()).append(". ");
+                        } catch (Exception e) {
+                            log.error("[Member] 이메일 테스트 전송 실패: userId={}, error={}", userId, e.getMessage(), e);
+                            result.append("이메일 테스트 전송 실패: ").append(e.getMessage()).append(". ");
+                        }
+                    } else {
+                        result.append("이메일 주소가 설정되지 않아 이메일 테스트를 건너뜁니다. ");
+                    }
+                    
+                    // Slack 테스트
+                    if (member.getSlackAddress() != null && !member.getSlackAddress().trim().isEmpty()) {
+                        try {
+                            slackAlertService.sendSlack(member.getSlackAddress(), testEvent);
+                            slackSent = true;
+                            result.append("Slack 테스트 전송 완료: ").append(member.getSlackAddress()).append(". ");
+                        } catch (Exception e) {
+                            log.error("[Member] Slack 테스트 전송 실패: userId={}, error={}", userId, e.getMessage(), e);
+                            result.append("Slack 테스트 전송 실패: ").append(e.getMessage()).append(". ");
+                        }
+                    } else {
+                        result.append("Slack 웹훅 URL이 설정되지 않아 Slack 테스트를 건너뜁니다. ");
+                    }
+                    
+                    if (!emailSent && !slackSent) {
+                        result.append("이메일과 Slack 주소가 모두 설정되지 않아 테스트를 수행할 수 없습니다. ");
+                    }
+                } else if ("email".equalsIgnoreCase(channelLower)) {
                     if (member.getEmail() == null || member.getEmail().trim().isEmpty()) {
                         result.append("이메일 주소가 설정되지 않았습니다. ");
                         continue;
                     }
                     emailAlertService.sendEmail(member.getEmail(), testEvent);
                     result.append("이메일 테스트 전송 완료: ").append(member.getEmail()).append(". ");
-                } else if ("slack".equalsIgnoreCase(channel)) {
+                } else if ("slack".equalsIgnoreCase(channelLower)) {
                     if (member.getSlackAddress() == null || member.getSlackAddress().trim().isEmpty()) {
                         result.append("Slack 웹훅 URL이 설정되지 않았습니다. ");
                         continue;
