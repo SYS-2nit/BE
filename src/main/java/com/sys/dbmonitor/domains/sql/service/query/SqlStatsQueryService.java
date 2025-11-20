@@ -42,14 +42,20 @@ public class SqlStatsQueryService {
         Sort sort = Sort.by(Sort.Direction.fromString(
                 request.direction() != null ? request.direction() : "DESC"
         ), switch (request.orderBy() == null ? "elapsed" : request.orderBy()) {
+            case "avg" -> "avgElapsed";
+            case "wait" -> "waitTimeUsDelta";
+            case "execution" -> "executionsDelta";
+            case "buffer" -> "bufferUsDelta";
+            case "disk" -> "diskReadsDelta";
             case "cpu" -> "cpuUsDelta";
-            case "exec" -> "executionsDelta";
-            default -> "elapsedUsDelta";
+
+            default -> null;
         });
 
+        // 페이지네이션
         Pageable pageable = PageRequest.of(
                 request.page() != null ? request.page() : 0,
-                request.size() != null ? request.size() : 20,
+                request.size() != null ? request.size() : 10,
                 sort
         );
 
