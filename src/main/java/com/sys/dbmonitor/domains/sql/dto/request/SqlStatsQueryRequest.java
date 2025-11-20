@@ -22,6 +22,9 @@ public record SqlStatsQueryRequest(
 	@Schema(description = "종료일", example = "2025-11-19")
 	LocalDate endDate,
 
+	@Schema(description = "정렬 기준", example = "elapsed", allowableValues = {"elapsed", "cpu", "buffer", "disk", "wait", "execution", "avg"})
+	String orderBy,
+
 	@Schema(description = "정렬 방향", example = "DESC")
 	String direction
 ) { }

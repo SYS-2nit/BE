@@ -39,7 +39,8 @@ public class SqlStatsQueryService {
                 ? request.endDate().plusDays(1).atStartOfDay()
                 : LocalDateTime.now();
 
-        // 정렬 방향 설정
+        // 정렬 기준 및 방향 설정
+        String orderBy = request.orderBy() != null ? request.orderBy() : "elapsed";
         Sort.Direction direction = Sort.Direction.fromString(request.direction() != null ? request.direction() : "DESC");
 
         // 전체 데이터 조회 (페이지네이션 없이)
@@ -88,11 +89,8 @@ public class SqlStatsQueryService {
                 })
                 .collect(Collectors.toList());
 
-        // 정렬 적용 (direction에 따라)
-        Comparator<SqlResponse> comparator = switch (direction) {
-            case ASC -> Comparator.comparing(SqlResponse::id);
-            case DESC -> Comparator.comparing(SqlResponse::id).reversed();
-        };
+        // 정렬 적용 (orderBy와 direction에 따라)
+        Comparator<SqlResponse> comparator = getComparator(orderBy, direction);
         groupedList.sort(comparator);
 
         // 전체 데이터 반환 (클라이언트 사이드 페이지네이션)
@@ -216,6 +214,24 @@ public class SqlStatsQueryService {
 
     private Long nvl(Long v) {
         return v == null ? 0L : v;
+    }
+
+    /** 정렬 기준에 따른 Comparator 생성 */
+    private Comparator<SqlResponse> getComparator(String orderBy, Sort.Direction direction) {
+        Comparator<SqlResponse> baseComparator = switch (orderBy.toLowerCase()) {
+            case "elapsed" -> Comparator.comparing(SqlResponse::elapsedUsDelta);
+            case "cpu" -> Comparator.comparing(SqlResponse::cpuUsDelta);
+            case "buffer" -> Comparator.comparing(SqlResponse::bufferGetsDelta);
+            case "disk" -> Comparator.comparing(SqlResponse::diskReadsDelta);
+            case "wait" -> Comparator.comparing(SqlResponse::waitTimeUsDelta);
+            case "execution" -> Comparator.comparing(SqlResponse::executionsDelta);
+            case "avg" -> Comparator.comparing(SqlResponse::avgElapsed);
+            default -> Comparator.comparing(SqlResponse::elapsedUsDelta); // 기본값: elapsed
+        };
+
+        return direction == Sort.Direction.ASC 
+                ? baseComparator 
+                : baseComparator.reversed();
     }
 
     /** SQL 상세 탭 데이터 조회 API */
@@ -368,6 +384,7 @@ public class SqlStatsQueryService {
                 req.instanceId(),
                 baseStart,
                 baseEnd,
+                "elapsed",
                 "DESC"
         );
         SqlStatsPageResponse base = getSqlStats(baseReq);
@@ -378,6 +395,7 @@ public class SqlStatsQueryService {
                 req.instanceId(),
                 compStart,
                 compEnd,
+                "elapsed",
                 "DESC"
         );
         SqlStatsPageResponse compare = getSqlStats(compareReq);
