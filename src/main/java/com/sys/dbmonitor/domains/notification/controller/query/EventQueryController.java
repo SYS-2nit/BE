@@ -5,6 +5,7 @@ import com.sys.dbmonitor.domains.notification.dto.response.EventResponse;
 import com.sys.dbmonitor.domains.notification.dto.response.ProgressHistoryResponse;
 import com.sys.dbmonitor.domains.notification.service.query.EventQueryService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -30,15 +31,16 @@ public class EventQueryController {
 
     private final EventQueryService eventQueryService;
 
-    @Operation(summary = "알림 이벤트 목록 조회", description = "알림 이벤트 목록을 조회합니다. 필터링 및 페이징 지원.")
+    @Operation(summary = "알림 이벤트 목록 조회", description = "알림 이벤트 목록을 조회합니다. 필터링 및 페이징 지원. 사용자 ID는 X-User-ID 헤더에서 자동으로 추출됩니다.")
     @GetMapping
     public ApiResponse<Page<EventResponse>> getEvents(
-            @RequestParam(required = false) Long memberId,
             @RequestParam(required = false) Long instanceId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Integer severity,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        
+        Long memberId = UserIdInterceptor.getCurrentUserId();
         
         AlertStatus alertStatus = null;
         if (status != null && !status.isEmpty()) {
