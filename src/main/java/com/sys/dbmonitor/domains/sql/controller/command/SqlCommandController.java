@@ -27,7 +27,7 @@ public class SqlCommandController {
     private final PlanHistoryService planHistoryService;
 
     /* =====  1. SQL 통계 목록 조회 ===== */
-    @Operation(summary = "SQL 통계 목록 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 테이블 목록을 조회합니다.")
+    @Operation(summary = "SQL 통계 테이블 목록 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 테이블 목록을 조회합니다.")
     @GetMapping("/stats")
     public ApiResponse<SqlStatsPageResponse> getStats(@Valid SqlStatsQueryRequest request) {
         SqlStatsPageResponse response = sqlStatsQueryService.getSqlStats(request);
