@@ -39,32 +39,19 @@ public class SqlStatsQueryService {
                 ? request.endDate().plusDays(1).atStartOfDay()
                 : LocalDateTime.now();
 
-        Sort sort = Sort.by(Sort.Direction.fromString(
-                request.direction() != null ? request.direction() : "DESC"
-        ), switch (request.orderBy() == null ? "elapsed" : request.orderBy()) {
-            case "cpu" -> "cpuUsDelta";
-            case "exec" -> "executionsDelta";
-            default -> "elapsedUsDelta";
-        });
+        // 정렬 기준 및 방향 설정
+        String orderBy = request.orderBy() != null ? request.orderBy() : "elapsed";
+        Sort.Direction direction = Sort.Direction.fromString(request.direction() != null ? request.direction() : "DESC");
 
-        Pageable pageable = PageRequest.of(
-                request.page() != null ? request.page() : 0,
-                request.size() != null ? request.size() : 20,
-                sort
-        );
-
-        // 기존 DB 조회
-        Page<Sql> result = sqlRepository.findFilteredSqlStats(
+        // 전체 데이터 조회 (페이지네이션 없이)
+        List<Sql> allSqls = sqlRepository.findAllForStats(
                 request.instanceId(),
-                request.keyword(),
                 start,
-                end,
-                pageable
+                end
         );
 
-        //  SQL TEXT 기준 그룹핑
-        Map<String, List<Sql>> grouped = result.getContent()
-                .stream()
+        // SQL TEXT 기준 그룹핑
+        Map<String, List<Sql>> grouped = allSqls.stream()
                 .collect(Collectors.groupingBy(Sql::getSqlText));
 
         // 그룹별 합산 / 평균 계산
@@ -100,16 +87,24 @@ public class SqlStatsQueryService {
                             cpuSum
                     );
                 })
-                .toList();
+                .collect(Collectors.toList());
 
-        // Page 로 다시 변환해서 반환
-        Page<SqlResponse> page = new PageImpl<>(
+        // 정렬 적용 (orderBy와 direction에 따라)
+        Comparator<SqlResponse> comparator = getComparator(orderBy, direction);
+        groupedList.sort(comparator);
+
+        // 전체 데이터 반환 (클라이언트 사이드 페이지네이션)
+        int total = groupedList.size();
+        
+        // Page 객체 생성 (전체 데이터를 content로 설정)
+        Pageable pageable = PageRequest.of(0, total > 0 ? total : 1);
+        Page<SqlResponse> pageResult = new PageImpl<>(
                 groupedList,
                 pageable,
-                groupedList.size()
+                total
         );
 
-        return SqlStatsPageResponse.from(page);
+        return SqlStatsPageResponse.from(pageResult);
     }
 
 
@@ -131,7 +126,7 @@ public class SqlStatsQueryService {
         // 1) 원본 DB 데이터 조회
         List<Sql> list = sqlRepository.findForGraph(
                 request.instanceId(),
-                request.keyword(),
+                request.filter(),
                 startAt,
                 endAt
         );
@@ -219,6 +214,24 @@ public class SqlStatsQueryService {
 
     private Long nvl(Long v) {
         return v == null ? 0L : v;
+    }
+
+    /** 정렬 기준에 따른 Comparator 생성 */
+    private Comparator<SqlResponse> getComparator(String orderBy, Sort.Direction direction) {
+        Comparator<SqlResponse> baseComparator = switch (orderBy.toLowerCase()) {
+            case "elapsed" -> Comparator.comparing(SqlResponse::elapsedUsDelta);
+            case "cpu" -> Comparator.comparing(SqlResponse::cpuUsDelta);
+            case "buffer" -> Comparator.comparing(SqlResponse::bufferGetsDelta);
+            case "disk" -> Comparator.comparing(SqlResponse::diskReadsDelta);
+            case "wait" -> Comparator.comparing(SqlResponse::waitTimeUsDelta);
+            case "execution" -> Comparator.comparing(SqlResponse::executionsDelta);
+            case "avg" -> Comparator.comparing(SqlResponse::avgElapsed);
+            default -> Comparator.comparing(SqlResponse::elapsedUsDelta); // 기본값: elapsed
+        };
+
+        return direction == Sort.Direction.ASC 
+                ? baseComparator 
+                : baseComparator.reversed();
     }
 
     /** SQL 상세 탭 데이터 조회 API */
@@ -368,16 +381,11 @@ public class SqlStatsQueryService {
 
         // 기준 구간 SQL 조회
         SqlStatsQueryRequest baseReq = new SqlStatsQueryRequest(
-                req.instanceId(),     // instanceId
-                baseStart,            // startDate
-                baseEnd,              // endDate
-                req.keyword(),        // keyword
-                null,                 // minExecCount
-                null,                 // maxExecCount
-                "elapsed",            // orderBy
-                "DESC",               // direction
-                0,                    // page
-                100                   // size
+                req.instanceId(),
+                baseStart,
+                baseEnd,
+                "elapsed",
+                "DESC"
         );
         SqlStatsPageResponse base = getSqlStats(baseReq);
 
@@ -387,13 +395,8 @@ public class SqlStatsQueryService {
                 req.instanceId(),
                 compStart,
                 compEnd,
-                req.keyword(),
-                null,
-                null,
                 "elapsed",
-                "DESC",
-                0,
-                100
+                "DESC"
         );
         SqlStatsPageResponse compare = getSqlStats(compareReq);
 

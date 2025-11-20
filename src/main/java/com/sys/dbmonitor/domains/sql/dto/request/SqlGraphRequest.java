@@ -15,7 +15,7 @@ public record SqlGraphRequest(
         String endDate,
 
         @Schema(description = "검색어 필터", example = "select")
-        String keyword,
+        String filter,
 
         @Schema(description = "interval (30, 60, 120 분)", example = "30")
         Integer intervalMinutes,
