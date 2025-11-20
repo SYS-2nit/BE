@@ -18,6 +18,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(userIdInterceptor)
                 .addPathPatterns("/api/**/coupons/**")
                 .addPathPatterns("/api/dashboards/widgets/**") // 위젯 설정 API에도 적용
-                .addPathPatterns("/api/dashboards/data"); // 대시보드 데이터 조회 API에도 적용
+                .addPathPatterns("/api/dashboards/data") // 대시보드 데이터 조회 API에도 적용
+                .addPathPatterns("/api/alerts/**") // 알림 API에도 적용
+                .addPathPatterns("/api/members/notification-settings/**"); // 알림 설정 API에도 적용
     }
 }

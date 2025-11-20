@@ -10,6 +10,7 @@ import com.sys.dbmonitor.domains.notification.dto.request.AlertPolicyCreateReque
 import com.sys.dbmonitor.domains.notification.dto.request.AlertPolicyUpdateRequest;
 import com.sys.dbmonitor.domains.notification.dto.response.AlertPolicyResponse;
 import com.sys.dbmonitor.domains.notification.repository.AlertPolicyRepository;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,8 +36,8 @@ public class AlertPolicyCommandService {
 
     @Transactional
     public AlertPolicyResponse create(AlertPolicyCreateRequest request) {
-        // 필수 식별자 값 확인 (Null 방지)
-        Long memberId = Objects.requireNonNull(request.getMemberId(), "memberId must not be null");
+        // 사용자 ID는 UserIdInterceptor에서 자동으로 추출 (기본값 1)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
         Long instanceId = Objects.requireNonNull(request.getInstanceId(), "instanceId must not be null");
 
         // 정책 생성자가 실제 존재하는 멤버인지 확인
