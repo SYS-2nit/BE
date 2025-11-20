@@ -1,13 +1,11 @@
 package com.sys.dbmonitor.domains.notification.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 
 @Schema(description = "이벤트 기록 PDF 다운로드 요청")
 public record AlertExportPDFRequest(
-        @NotNull(message = "memberId는 필수입니다.")
-        @Schema(description = "회원 ID", example = "3", required = true)
-        Long memberId,
+        // memberId 필드 제거 - UserIdInterceptor.getCurrentUserId()로 자동 추출
+        // 사용자 ID는 X-User-ID 헤더에서 자동으로 추출되며, 헤더가 없으면 기본값 1을 사용합니다.
 
         @Schema(description = "필터 조건")
         EventFilters filters,

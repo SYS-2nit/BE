@@ -64,13 +64,13 @@ public class EventPDFExportService {
      * PDF 생성 및 반환
      */
     @Transactional(readOnly = true)
-    public byte[] generatePDF(AlertExportPDFRequest request) throws IOException {
-        log.info("[EventPDFExport] PDF 생성 시작: memberId={}", request.memberId());
+    public byte[] generatePDF(AlertExportPDFRequest request, Long memberId) throws IOException {
+        log.info("[EventPDFExport] PDF 생성 시작: memberId={}", memberId);
 
         // 1. 필터링된 이벤트 목록 조회
-        List<Event> events = getFilteredEvents(request);
+        List<Event> events = getFilteredEvents(request, memberId);
         if (events.isEmpty()) {
-            log.warn("[EventPDFExport] 조회된 이벤트가 없습니다: memberId={}", request.memberId());
+            log.warn("[EventPDFExport] 조회된 이벤트가 없습니다: memberId={}", memberId);
             return createEmptyPDF();
         }
 
@@ -109,7 +109,7 @@ public class EventPDFExportService {
             // PDF를 바이트 배열로 변환
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             document.save(baos);
-            log.info("[EventPDFExport] PDF 생성 완료: memberId={}, 이벤트 수={}", request.memberId(), events.size());
+            log.info("[EventPDFExport] PDF 생성 완료: memberId={}, 이벤트 수={}", memberId, events.size());
             return baos.toByteArray();
         }
     }
@@ -117,7 +117,7 @@ public class EventPDFExportService {
     /**
      * 필터링된 이벤트 목록 조회
      */
-    private List<Event> getFilteredEvents(AlertExportPDFRequest request) {
+    private List<Event> getFilteredEvents(AlertExportPDFRequest request, Long memberId) {
         AlertCategory category = null;
         if (request.filters() != null && request.filters().category() != null) {
             try {
@@ -151,7 +151,7 @@ public class EventPDFExportService {
         Integer severity = request.filters() != null ? request.filters().severity() : null;
 
         return eventRepository.findFilteredEventsForPDF(
-                request.memberId(),
+                memberId,
                 category,
                 startDate,
                 endDate,

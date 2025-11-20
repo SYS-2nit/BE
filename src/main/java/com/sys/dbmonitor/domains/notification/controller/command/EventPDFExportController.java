@@ -2,6 +2,7 @@ package com.sys.dbmonitor.domains.notification.controller.command;
 
 import com.sys.dbmonitor.domains.notification.dto.request.AlertExportPDFRequest;
 import com.sys.dbmonitor.domains.notification.service.command.EventPDFExportService;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,13 +31,14 @@ public class EventPDFExportController {
     private static final DateTimeFormatter FILE_NAME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     @Operation(summary = "이벤트 기록 PDF 다운로드", 
-               description = "필터링된 이벤트 기록을 PDF로 다운로드합니다.")
+               description = "필터링된 이벤트 기록을 PDF로 다운로드합니다. 사용자 ID는 X-User-ID 헤더에서 자동으로 추출되며, 헤더가 없으면 기본값 1을 사용합니다.")
     @PostMapping("/export-pdf")
     public ResponseEntity<byte[]> exportPDF(@Valid @RequestBody AlertExportPDFRequest request) {
         try {
-            log.info("[EventPDFExport] PDF 다운로드 요청: memberId={}", request.memberId());
+            Long memberId = UserIdInterceptor.getCurrentUserId();
+            log.info("[EventPDFExport] PDF 다운로드 요청: memberId={}", memberId);
             
-            byte[] pdfBytes = eventPDFExportService.generatePDF(request);
+            byte[] pdfBytes = eventPDFExportService.generatePDF(request, memberId);
             
             // 파일명 생성
             String fileName = "event_report_" + LocalDateTime.now().format(FILE_NAME_FORMATTER) + ".pdf";
@@ -47,19 +49,21 @@ public class EventPDFExportController {
             headers.setContentLength(pdfBytes.length);
             
             log.info("[EventPDFExport] PDF 다운로드 완료: memberId={}, 파일 크기={} bytes", 
-                    request.memberId(), pdfBytes.length);
+                    memberId, pdfBytes.length);
             
             return ResponseEntity.ok()
                     .headers(headers)
                     .body(pdfBytes);
                     
         } catch (IOException e) {
+            Long memberId = UserIdInterceptor.getCurrentUserId();
             log.error("[EventPDFExport] PDF 생성 실패: memberId={}, error={}", 
-                    request.memberId(), e.getMessage(), e);
+                    memberId, e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         } catch (Exception e) {
+            Long memberId = UserIdInterceptor.getCurrentUserId();
             log.error("[EventPDFExport] 예상치 못한 오류: memberId={}, error={}", 
-                    request.memberId(), e.getMessage(), e);
+                    memberId, e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
     }
