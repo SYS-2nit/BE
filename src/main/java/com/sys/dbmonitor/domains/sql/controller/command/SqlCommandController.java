@@ -59,7 +59,7 @@ public class SqlCommandController {
     }
 
     /* ===== 4. Top SQL 비교 조회 ===== */
-    @Operation(summary = "Top SQL 비교 조회", description = "기준 구간과 비교 구간의 SQL 통계를 나란히 조회합니다.")
+    @Operation(summary = "Top SQL 비교 테이블 목록 조회", description = "기준 구간과 비교 구간의 SQL 통계를 나란히 조회합니다.")
     @GetMapping("/compare")
     public ApiResponse<SqlComparePageResponse> compare(@Valid SqlCompareRequest request) {
         return ApiResponse.ok(
