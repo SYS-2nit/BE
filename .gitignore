@@ -246,3 +246,9 @@ BOOT-INF/**
 plan.md
 
 /src/main/resources/sql/dashBoard_table.sql
+/rules/멀티_데이터소스.md
+/src/main/resources/sql/cleanup_temp_tables.sql
+/src/main/resources/sql/detailed_performance_analysis.sql
+/src/main/resources/sql/fix_pk_metric_data_index.sql
+/src/main/resources/sql/performance_comparison_heap_vs_partition.sql
+/src/test/java/com/sys/dbmonitor/domains/dashboard/repository/PartitionPerformanceComparisonTest.java
