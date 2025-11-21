@@ -252,8 +252,8 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         // 실시간 모드: 현재 시간 기준 최근 10분의 데이터 조회
         LocalDateTime tenMinutesAgo = nowSeoul.minusMinutes(9); // 최근 10개 데이터 (현재 포함)
 
-        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}",
-                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, tenMinutesAgo);
+//        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}",
+//                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, tenMinutesAgo);
 
         // 쿼리 실행 - 실시간 모드: 현재 시간 기준 최근 10분의 데이터만 조회
         // 파티션 프루닝을 위해 인덱스를 활용하여 최신 데이터 조회
@@ -270,16 +270,16 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                 .limit(10)
                 .fetch();
 
-        log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}", 
-                instanceId, graphId, intervalType, results.size());
+//        log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}",
+//                instanceId, graphId, intervalType, results.size());
 
         // 최신 데이터의 시간 정보 로깅 및 신선도 확인
         if (!results.isEmpty()) {
             LocalDateTime latestCollectedAt = results.get(0).get(metricData.collectedAt);
             long minutesSinceLatest = java.time.Duration.between(latestCollectedAt, nowSeoul).toMinutes();
 
-            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}",
-                    instanceId, graphId, intervalType, latestCollectedAt, nowSeoul, minutesSinceLatest);
+//            log.info("최신 데이터 시간: instanceId={}, graphId={}, intervalType={}, latestCollectedAt={}, currentTime={}, minutesSinceLatest={}",
+//                    instanceId, graphId, intervalType, latestCollectedAt, nowSeoul, minutesSinceLatest);
 
             // 데이터가 너무 오래된 경우 경고 (5분 이상 차이)
             if (minutesSinceLatest > 5) {
@@ -677,8 +677,8 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
             return new ArrayList<>();
         }
 
-        log.debug("기간별 데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, startDateTime={}, endDateTime={}",
-                instanceId, graphId, intervalType, columnMap.keySet(), startDateTime, endDateTime);
+//        log.debug("기간별 데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, startDateTime={}, endDateTime={}",
+//                instanceId, graphId, intervalType, columnMap.keySet(), startDateTime, endDateTime);
 
         // 쿼리 실행 - 기간별 조회 (보고서용: 최대 2000개로 제한하여 성능 개선)
         List<Tuple> results = queryFactory
@@ -694,8 +694,8 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                 .limit(2000) // 보고서에 충분한 데이터량으로 제한
                 .fetch();
 
-        log.debug("기간별 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}",
-                instanceId, graphId, intervalType, results.size());
+//        log.debug("기간별 쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}",
+//                instanceId, graphId, intervalType, results.size());
 
         // GraphDataPoint로 변환
         List<GraphDataPoint> dataPoints = new ArrayList<>();
