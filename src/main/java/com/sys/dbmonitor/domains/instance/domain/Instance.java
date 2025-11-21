@@ -33,16 +33,21 @@ public class Instance extends BaseEntity {
     @Column(name = "URL", nullable = false, length = 500)
     private String url;
 
+    @Column(name = "CONNECTION_TYPE", length = 20)
+    private String connectionType; // "SID" or "SERVICE_NAME"
+
     @Builder
-    public Instance(DBInfo dbInfo, String sid, String url) {
+    public Instance(DBInfo dbInfo, String sid, String url, String connectionType) {
         this.dbInfo = dbInfo;
         this.sid = sid;
         this.url = url;
+        this.connectionType = connectionType != null ? connectionType : "SID"; // 기본값 SID
     }
 
-    public void update(String sid, String url) {
+    public void update(String sid, String url, String connectionType) {
         if (sid != null) this.sid = sid;
         if (url != null) this.url = url;
+        if (connectionType != null) this.connectionType = connectionType;
     }
 }
 

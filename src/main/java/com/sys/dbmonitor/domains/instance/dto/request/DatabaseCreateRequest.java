@@ -26,9 +26,12 @@ public record DatabaseCreateRequest(
         @Schema(description = "DB 접속 비밀번호", example = "tiger")
         String password,
 
-        @NotBlank(message = "SID는 필수입니다.")
-        @Schema(description = "SID (System Identifier)", example = "ORCL")
-        String sid
+        @NotBlank(message = "SID 또는 서비스 이름은 필수입니다.")
+        @Schema(description = "SID 또는 서비스 이름", example = "ORCL")
+        String identifier,
+
+        @Schema(description = "연결 타입 (SID 또는 SERVICE_NAME)", example = "SID", defaultValue = "SID")
+        String connectionType
 ) {
 }
 

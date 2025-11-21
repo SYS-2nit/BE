@@ -124,7 +124,7 @@ public class InstanceCommandController {
         return ApiResponse.ok(201, response, "DB 인스턴스가 생성되었습니다.");
     }
 
-    @Operation(summary = "DB 인스턴스 테스트", description = "선택한 DB와 입력한 SID로 연결 테스트를 수행합니다.")
+    @Operation(summary = "DB 인스턴스 테스트", description = "선택한 DB와 입력한 SID 또는 서비스 이름으로 연결 테스트를 수행합니다.")
     @PostMapping("/{id}/instances/test")
     public ApiResponse<InstanceTestResponse> testInstanceForDatabase(
             @PathVariable Long id,
@@ -133,7 +133,7 @@ public class InstanceCommandController {
         return ApiResponse.ok(200, response, response.message());
     }
 
-    @Operation(summary = "DB 인스턴스 수정", description = "선택한 DB에 등록된 인스턴스의 SID를 수정합니다.")
+    @Operation(summary = "DB 인스턴스 수정", description = "선택한 DB에 등록된 인스턴스의 SID 또는 서비스 이름을 수정합니다.")
     @PutMapping("/{dbId}/instances/{instanceId}")
     public ApiResponse<InstanceListResponse> updateInstanceForDatabase(
             @PathVariable Long dbId,
