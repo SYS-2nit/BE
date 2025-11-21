@@ -71,8 +71,13 @@ public class SecurityConfig {
                 "http://localhost:3000",  // React 개발 서버
                 "http://localhost:3001",
                 "http://localhost:5173",  // Vite 개발 서버
+                "https://www.ccdb.site/*",  // 프로덕션 도메인
+                "https://www.ccdb.site/**",  // 프로덕션 도메인
+                "https://www.ccdb.site/",  // 프로덕션 도메인
                 "https://www.ccdb.site",  // 프로덕션 도메인
-                "https://www.ccdb.site:8080"
+                "https://www.ccdb.site:8080/*",
+                "https://*.cloudfront.net",  // CloudFront 모든 서브도메인 허용
+                "https://d2gb1dq0c4tvp1.cloudfront.net"  // 특정 CloudFront 도메인
         ));
 
         // 허용할 HTTP 메서드
