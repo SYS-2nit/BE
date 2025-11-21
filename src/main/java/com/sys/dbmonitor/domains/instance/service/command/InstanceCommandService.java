@@ -104,8 +104,9 @@ public class InstanceCommandService {
      */
     public InstanceTestResponse testDatabaseConnection(DatabaseTestRequest request) {
         try {
-            // JDBC URL 생성
+            // JDBC URL 생성 (connectionType에 따라 자동 선택)
             String jdbcUrl = request.generateJdbcUrl();
+            String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
 
             // 테스트용 임시 ID 사용
             Long testInstanceId = -1L;
@@ -117,8 +118,8 @@ public class InstanceCommandService {
                     request.account(),
                     request.password()
             );
-            log.info("[Database] DB 연결 테스트 성공: ip={}, port={}, sid={}",
-                    request.ip(), request.port(), request.sid());
+            log.info("[Database] DB 연결 테스트 성공: ip={}, port={}, identifier={}, connectionType={}",
+                    request.ip(), request.port(), request.identifier(), connectionType);
 
             // 테스트 후 즉시 제거
             dynamicDataSourceFactory.removeDataSource(testInstanceId);
@@ -131,15 +132,15 @@ public class InstanceCommandService {
             );
         } catch (IllegalArgumentException e) {
             // 잘못된 타입이나 URL 형식
-            log.error("[Database] DB 연결 테스트 실패: 잘못된 요청 -  ip={}, port={}, sid={}, error={}",
-                     request.ip(), request.port(), request.sid(), e.getMessage());
+            log.error("[Database] DB 연결 테스트 실패: 잘못된 요청 -  ip={}, port={}, identifier={}, connectionType={}, error={}",
+                     request.ip(), request.port(), request.identifier(), request.connectionType(), e.getMessage());
             throw new BadRequestException(ExceptionMessage.DB_INVALID_URL,
                     "데이터베이스 연결 URL 생성 실패: " + e.getMessage());
         } catch (Exception e) {
             // SQL 관련 에러 또는 기타 에러 처리
             String errorMsg = extractErrorMessage(e);
-            log.error("[Database] DB 연결 테스트 실패:  ip={}, port={}, sid={}, error={}",
-                    request.ip(), request.port(), request.sid(), errorMsg, e);
+            log.error("[Database] DB 연결 테스트 실패:  ip={}, port={}, identifier={}, connectionType={}, error={}",
+                    request.ip(), request.port(), request.identifier(), request.connectionType(), errorMsg, e);
 
             // SQLException인지 확인 (cause를 통해)
             Throwable cause = e.getCause();
@@ -216,25 +217,29 @@ public class InstanceCommandService {
                     "데이터베이스 정보 저장 중 오류가 발생했습니다: " + e.getMessage());
         }
 
-        // JDBC URL 생성 (IP, Port, SID를 조합하여 자동 생성)
-        String jdbcUrl = savedDbInfo.generateJdbcUrlForInstance(request.sid());
+        // connectionType 기본값 설정
+        String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+        
+        // JDBC URL 생성 (connectionType에 따라 자동 선택)
+        String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
 
         // Instance 엔티티 생성
         Instance instance = Instance.builder()
                 .dbInfo(savedDbInfo)
-                .sid(request.sid())
+                .sid(request.identifier()) // identifier를 sid 필드에 저장 (하위 호환성)
                 .url(jdbcUrl)
+                .connectionType(connectionType)
                 .build();
 
         // Instance 저장
         Instance savedInstance;
         try {
             savedInstance = targetDatabaseRepository.save(instance);
-            log.info("[Database] Instance 저장 완료: id={}, sid={}, url={}",
-                    savedInstance.getId(), savedInstance.getSid(), savedInstance.getUrl());
+            log.info("[Database] Instance 저장 완료: id={}, identifier={}, connectionType={}, url={}",
+                    savedInstance.getId(), savedInstance.getSid(), savedInstance.getConnectionType(), savedInstance.getUrl());
         } catch (Exception e) {
-            log.error("[Database] Instance 저장 실패: dbInfoId={}, sid={}, error={}",
-                    savedDbInfo.getId(), request.sid(), e.getMessage());
+            log.error("[Database] Instance 저장 실패: dbInfoId={}, identifier={}, connectionType={}, error={}",
+                    savedDbInfo.getId(), request.identifier(), request.connectionType(), e.getMessage());
             throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
                     "데이터베이스 인스턴스 저장 중 오류가 발생했습니다: " + e.getMessage());
         }
@@ -242,8 +247,8 @@ public class InstanceCommandService {
         // 활성화된 경우 동적 데이터소스 생성
         if (savedDbInfo.getIsActive()) {
             try {
-                // 동적 데이터소스 생성 시에는 SID 형식 사용 (기존 generateJdbcUrl 메서드)
-                String dataSourceUrl = savedDbInfo.generateJdbcUrl(request.sid());
+                // 동적 데이터소스 생성 시에는 connectionType에 따라 URL 생성
+                String dataSourceUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
                 dynamicDataSourceFactory.createDataSource(
                         savedInstance.getId(),
                         savedDbInfo.getName(),
@@ -322,7 +327,9 @@ public class InstanceCommandService {
                     String password = request.password() != null
                             ? request.password()
                             : PasswordEncryptionUtil.decrypt(savedDbInfo.getPassword(), encryptionKey);
-                    String jdbcUrl = savedDbInfo.generateJdbcUrl(instance.getSid());
+                    // connectionType에 따라 URL 생성 (기본값 SID)
+                    String connectionType = instance.getConnectionType() != null ? instance.getConnectionType() : "SID";
+                    String jdbcUrl = savedDbInfo.generateJdbcUrl(instance.getSid(), connectionType);
                     dynamicDataSourceFactory.createDataSource(
                             instance.getId(),
                             savedDbInfo.getName(),
@@ -503,7 +510,9 @@ public class InstanceCommandService {
             }
 
             String decryptedPassword = PasswordEncryptionUtil.decrypt(storedPassword, encryptionKey);
-            String jdbcUrl = savedDbInfo.generateJdbcUrl(instance.getSid());
+            // connectionType에 따라 URL 생성 (기본값 SID)
+            String connectionType = instance.getConnectionType() != null ? instance.getConnectionType() : "SID";
+            String jdbcUrl = savedDbInfo.generateJdbcUrl(instance.getSid(), connectionType);
             dynamicDataSourceFactory.createDataSource(
                     id,
                     savedDbInfo.getName(),
@@ -568,7 +577,9 @@ public class InstanceCommandService {
 
         // 데이터소스 생성 (입력한 비밀번호 사용)
         try {
-            String jdbcUrl = dbInfo.generateJdbcUrl(instance.getSid());
+            // connectionType에 따라 URL 생성 (기본값 SID)
+            String connectionType = instance.getConnectionType() != null ? instance.getConnectionType() : "SID";
+            String jdbcUrl = dbInfo.generateJdbcUrl(instance.getSid(), connectionType);
             dynamicDataSourceFactory.createDataSource(
                     id,
                     dbInfo.getName(),
@@ -632,7 +643,7 @@ public class InstanceCommandService {
     }
 
     /**
-     * 기존 DB에 새로운 인스턴스(SID) 추가
+     * 기존 DB에 새로운 인스턴스(SID 또는 서비스 이름) 추가
      */
     @Transactional
     public InstanceListResponse createInstanceForDatabase(Long dbInfoId, DatabaseInstanceCreateRequest request) {
@@ -640,27 +651,30 @@ public class InstanceCommandService {
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                         "데이터베이스 정보를 찾을 수 없습니다."));
 
-        if (!StringUtils.hasText(request.sid())) {
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID를 입력해주세요.");
+        if (!StringUtils.hasText(request.identifier())) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID 또는 서비스 이름을 입력해주세요.");
         }
 
-        String trimmedSid = request.sid().trim();
+        String trimmedIdentifier = request.identifier().trim();
+        String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
 
-        if (targetDatabaseRepository.existsByDbInfoIdAndSid(dbInfoId, trimmedSid)) {
+        if (targetDatabaseRepository.existsByDbInfoIdAndSid(dbInfoId, trimmedIdentifier)) {
             throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE,
-                    "이미 등록된 SID입니다: " + trimmedSid);
+                    "이미 등록된 식별자입니다: " + trimmedIdentifier);
         }
 
-        String jdbcUrl = dbInfo.generateJdbcUrlForInstance(trimmedSid);
+        String jdbcUrl = dbInfo.generateJdbcUrl(trimmedIdentifier, connectionType);
 
         Instance instance = Instance.builder()
                 .dbInfo(dbInfo)
-                .sid(trimmedSid)
+                .sid(trimmedIdentifier) // identifier를 sid 필드에 저장 (하위 호환성)
                 .url(jdbcUrl)
+                .connectionType(connectionType)
                 .build();
 
         Instance saved = targetDatabaseRepository.save(instance);
-        log.info("[Instance] DBInfo에 인스턴스 추가 완료: dbInfoId={}, sid={}", dbInfoId, trimmedSid);
+        log.info("[Instance] DBInfo에 인스턴스 추가 완료: dbInfoId={}, identifier={}, connectionType={}", 
+                dbInfoId, trimmedIdentifier, connectionType);
 
         return InstanceListResponse.from(saved);
     }
@@ -670,17 +684,19 @@ public class InstanceCommandService {
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INFO_NOT_FOUND,
                         "데이터베이스 정보를 찾을 수 없습니다."));
 
-        if (!StringUtils.hasText(request.sid())) {
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID를 입력해주세요.");
+        if (!StringUtils.hasText(request.identifier())) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID 또는 서비스 이름을 입력해주세요.");
         }
 
         String password = resolvePasswordForConnection(dbInfo);
+        String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
         DatabaseTestRequest testRequest = new DatabaseTestRequest(
                 dbInfo.getIp(),
                 dbInfo.getPort(),
                 dbInfo.getUserName(),
                 password,
-                request.sid().trim()
+                request.identifier().trim(),
+                connectionType
         );
 
         return testDatabaseConnection(testRequest);
@@ -696,23 +712,24 @@ public class InstanceCommandService {
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.DB_INSTANCE_NOT_FOUND,
                         "데이터베이스 인스턴스를 찾을 수 없습니다."));
 
-        if (!StringUtils.hasText(request.sid())) {
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID를 입력해주세요.");
+        if (!StringUtils.hasText(request.identifier())) {
+            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "SID 또는 서비스 이름을 입력해주세요.");
         }
 
-        String trimmedSid = request.sid().trim();
+        String trimmedIdentifier = request.identifier().trim();
+        String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
 
-        if (!trimmedSid.equals(instance.getSid()) &&
-                targetDatabaseRepository.existsByDbInfoIdAndSid(dbInfoId, trimmedSid)) {
+        if (!trimmedIdentifier.equals(instance.getSid()) &&
+                targetDatabaseRepository.existsByDbInfoIdAndSid(dbInfoId, trimmedIdentifier)) {
             throw new BadRequestException(ExceptionMessage.DUPLICATE_VALUE,
-                    "이미 등록된 SID입니다: " + trimmedSid);
+                    "이미 등록된 식별자입니다: " + trimmedIdentifier);
         }
 
-        String jdbcUrl = dbInfo.generateJdbcUrlForInstance(trimmedSid);
-        instance.update(trimmedSid, jdbcUrl);
+        String jdbcUrl = dbInfo.generateJdbcUrl(trimmedIdentifier, connectionType);
+        instance.update(trimmedIdentifier, jdbcUrl, connectionType);
         Instance saved = targetDatabaseRepository.save(instance);
-        log.info("[Instance] DBInfo 인스턴스 수정 완료: dbInfoId={}, instanceId={}, sid={}",
-                dbInfoId, instanceId, trimmedSid);
+        log.info("[Instance] DBInfo 인스턴스 수정 완료: dbInfoId={}, instanceId={}, identifier={}, connectionType={}",
+                dbInfoId, instanceId, trimmedIdentifier, connectionType);
 
         return InstanceListResponse.from(saved);
     }
