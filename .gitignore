@@ -244,3 +244,5 @@ BOOT-INF/**
 /src/pages/Dashboard/InstanceMap/Dashboard/Dashboard.tsx
 /src/pages/Diagnosis/DiagnosisPage.example.tsx
 plan.md
+
+/src/main/resources/sql/dashBoard_table.sql
