@@ -65,11 +65,11 @@ public class DashboardQueryService {
                 graph.getType(),
                 dataPoints
         );
-        
-        log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}", 
-                response.id(), response.name(), response.type(), 
-                response.data() != null ? response.data().size() : 0);
-        log.debug(response.toString());
+//
+//        log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}",
+//                response.id(), response.name(), response.type(),
+//                response.data() != null ? response.data().size() : 0);
+//        log.debug(response.toString());
         return response;
     }
 
@@ -80,16 +80,16 @@ public class DashboardQueryService {
         // 그래프별 필요한 컬럼 리스트 가져오기
         List<String> columns = getGraphColumns(graph);
 
-        log.info("그래프" + graph.getName() + "당 필요한 컬럼 종류 :" + columns.toString());
+//        log.info("그래프" + graph.getName() + "당 필요한 컬럼 종류 :" + columns.toString());
         if (columns.isEmpty()) {
-            log.warn("그래프 '{}' (ID: {})에 대한 컬럼이 정의되지 않았습니다.", graph.getName(), graph.getId());
+//            log.warn("그래프 '{}' (ID: {})에 대한 컬럼이 정의되지 않았습니다.", graph.getName(), graph.getId());
             return Collections.emptyList();
         }
         
         int registryGraphId = resolveGraphRegistryId(graph);
 
-        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}",
-                graph.getId(), graph.getName(), instanceId, timeUnit, columns);
+//        log.debug("그래프 데이터 조회 시작: graphId={}, graphName={}, instanceId={}, timeUnit={}, columns={}",
+//                graph.getId(), graph.getName(), instanceId, timeUnit, columns);
         
         // Repository를 통해 QueryDSL로 데이터 조회
         List<GraphDataPoint> dataPoints = metricDataRepository.findGraphDataPoints(
@@ -99,11 +99,11 @@ public class DashboardQueryService {
                 columns
         );
         
-        log.debug("그래프 데이터 조회 완료: graphId={}, graphName={}, dataPointsCount={}", 
-                graph.getId(), graph.getName(), dataPoints.size());
+//        log.debug("그래프 데이터 조회 완료: graphId={}, graphName={}, dataPointsCount={}",
+//                graph.getId(), graph.getName(), dataPoints.size());
         
         if (dataPoints.isEmpty()) {
-            log.warn("그래프 '{}' (ID: {})에 대한 데이터가 없습니다. instanceId={}, timeUnit={}", 
+            log.warn("그래프 '{}' (ID: {})에 대한 데이터가 없습니다. instanceId={}, timeUnit={}",
                     graph.getName(), graph.getId(), instanceId, timeUnit);
         }
         
@@ -132,8 +132,8 @@ public class DashboardQueryService {
             // GraphRegistry에 정의된 컬럼 목록을 소문자로 변환하여 반환
             // (DB 컬럼명은 대소문자 혼용이므로 원본 유지)
             List<String> columns = new ArrayList<>(rule.columns());
-            log.debug("GraphRegistry에서 컬럼 조회: graphId={}, graphName={}, columns={}",
-                    rule.graphId(), rule.name(), columns);
+//            log.debug("GraphRegistry에서 컬럼 조회: graphId={}, graphName={}, columns={}",
+//                    rule.graphId(), rule.name(), columns);
             return columns;
         }
 
