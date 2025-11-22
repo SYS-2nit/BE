@@ -143,16 +143,38 @@ public class DBInfo extends BaseEntity {
     /**
      * JDBC URL 생성 (SID 형식: jdbc:oracle:thin:@host:port:sid)
      */
-    public String generateJdbcUrl(String sid) {
-            return String.format("jdbc:oracle:thin:@%s:%d:%s", this.ip, this.port, sid);
+    public String generateJdbcUrl(String identifier) {
+            return String.format("jdbc:oracle:thin:@%s:%d:%s", this.ip, this.port, identifier);
     }
 
     /**
      * JDBC URL 생성 (Service Name 형식: jdbc:oracle:thin:@host:port/serviceName)
-     * Instance 테이블에 저장할 URL 형식
      */
-    public String generateJdbcUrlForInstance(String sid) {
-        return String.format("jdbc:oracle:thin:@%s:%d/%s", this.ip, this.port, sid);
+    public String generateJdbcUrlForServiceName(String serviceName) {
+        return String.format("jdbc:oracle:thin:@%s:%d/%s", this.ip, this.port, serviceName);
+    }
+
+    /**
+     * JDBC URL 생성 (connectionType에 따라 자동 선택)
+     * @param identifier SID 또는 서비스 이름
+     * @param connectionType "SID" 또는 "SERVICE_NAME"
+     */
+    public String generateJdbcUrl(String identifier, String connectionType) {
+        if ("SERVICE_NAME".equalsIgnoreCase(connectionType)) {
+            return generateJdbcUrlForServiceName(identifier);
+        } else {
+            return generateJdbcUrl(identifier);
+        }
+    }
+
+    /**
+     * JDBC URL 생성 (Service Name 형식: jdbc:oracle:thin:@host:port/serviceName)
+     * Instance 테이블에 저장할 URL 형식 (하위 호환성 유지)
+     * @deprecated connectionType을 사용하는 generateJdbcUrl(String, String) 사용 권장
+     */
+    @Deprecated
+    public String generateJdbcUrlForInstance(String identifier) {
+        return String.format("jdbc:oracle:thin:@%s:%d/%s", this.ip, this.port, identifier);
     }
 }
 

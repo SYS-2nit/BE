@@ -7,6 +7,6 @@ public record SqlCompareRequest(
         @NotNull  LocalDate baseDate,
         @NotNull LocalDate compareDate,
         Long instanceId,
-        String keyword,
+        String filter,
         Integer intervalMinutes
 ) {}

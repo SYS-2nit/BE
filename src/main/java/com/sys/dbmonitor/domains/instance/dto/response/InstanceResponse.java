@@ -36,7 +36,10 @@ public record InstanceResponse(
             // Instance에 저장된 URL 사용 (없으면 생성)
             String jdbcUrl = instance.getUrl() != null 
                     ? instance.getUrl() 
-                    : dbInfo.generateJdbcUrl(instance.getSid());
+                    : dbInfo.generateJdbcUrl(
+                            instance.getSid(), 
+                            instance.getConnectionType() != null ? instance.getConnectionType() : "SID"
+                    );
             return new InstanceResponse(
                     instance.getId(),
                     dbInfo.getName(),
