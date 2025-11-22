@@ -235,5 +235,12 @@ public class AlertEvent extends BaseEntity {
     public void toggleState() {
         this.state = !this.state;
     }
+
+    /**
+     * 알림 규칙 활성화/비활성화 상태 설정
+     */
+    public void setState(Boolean state) {
+        this.state = state != null ? state : true;
+    }
 }
 

@@ -3,6 +3,7 @@ package com.sys.dbmonitor.domains.notification.service.query;
 import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.dto.response.AlertEventResponse;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,10 @@ public class AlertEventQueryService {
      */
     @Transactional(readOnly = true)
     public List<AlertEventResponse> getActiveEventsByInstance(Long instanceId) {
-        List<AlertEvent> events = alertEventRepository.findActiveEventsByInstanceId(instanceId);
+        // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
+        
+        List<AlertEvent> events = alertEventRepository.findActiveEventsByInstanceId(instanceId, memberId);
         return events.stream()
                 .map(AlertEventResponse::from)
                 .collect(Collectors.toList());

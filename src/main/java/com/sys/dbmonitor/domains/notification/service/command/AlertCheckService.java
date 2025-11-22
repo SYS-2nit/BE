@@ -53,7 +53,8 @@ public class AlertCheckService {
         }
 
         // 활성화된 알림 규칙 조회 (정책 활성화 확인 포함)
-        List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceId(instanceId);
+        // 배치 작업이므로 모든 사용자의 알림을 체크
+        List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceIdForBatch(instanceId);
         
         if (activeEvents.isEmpty()) {
             log.debug("[AlertCheck] 활성화된 알림 규칙이 없습니다: instanceId={}", instanceId);

@@ -133,5 +133,57 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("status") AlertStatus status,
             @Param("readStatus") String readStatus
     );
+
+    /**
+     * 특정 날짜 범위의 알림 이벤트 개수 조회 (카테고리, 심각도별)
+     * 활성화된 정책의 활성화된 알림 규칙으로 발생한 이벤트만 조회
+     */
+    @Query("SELECT COUNT(e) FROM Event e " +
+           "LEFT JOIN e.alertEvent ae " +
+           "LEFT JOIN ae.policy p " +
+           "WHERE e.member.id = :memberId " +
+           "AND e.isDeleted = false " +
+           "AND (:instanceId IS NULL OR e.instance.id = :instanceId) " +
+           "AND (:category IS NULL OR ae.category = :category) " +
+           "AND (:severity IS NULL OR e.severity = :severity) " +
+           "AND e.createdAt >= :startDate " +
+           "AND e.createdAt < :endDate " +
+           "AND p.isActive = true " +
+           "AND ae.state = true " +
+           "AND p.isDeleted = false " +
+           "AND ae.isDeleted = false")
+    Long countEventsByDateRange(
+            @Param("memberId") Long memberId,
+            @Param("instanceId") Long instanceId,
+            @Param("category") AlertCategory category,
+            @Param("severity") Integer severity,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    /**
+     * 특정 날짜 범위에서 알림이 발생한 고유한 메트릭 키 목록 조회
+     * 활성화된 정책의 활성화된 알림 규칙으로 발생한 이벤트만 조회
+     */
+    @Query("SELECT DISTINCT ae.metricKey FROM Event e " +
+           "LEFT JOIN e.alertEvent ae " +
+           "LEFT JOIN ae.policy p " +
+           "WHERE e.member.id = :memberId " +
+           "AND e.isDeleted = false " +
+           "AND (:instanceId IS NULL OR e.instance.id = :instanceId) " +
+           "AND (:category IS NULL OR ae.category = :category) " +
+           "AND e.createdAt >= :startDate " +
+           "AND e.createdAt < :endDate " +
+           "AND p.isActive = true " +
+           "AND ae.state = true " +
+           "AND p.isDeleted = false " +
+           "AND ae.isDeleted = false")
+    List<String> findDistinctMetricKeysByDateRange(
+            @Param("memberId") Long memberId,
+            @Param("instanceId") Long instanceId,
+            @Param("category") AlertCategory category,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
 }
 
