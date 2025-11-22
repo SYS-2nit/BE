@@ -88,9 +88,9 @@ public class Member extends BaseEntity {
      * 
      * @param email 이메일 주소
      * @param slackAddress Slack 웹훅 URL
-     * @param warningChannel 주의(WARNING) 알림 채널 ("email" 또는 "slack")
-     * @param dangerChannel 위험(DANGER) 알림 채널 ("email" 또는 "slack")
-     * @param criticalChannel 치명(CRITICAL) 알림 채널 ("email" 또는 "slack")
+     * @param warningChannel 주의(WARNING) 알림 채널 (null=기본값, "email", "slack", "all")
+     * @param dangerChannel 위험(DANGER) 알림 채널 (null=기본값, "email", "slack", "all")
+     * @param criticalChannel 치명(CRITICAL) 알림 채널 (null=기본값, "email", "slack", "all")
      */
     public void updateAddress(String email, String slackAddress, String warningChannel, String dangerChannel, String criticalChannel) {
         // 1. email을 먼저 업데이트 (최신 값 보장)
@@ -103,17 +103,17 @@ public class Member extends BaseEntity {
             this.slackAddress = slackAddress;
         }
         
-        // 3. warningChannel 업데이트 ("email" 또는 "slack")
+        // 3. warningChannel 업데이트 (null, "email", "slack", "all" 허용)
         if (warningChannel != null) {
             this.warningChannel = warningChannel;
         }
         
-        // 4. dangerChannel 업데이트 ("email" 또는 "slack")
+        // 4. dangerChannel 업데이트 (null, "email", "slack", "all" 허용)
         if (dangerChannel != null) {
             this.dangerChannel = dangerChannel;
         }
         
-        // 5. criticalChannel 업데이트 ("email" 또는 "slack")
+        // 5. criticalChannel 업데이트 (null, "email", "slack", "all" 허용)
         if (criticalChannel != null) {
             this.criticalChannel = criticalChannel;
         }

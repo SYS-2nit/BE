@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.notification.dto.response;
 
+import com.sys.dbmonitor.domains.notification.domain.AlertCategory;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
 import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
@@ -19,6 +20,9 @@ public class EventResponse {
 
     @Schema(description = "알림 규칙 ID", example = "55")
     private final Long alertEventId;
+
+    @Schema(description = "알림 카테고리", example = "CPU")
+    private final AlertCategory category;
 
     @Schema(description = "인스턴스 ID", example = "1")
     private final Long instanceId;
@@ -44,16 +48,16 @@ public class EventResponse {
     @Schema(description = "메시지", example = "Redo Log 생성량이 120.00 MB/s로 임계값을 초과했습니다.")
     private final String message;
 
-    @Schema(description = "확인 일시")
+    @Schema(description = "알림 읽음 일시 (null=안읽음, 값 있음=읽음)", example = "2024-01-15T10:30:00")
     private final LocalDateTime acknowledgedAt;
 
-    @Schema(description = "확인자 ID")
+    @Schema(description = "알림을 읽은 사용자 ID (null=안읽음)", example = "3")
     private final Long acknowledgedBy;
 
-    @Schema(description = "해결 일시")
+    @Schema(description = "알림 해결 일시 (처리내역 작성 시 설정, null=미해결)", example = "2024-01-15T11:00:00")
     private final LocalDateTime resolvedAt;
 
-    @Schema(description = "해결자 ID")
+    @Schema(description = "알림을 해결한 사용자 ID (처리내역 작성 시 설정, null=미해결)", example = "3")
     private final Long resolvedBy;
 
     @Schema(description = "생성 일시")
@@ -66,6 +70,7 @@ public class EventResponse {
         return EventResponse.builder()
             .id(event.getId())
             .alertEventId(event.getAlertEvent() != null ? event.getAlertEvent().getId() : null)
+            .category(event.getAlertEvent() != null ? event.getAlertEvent().getCategory() : null)
             .instanceId(event.getInstance() != null ? event.getInstance().getId() : null)
             .memberId(event.getMember() != null ? event.getMember().getId() : null)
             .status(event.getStatus())
