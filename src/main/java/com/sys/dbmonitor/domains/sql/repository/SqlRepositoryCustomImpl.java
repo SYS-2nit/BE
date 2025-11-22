@@ -56,8 +56,9 @@ public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
         String sortDirection = "DESC".equalsIgnoreCase(direction) ? "DESC" : "ASC";
 
         // 네이티브 쿼리: DB 레벨에서 GROUP BY, ORDER BY 처리
-        // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
+        // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum, avgElapsed]
         // Oracle에서 IS_DELETED는 NUMBER(1)이므로 0을 사용, SQL_TEXT NULL 처리
+        // avg_elapsed는 ORDER BY에서 사용하기 위해 SELECT 절에 계산식 추가
         String sql = """
             SELECT 
                 MIN(s.ID) AS id,
@@ -69,7 +70,11 @@ public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
                 COALESCE(SUM(s.WAIT_TIME_US_DELTA), 0) AS wait_sum,
                 COALESCE(SUM(s.BUFFER_GETS_DELTA), 0) AS buffer_sum,
                 COALESCE(SUM(s.DISK_READS_DELTA), 0) AS disk_sum,
-                COALESCE(SUM(s.CPU_US_DELTA), 0) AS cpu_sum
+                COALESCE(SUM(s.CPU_US_DELTA), 0) AS cpu_sum,
+                CASE 
+                    WHEN COALESCE(SUM(s.EXECUTIONS_DELTA), 0) = 0 THEN 0
+                    ELSE COALESCE(SUM(s.ELAPSED_US_DELTA), 0) / COALESCE(SUM(s.EXECUTIONS_DELTA), 1)
+                END AS avg_elapsed
             FROM SQL_DATA s
             WHERE s.IS_DELETED = 0
                 AND (:instanceId IS NULL OR s.INSTANCE_ID = :instanceId)

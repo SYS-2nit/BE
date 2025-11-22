@@ -16,11 +16,12 @@ public record AggregatedSqlStats(
         Long waitSum,
         Long bufferSum,
         Long diskSum,
-        Long cpuSum
+        Long cpuSum,
+        Long avgElapsed
 ) {
     /**
      * Object[] 배열을 AggregatedSqlStats로 변환
-     * Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
+     * Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum, avgElapsed]
      */
     public static AggregatedSqlStats from(Object[] row) {
         return new AggregatedSqlStats(
@@ -33,7 +34,8 @@ public record AggregatedSqlStats(
                 ((Number) row[6]).longValue(),
                 ((Number) row[7]).longValue(),
                 ((Number) row[8]).longValue(),
-                ((Number) row[9]).longValue()
+                ((Number) row[9]).longValue(),
+                ((Number) row[10]).longValue()
         );
     }
 
@@ -41,14 +43,15 @@ public record AggregatedSqlStats(
      * SqlResponse로 변환
      */
     public SqlResponse toSqlResponse() {
-        long avgElapsed = execSum == 0 ? 0 : elapsedSum / execSum;
+        // DB에서 계산된 avgElapsed 사용 (없으면 재계산)
+        long calculatedAvg = avgElapsed != null ? avgElapsed : (execSum == 0 ? 0 : elapsedSum / execSum);
         return new SqlResponse(
                 id,
                 instanceId,
                 sqlId,
                 sqlText,
                 elapsedSum,
-                avgElapsed,
+                calculatedAvg,
                 waitSum,
                 execSum,
                 bufferSum,
