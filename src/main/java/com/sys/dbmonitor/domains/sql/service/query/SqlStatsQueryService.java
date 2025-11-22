@@ -7,6 +7,7 @@ import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
 import com.sys.dbmonitor.domains.sql.dto.response.*;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
+import com.sys.dbmonitor.domains.sql.util.SqlDateUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -31,13 +32,8 @@ public class SqlStatsQueryService {
     @Transactional(readOnly = true)
     public SqlStatsPageResponse getSqlStats(SqlStatsQueryRequest request) {
 
-        LocalDateTime start = request.startDate() != null
-                ? request.startDate().atStartOfDay()
-                : LocalDateTime.now().minusDays(1);
-
-        LocalDateTime end = request.endDate() != null
-                ? request.endDate().plusDays(1).atStartOfDay()
-                : LocalDateTime.now();
+        LocalDateTime start = SqlDateUtils.parseStartDate(request.startDate());
+        LocalDateTime end = SqlDateUtils.parseEndDate(request.endDate());
 
         // 정렬 기준 및 방향 설정
         String orderBy = request.orderBy() != null ? request.orderBy() : "elapsed";
@@ -106,15 +102,10 @@ public class SqlStatsQueryService {
     @Transactional(readOnly = true)
     public SqlGraphSeriesResponse getSqlGraphData(SqlGraphRequest request) {
 
-        LocalDate start = LocalDate.parse(request.startDate());
-        LocalDate end = LocalDate.parse(request.endDate());
+        LocalDateTime startAt = SqlDateUtils.parseStartDate(request.startDate());
+        LocalDateTime endAt = SqlDateUtils.parseEndDate(request.endDate());
 
-        LocalDateTime startAt = start.atStartOfDay();
-        LocalDateTime endAt = end.plusDays(1).atStartOfDay();
-
-        int interval = (request.intervalMinutes() == null || request.intervalMinutes() <= 0)
-                ? 30
-                : request.intervalMinutes();
+        int interval = SqlDateUtils.getDefaultInterval(request.intervalMinutes());
 
 
         // 1) 원본 DB 데이터 조회
@@ -233,12 +224,10 @@ public class SqlStatsQueryService {
     public SqlDetailResponse getSqlDetail(String sqlId, String startDate, String endDate, Integer intervalMinutes) {
 
         // 날짜 파싱
-        LocalDate start = LocalDate.parse(startDate);
-        LocalDate end = LocalDate.parse(endDate);
-        LocalDateTime startAt = start.atStartOfDay();
-        LocalDateTime endAt = end.plusDays(1).atStartOfDay();
+        LocalDateTime startAt = SqlDateUtils.parseStartDate(startDate);
+        LocalDateTime endAt = SqlDateUtils.parseEndDate(endDate);
 
-        int interval = intervalMinutes == null ? 30 : intervalMinutes;
+        int interval = SqlDateUtils.getDefaultInterval(intervalMinutes);
 
         // 모든 행 조회 (해당 SQL ID)
         List<Sql> list = sqlRepository.findBySqlIdAndDateRange(sqlId, startAt, endAt);
@@ -410,9 +399,10 @@ public class SqlStatsQueryService {
             Integer intervalMinutes
     ) {
 
-        LocalDate target = LocalDate.parse(date);
-        LocalDateTime start = target.atStartOfDay();
+        LocalDateTime start = SqlDateUtils.parseStartDate(date);
         LocalDateTime end = start.plusDays(1);
+        
+        int interval = SqlDateUtils.getDefaultInterval(intervalMinutes);
 
         List<Sql> raw = sqlRepository.findForGraph(
                 instanceId,
@@ -423,7 +413,7 @@ public class SqlStatsQueryService {
 
         // 시간 버킷팅
         Map<Integer, Long> bucket = new LinkedHashMap<>();
-        int buckets = (24 * 60) / intervalMinutes;
+        int buckets = (24 * 60) / interval;
 
         for (int i = 0; i < buckets; i++) {
             bucket.put(i, 0L);
@@ -431,7 +421,7 @@ public class SqlStatsQueryService {
 
         for (Sql s : raw) {
             int minutes = s.getCreatedAt().getHour() * 60 + s.getCreatedAt().getMinute();
-            int idx = minutes / intervalMinutes;
+            int idx = minutes / interval;
 
             long metricValue = switch (metric) {
                 case "elapsed" -> s.getElapsedUsDelta();
@@ -449,7 +439,7 @@ public class SqlStatsQueryService {
         List<SqlDailyGraphResponse> result = new ArrayList<>();
 
         for (int i = 0; i < buckets; i++) {
-            LocalDateTime t = start.plusMinutes((long) i * intervalMinutes);
+            LocalDateTime t = start.plusMinutes((long) i * interval);
 
             result.add(new SqlDailyGraphResponse(
                     t.format(fmt),
@@ -480,6 +470,8 @@ public class SqlStatsQueryService {
 
         LocalDate start = LocalDate.parse(startDate);
         LocalDate end = LocalDate.parse(endDate);
+        
+        int interval = SqlDateUtils.getDefaultInterval(intervalMinutes);
 
         List<SqlPeriodGraphResponse> result = new ArrayList<>();
 
@@ -490,7 +482,7 @@ public class SqlStatsQueryService {
                     day.toString(),
                     metric,
                     instanceId,
-                    intervalMinutes
+                    interval
             );
 
             // 오버로드된 함수 호출
