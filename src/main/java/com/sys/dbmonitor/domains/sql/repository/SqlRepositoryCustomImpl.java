@@ -3,6 +3,8 @@ package com.sys.dbmonitor.domains.sql.repository;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.sys.dbmonitor.domains.sql.domain.QSql;
 import com.sys.dbmonitor.domains.sql.domain.Sql;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 
 import java.time.LocalDateTime;
@@ -12,6 +14,7 @@ import java.util.List;
 public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
 
     private final JPAQueryFactory queryFactory;
+    private final EntityManager entityManager;
 
     @Override
     public List<Sql> findForGraph(
@@ -53,5 +56,62 @@ public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
                         sql.createdAt.lt(end)
                 )
                 .fetch();
+    }
+
+    @Override
+    public List<Object[]> findAggregatedStats(
+            Long instanceId,
+            LocalDateTime start,
+            LocalDateTime end,
+            String orderBy,
+            String direction
+    ) {
+        // ORDER BY 컬럼명 검증 및 매핑 (SQL Injection 방지)
+        String orderByColumn = switch (orderBy != null ? orderBy.toLowerCase() : "elapsed") {
+            case "elapsed" -> "elapsed_sum";
+            case "cpu" -> "cpu_sum";
+            case "buffer" -> "buffer_sum";
+            case "disk" -> "disk_sum";
+            case "wait" -> "wait_sum";
+            case "execution" -> "exec_sum";
+            case "avg" -> "avg_elapsed";
+            default -> "elapsed_sum";
+        };
+
+        // 정렬 방향 검증
+        String sortDirection = "DESC".equalsIgnoreCase(direction) ? "DESC" : "ASC";
+
+        // 네이티브 쿼리: DB 레벨에서 GROUP BY, ORDER BY 처리
+        // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
+        // Oracle에서 IS_DELETED는 NUMBER(1)이므로 0을 사용, SQL_TEXT NULL 처리
+        String sql = """
+            SELECT 
+                MIN(s.ID) AS id,
+                MIN(s.INSTANCE_ID) AS instance_id,
+                MIN(s.SQL_ID) AS sql_id,
+                s.SQL_TEXT AS sql_text,
+                COALESCE(SUM(s.ELAPSED_US_DELTA), 0) AS elapsed_sum,
+                COALESCE(SUM(s.EXECUTIONS_DELTA), 0) AS exec_sum,
+                COALESCE(SUM(s.WAIT_TIME_US_DELTA), 0) AS wait_sum,
+                COALESCE(SUM(s.BUFFER_GETS_DELTA), 0) AS buffer_sum,
+                COALESCE(SUM(s.DISK_READS_DELTA), 0) AS disk_sum,
+                COALESCE(SUM(s.CPU_US_DELTA), 0) AS cpu_sum
+            FROM SQL_DATA s
+            WHERE s.IS_DELETED = 0
+                AND (:instanceId IS NULL OR s.INSTANCE_ID = :instanceId)
+                AND s.CREATED_AT >= :start
+                AND s.CREATED_AT < :end
+                AND s.SQL_TEXT IS NOT NULL
+            GROUP BY s.SQL_TEXT
+            ORDER BY """ + " " + orderByColumn + " " + sortDirection;
+
+        Query query = entityManager.createNativeQuery(sql);
+        query.setParameter("instanceId", instanceId);
+        query.setParameter("start", start);
+        query.setParameter("end", end);
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = query.getResultList();
+        return results;
     }
 }

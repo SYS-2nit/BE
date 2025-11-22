@@ -41,43 +41,41 @@ public class SqlStatsQueryService {
 
         // 정렬 기준 및 방향 설정
         String orderBy = request.orderBy() != null ? request.orderBy() : "elapsed";
-        Sort.Direction direction = Sort.Direction.fromString(request.direction() != null ? request.direction() : "DESC");
+        String direction = request.direction() != null ? request.direction() : "DESC";
 
-        // 전체 데이터 조회 (페이지네이션 없이)
-        List<Sql> allSqls = sqlRepository.findAllForStats(
+        // DB 레벨에서 GROUP BY, ORDER BY 처리하여 필요한 데이터만 조회
+        // 메모리 기반 처리 대신 DB 집계 사용으로 성능 최적화
+        List<Object[]> aggregatedResults = sqlRepository.findAggregatedStats(
                 request.instanceId(),
                 start,
-                end
+                end,
+                orderBy,
+                direction
         );
 
-        // SQL TEXT 기준 그룹핑
-        Map<String, List<Sql>> grouped = allSqls.stream()
-                .collect(Collectors.groupingBy(Sql::getSqlText));
+        // Object[]를 SqlResponse로 변환
+        // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
+        List<SqlResponse> groupedList = aggregatedResults.stream()
+                .map(row -> {
+                    Long id = ((Number) row[0]).longValue();
+                    Long instanceId = ((Number) row[1]).longValue();
+                    String sqlId = (String) row[2];
+                    String sqlText = (String) row[3];
+                    Long elapsedSum = ((Number) row[4]).longValue();
+                    Long execSum = ((Number) row[5]).longValue();
+                    Long waitSum = ((Number) row[6]).longValue();
+                    Long bufferSum = ((Number) row[7]).longValue();
+                    Long diskSum = ((Number) row[8]).longValue();
+                    Long cpuSum = ((Number) row[9]).longValue();
 
-        // 그룹별 합산 / 평균 계산
-        List<SqlResponse> groupedList = grouped.entrySet()
-                .stream()
-                .map(entry -> {
-                    List<Sql> list = entry.getValue();
-
-                    long elapsedSum = list.stream().mapToLong(s -> nvl(s.getElapsedUsDelta())).sum();
-                    long execSum = list.stream().mapToLong(s -> nvl(s.getExecutionsDelta())).sum();
-
+                    // 평균 계산
                     long avgElapsed = execSum == 0 ? 0 : elapsedSum / execSum;
 
-                    long waitSum = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
-                    long bufferSum = list.stream().mapToLong(s -> nvl(s.getBufferGetsDelta())).sum();
-                    long diskSum = list.stream().mapToLong(s -> nvl(s.getDiskReadsDelta())).sum();
-                    long cpuSum = list.stream().mapToLong(s -> nvl(s.getCpuUsDelta())).sum();
-
-                    // 대표 필드 선택
-                    Sql base = list.get(0);
-
                     return new SqlResponse(
-                            base.getId(),
-                            base.getInstanceId(),
-                            base.getSqlId(),
-                            base.getSqlText(),
+                            id,
+                            instanceId,
+                            sqlId,
+                            sqlText,
                             elapsedSum,
                             avgElapsed,
                             waitSum,
@@ -89,11 +87,7 @@ public class SqlStatsQueryService {
                 })
                 .collect(Collectors.toList());
 
-        // 정렬 적용 (orderBy와 direction에 따라)
-        Comparator<SqlResponse> comparator = getComparator(orderBy, direction);
-        groupedList.sort(comparator);
-
-        // 전체 데이터 반환 (클라이언트 사이드 페이지네이션)
+        // 전체 데이터 반환 (DB에서 이미 정렬되어 있음)
         int total = groupedList.size();
         
         // Page 객체 생성 (전체 데이터를 content로 설정)
