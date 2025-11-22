@@ -47,16 +47,10 @@ public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
             String direction
     ) {
         // ORDER BY 컬럼명 검증 및 매핑 (SQL Injection 방지)
-        String orderByColumn = switch (orderBy != null ? orderBy.toLowerCase() : "elapsed") {
-            case "elapsed" -> "elapsed_sum";
-            case "cpu" -> "cpu_sum";
-            case "buffer" -> "buffer_sum";
-            case "disk" -> "disk_sum";
-            case "wait" -> "wait_sum";
-            case "execution" -> "exec_sum";
-            case "avg" -> "avg_elapsed";
-            default -> "elapsed_sum";
-        };
+        // MetricType enum을 사용하여 타입 안전성 보장
+        com.sys.dbmonitor.domains.sql.domain.MetricType metricType = 
+                com.sys.dbmonitor.domains.sql.domain.MetricType.from(orderBy);
+        String orderByColumn = metricType.getOrderByColumn();
 
         // 정렬 방향 검증
         String sortDirection = "DESC".equalsIgnoreCase(direction) ? "DESC" : "ASC";

@@ -1,6 +1,8 @@
 package com.sys.dbmonitor.domains.sql.service.query;
 
+import com.sys.dbmonitor.domains.sql.domain.MetricType;
 import com.sys.dbmonitor.domains.sql.domain.Sql;
+import com.sys.dbmonitor.domains.sql.dto.AggregatedSqlStats;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlCompareRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlDailyGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
@@ -8,6 +10,7 @@ import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
 import com.sys.dbmonitor.domains.sql.dto.response.*;
 import com.sys.dbmonitor.domains.sql.repository.SqlRepository;
 import com.sys.dbmonitor.domains.sql.util.SqlDateUtils;
+import com.sys.dbmonitor.domains.sql.util.SqlNullUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
@@ -36,7 +39,7 @@ public class SqlStatsQueryService {
         LocalDateTime end = SqlDateUtils.parseEndDate(request.endDate());
 
         // 정렬 기준 및 방향 설정
-        String orderBy = request.orderBy() != null ? request.orderBy() : "elapsed";
+        MetricType metricType = MetricType.from(request.orderBy());
         String direction = request.direction() != null ? request.direction() : "DESC";
 
         // DB 레벨에서 GROUP BY, ORDER BY 처리하여 필요한 데이터만 조회
@@ -45,42 +48,14 @@ public class SqlStatsQueryService {
                 request.instanceId(),
                 start,
                 end,
-                orderBy,
+                metricType.getName(),
                 direction
         );
 
-        // Object[]를 SqlResponse로 변환
-        // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
+        // Object[]를 DTO로 변환 후 SqlResponse로 변환
         List<SqlResponse> groupedList = aggregatedResults.stream()
-                .map(row -> {
-                    Long id = ((Number) row[0]).longValue();
-                    Long instanceId = ((Number) row[1]).longValue();
-                    String sqlId = (String) row[2];
-                    String sqlText = (String) row[3];
-                    Long elapsedSum = ((Number) row[4]).longValue();
-                    Long execSum = ((Number) row[5]).longValue();
-                    Long waitSum = ((Number) row[6]).longValue();
-                    Long bufferSum = ((Number) row[7]).longValue();
-                    Long diskSum = ((Number) row[8]).longValue();
-                    Long cpuSum = ((Number) row[9]).longValue();
-
-                    // 평균 계산
-                    long avgElapsed = execSum == 0 ? 0 : elapsedSum / execSum;
-
-                    return new SqlResponse(
-                            id,
-                            instanceId,
-                            sqlId,
-                            sqlText,
-                            elapsedSum,
-                            avgElapsed,
-                            waitSum,
-                            execSum,
-                            bufferSum,
-                            diskSum,
-                            cpuSum
-                    );
-                })
+                .map(AggregatedSqlStats::from)
+                .map(AggregatedSqlStats::toSqlResponse)
                 .collect(Collectors.toList());
 
         // 전체 데이터 반환 (DB에서 이미 정렬되어 있음)
@@ -127,16 +102,8 @@ public class SqlStatsQueryService {
         }
 
         // metric getter
-        Function<Sql, Long> metricGetter = switch (request.metric().toLowerCase()) {
-            case "elapsed" -> s -> nvl(s.getElapsedUsDelta());
-            case "avg" -> s -> nvl(s.getAvgElapsed());
-            case "wait" -> s -> nvl(s.getWaitTimeUsDelta());
-            case "execution" -> s -> nvl(s.getExecutionsDelta());
-            case "buffer" -> s -> nvl(s.getBufferGetsDelta());
-            case "disk" -> s -> nvl(s.getDiskReadsDelta());
-            case "cpu" -> s -> nvl(s.getCpuUsDelta());
-            default -> s -> 0L;
-        };
+        MetricType metricType = MetricType.from(request.metric());
+        Function<Sql, Long> metricGetter = metricType::extract;
 
         // Row → bucket 매핑해서 누적 계산
         for (Sql s : list) {
@@ -178,41 +145,14 @@ public class SqlStatsQueryService {
 
     /** 사용자 선택 필터(metric)에 따라 값을 뽑아서 반환 */
     private Function<Sql, Long> getMetricGetter(String metric) {
-
-        return switch (metric.toLowerCase()) {
-
-            case "elapsed" -> s -> nvl(s.getElapsedUsDelta());
-            case "avg" -> s -> {
-                long exec = nvl(s.getExecutionsDelta());
-                if (exec == 0) return 0L;
-                return nvl(s.getElapsedUsDelta()) / exec;
-            };
-            case "wait" -> s -> nvl(s.getWaitTimeUsDelta());
-            case "execution" -> s -> nvl(s.getExecutionsDelta());
-            case "buffer" -> s -> nvl(s.getBufferGetsDelta());
-            case "disk" -> s -> nvl(s.getDiskReadsDelta());
-            case "cpu" -> s -> nvl(s.getCpuUsDelta());
-
-            default -> s -> 0L;
-        };
-    }
-
-    private Long nvl(Long v) {
-        return v == null ? 0L : v;
+        MetricType metricType = MetricType.from(metric);
+        return metricType::extract;
     }
 
     /** 정렬 기준에 따른 Comparator 생성 */
     private Comparator<SqlResponse> getComparator(String orderBy, Sort.Direction direction) {
-        Comparator<SqlResponse> baseComparator = switch (orderBy.toLowerCase()) {
-            case "elapsed" -> Comparator.comparing(SqlResponse::elapsedUsDelta);
-            case "cpu" -> Comparator.comparing(SqlResponse::cpuUsDelta);
-            case "buffer" -> Comparator.comparing(SqlResponse::bufferGetsDelta);
-            case "disk" -> Comparator.comparing(SqlResponse::diskReadsDelta);
-            case "wait" -> Comparator.comparing(SqlResponse::waitTimeUsDelta);
-            case "execution" -> Comparator.comparing(SqlResponse::executionsDelta);
-            case "avg" -> Comparator.comparing(SqlResponse::avgElapsed);
-            default -> Comparator.comparing(SqlResponse::elapsedUsDelta); // 기본값: elapsed
-        };
+        MetricType metricType = MetricType.from(orderBy);
+        Comparator<SqlResponse> baseComparator = metricType.getComparator();
 
         return direction == Sort.Direction.ASC 
                 ? baseComparator 
@@ -239,17 +179,17 @@ public class SqlStatsQueryService {
         }
 
         // 누적값 계산
-        long totalElapsed = list.stream().mapToLong(s -> nvl(s.getElapsedUsDelta())).sum();
-        long totalCpu = list.stream().mapToLong(s -> nvl(s.getCpuUsDelta())).sum();
-        long totalExec = list.stream().mapToLong(s -> nvl(s.getExecutionsDelta())).sum();
-        long totalBuffer = list.stream().mapToLong(s -> nvl(s.getBufferGetsDelta())).sum();
-        long totalDisk = list.stream().mapToLong(s -> nvl(s.getDiskReadsDelta())).sum();
-        long totalWait = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
-        long totalWaitTime = list.stream().mapToLong(s -> nvl(s.getWaitTimeUsDelta())).sum();
-        long totalWaitUserIo = list.stream().mapToLong(s -> nvl(s.getWaitUserIoUsDelta())).sum();
-        long totalWaitConcurrency = list.stream().mapToLong(s -> nvl(s.getWaitConcurrencyUsDelta())).sum();
-        long totalWaitApplication = list.stream().mapToLong(s -> nvl(s.getWaitApplicationUsDelta())).sum();
-        long totalWaitCluster = list.stream().mapToLong(s -> nvl(s.getWaitClusterUsDelta())).sum();
+        long totalElapsed = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getElapsedUsDelta())).sum();
+        long totalCpu = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getCpuUsDelta())).sum();
+        long totalExec = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getExecutionsDelta())).sum();
+        long totalBuffer = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getBufferGetsDelta())).sum();
+        long totalDisk = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getDiskReadsDelta())).sum();
+        long totalWait = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitTimeUsDelta())).sum();
+        long totalWaitTime = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitTimeUsDelta())).sum();
+        long totalWaitUserIo = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitUserIoUsDelta())).sum();
+        long totalWaitConcurrency = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitConcurrencyUsDelta())).sum();
+        long totalWaitApplication = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitApplicationUsDelta())).sum();
+        long totalWaitCluster = list.stream().mapToLong(s -> SqlNullUtils.nvl(s.getWaitClusterUsDelta())).sum();
 
         long avgElapsed = (totalExec == 0 ? 0 : totalElapsed / totalExec);
 
@@ -343,7 +283,7 @@ public class SqlStatsQueryService {
             long bucketIndex = minutes / interval;
 
             trend.put(bucketIndex,
-                    trend.getOrDefault(bucketIndex, 0L) + nvl(getter.apply(s))
+                    trend.getOrDefault(bucketIndex, 0L) + SqlNullUtils.nvl(getter.apply(s))
             );
         }
 
@@ -367,7 +307,7 @@ public class SqlStatsQueryService {
                 req.instanceId(),
                 baseStart,
                 baseEnd,
-                "elapsed",
+                MetricType.ELAPSED.getName(),
                 "DESC"
         );
         SqlStatsPageResponse base = getSqlStats(baseReq);
@@ -378,7 +318,7 @@ public class SqlStatsQueryService {
                 req.instanceId(),
                 compStart,
                 compEnd,
-                "elapsed",
+                MetricType.ELAPSED.getName(),
                 "DESC"
         );
         SqlStatsPageResponse compare = getSqlStats(compareReq);
@@ -423,13 +363,8 @@ public class SqlStatsQueryService {
             int minutes = s.getCreatedAt().getHour() * 60 + s.getCreatedAt().getMinute();
             int idx = minutes / interval;
 
-            long metricValue = switch (metric) {
-                case "elapsed" -> s.getElapsedUsDelta();
-                case "wait" -> s.getWaitTimeUsDelta();
-                case "avg" -> s.getAvgElapsed();
-                case "execute" -> s.getExecutionsDelta();
-                default -> 0L;
-            };
+            MetricType metricType = MetricType.from(metric);
+            long metricValue = SqlNullUtils.nvl(metricType.extract(s));
 
             bucket.put(idx, bucket.get(idx) + metricValue);
         }
