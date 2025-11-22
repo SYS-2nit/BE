@@ -5,7 +5,10 @@ import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
 import com.sys.dbmonitor.domains.sql.dto.response.*;
 import com.sys.dbmonitor.domains.sql.service.query.PlanHistoryService;
-import com.sys.dbmonitor.domains.sql.service.query.SqlStatsQueryService;
+import com.sys.dbmonitor.domains.sql.service.query.SqlCompareService;
+import com.sys.dbmonitor.domains.sql.service.query.SqlDetailService;
+import com.sys.dbmonitor.domains.sql.service.query.SqlGraphService;
+import com.sys.dbmonitor.domains.sql.service.query.SqlStatsService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,14 +24,17 @@ import java.util.List;
 @Tag(name = "SQL Command API", description = "SQL 통계 및 Top SQL 비교 조회 API")
 public class SqlCommandController {
 
-    private final SqlStatsQueryService sqlStatsQueryService;
+    private final SqlStatsService sqlStatsService;
+    private final SqlGraphService sqlGraphService;
+    private final SqlDetailService sqlDetailService;
+    private final SqlCompareService sqlCompareService;
     private final PlanHistoryService planHistoryService;
 
     /* =====  1. SQL 통계 목록 조회 ===== */
     @Operation(summary = "SQL 통계 테이블 목록 조회", description = "시작일, 종료일, 필터, 인터벌에 따른 SQL 테이블 목록을 조회합니다.")
     @GetMapping("/stats")
     public ApiResponse<SqlStatsPageResponse> getStats(@Valid SqlStatsQueryRequest request) {
-        SqlStatsPageResponse response = sqlStatsQueryService.getSqlStats(request);
+        SqlStatsPageResponse response = sqlStatsService.getSqlStats(request);
         return ApiResponse.ok(200, response, "SQL 통계 목록 조회 성공");
     }
 
@@ -38,7 +44,7 @@ public class SqlCommandController {
     public ApiResponse<SqlGraphSeriesResponse> graph(@Valid SqlGraphRequest request) {
         return ApiResponse.ok(
                 200,
-                sqlStatsQueryService.getSqlGraphData(request),
+                sqlGraphService.getSqlGraphData(request),
                 "그래프 데이터 조회 성공"
         );
     }
@@ -52,7 +58,7 @@ public class SqlCommandController {
             @RequestParam String endDate,
             @RequestParam(required = false) Integer intervalMinutes
     ) {
-        SqlDetailResponse response = sqlStatsQueryService.getSqlDetail(sqlId, startDate, endDate, intervalMinutes);
+        SqlDetailResponse response = sqlDetailService.getSqlDetail(sqlId, startDate, endDate, intervalMinutes);
         return ApiResponse.ok(200, response, "SQL 상세 조회 성공");
     }
 
@@ -62,7 +68,7 @@ public class SqlCommandController {
     public ApiResponse<SqlComparePageResponse> compare(@Valid SqlCompareRequest request) {
         return ApiResponse.ok(
                 200,
-                sqlStatsQueryService.getSqlCompareStats(request),
+                sqlCompareService.getSqlCompareStats(request),
                 "Top SQL 비교 조회 성공"
         );
     }
@@ -78,7 +84,7 @@ public class SqlCommandController {
     ) {
         return ApiResponse.ok(
                 200,
-                sqlStatsQueryService.getDailySqlGraph(date, metric, instanceId, intervalMinutes),
+                sqlGraphService.getDailySqlGraph(date, metric, instanceId, intervalMinutes),
                 "일별 SQL 그래프 조회 성공"
         );
     }
@@ -95,7 +101,7 @@ public class SqlCommandController {
     ) {
         return ApiResponse.ok(
                 200,
-                sqlStatsQueryService.getPeriodGraph(startDate, endDate, metric, intervalMinutes, instanceId),
+                sqlGraphService.getPeriodGraph(startDate, endDate, metric, intervalMinutes, instanceId),
                 "기간별 SQL 그래프 조회 성공"
         );
     }
