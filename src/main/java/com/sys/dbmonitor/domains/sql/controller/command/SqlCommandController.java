@@ -4,7 +4,6 @@ import com.sys.dbmonitor.domains.sql.dto.request.SqlCompareRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlGraphRequest;
 import com.sys.dbmonitor.domains.sql.dto.request.SqlStatsQueryRequest;
 import com.sys.dbmonitor.domains.sql.dto.response.*;
-import com.sys.dbmonitor.domains.sql.service.command.SqlCommandService;
 import com.sys.dbmonitor.domains.sql.service.query.PlanHistoryService;
 import com.sys.dbmonitor.domains.sql.service.query.SqlStatsQueryService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
@@ -22,7 +21,6 @@ import java.util.List;
 @Tag(name = "SQL Command API", description = "SQL 통계 및 Top SQL 비교 조회 API")
 public class SqlCommandController {
 
-    private final SqlCommandService sqlCommandService;
     private final SqlStatsQueryService sqlStatsQueryService;
     private final PlanHistoryService planHistoryService;
 

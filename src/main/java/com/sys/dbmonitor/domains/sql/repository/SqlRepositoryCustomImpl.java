@@ -39,26 +39,6 @@ public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {
     }
 
     @Override
-    public List<Sql> findAllForStats(
-            Long instanceId,
-            LocalDateTime start,
-            LocalDateTime end
-    ) {
-
-        QSql sql = QSql.sql;
-
-        return queryFactory
-                .selectFrom(sql)
-                .where(
-                        sql.isDeleted.eq(false),
-                        instanceId != null ? sql.instanceId.eq(instanceId) : null,
-                        sql.createdAt.goe(start),
-                        sql.createdAt.lt(end)
-                )
-                .fetch();
-    }
-
-    @Override
     public List<Object[]> findAggregatedStats(
             Long instanceId,
             LocalDateTime start,

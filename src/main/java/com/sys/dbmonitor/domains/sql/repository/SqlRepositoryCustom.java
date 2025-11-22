@@ -14,13 +14,6 @@ public interface SqlRepositoryCustom {
             LocalDateTime end
     );
 
-    // 통계 조회용 (페이지네이션 없이 전체 조회)
-    List<Sql> findAllForStats(
-            Long instanceId,
-            LocalDateTime start,
-            LocalDateTime end
-    );
-
     // 통계 조회용 (DB 레벨 GROUP BY, ORDER BY 적용 - 성능 최적화)
     // Object[]: [id, instanceId, sqlId, sqlText, elapsedSum, execSum, waitSum, bufferSum, diskSum, cpuSum]
     List<Object[]> findAggregatedStats(
