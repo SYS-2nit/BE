@@ -97,11 +97,54 @@ public class AlertNotificationService {
             }
 
             // 3. 선택된 채널로 알림 전송
-            if ("email".equalsIgnoreCase(selectedChannel)) {
+            String channelLower = selectedChannel != null ? selectedChannel.toLowerCase().trim() : "";
+            
+            if ("all".equals(channelLower) || "both".equals(channelLower)) {
+                // 전체 선택 시: 슬랙과 이메일 둘 다 전송
+                boolean emailSent = false;
+                boolean slackSent = false;
+                
+                // 이메일 전송 (email이 설정되어 있는 경우)
+                if (member.getEmail() != null && !member.getEmail().trim().isEmpty()) {
+                    try {
+                        emailAlertService.sendEmail(member, event);
+                        emailSent = true;
+                        log.info("[AlertNotification] 이메일 알림 전송 완료: eventId={}, memberId={}, severity={}", 
+                            event.getId(), memberId, severity);
+                    } catch (Exception e) {
+                        log.error("[AlertNotification] 이메일 전송 실패: eventId={}, memberId={}, error={}", 
+                            event.getId(), memberId, e.getMessage());
+                    }
+                } else {
+                    log.warn("[AlertNotification] 이메일 주소가 없어 이메일 전송 건너뜀: eventId={}, memberId={}", 
+                        event.getId(), memberId);
+                }
+                
+                // Slack 전송 (slackAddress가 설정되어 있는 경우)
+                if (member.getSlackAddress() != null && !member.getSlackAddress().trim().isEmpty()) {
+                    try {
+                        slackAlertService.sendSlack(member, event);
+                        slackSent = true;
+                        log.info("[AlertNotification] Slack 알림 전송 완료: eventId={}, memberId={}, severity={}", 
+                            event.getId(), memberId, severity);
+                    } catch (Exception e) {
+                        log.error("[AlertNotification] Slack 전송 실패: eventId={}, memberId={}, error={}", 
+                            event.getId(), memberId, e.getMessage());
+                    }
+                } else {
+                    log.warn("[AlertNotification] Slack 주소가 없어 Slack 전송 건너뜀: eventId={}, memberId={}", 
+                        event.getId(), memberId);
+                }
+                
+                if (!emailSent && !slackSent) {
+                    log.warn("[AlertNotification] 전체 채널 선택했으나 이메일과 Slack 주소가 모두 없음: eventId={}, memberId={}", 
+                        event.getId(), memberId);
+                }
+            } else if ("email".equalsIgnoreCase(channelLower)) {
                 emailAlertService.sendEmail(member, event);
                 log.info("[AlertNotification] 이메일 알림 전송 완료: eventId={}, memberId={}, severity={}", 
                     event.getId(), memberId, severity);
-            } else if ("slack".equalsIgnoreCase(selectedChannel)) {
+            } else if ("slack".equalsIgnoreCase(channelLower)) {
                 slackAlertService.sendSlack(member, event);
                 log.info("[AlertNotification] Slack 알림 전송 완료: eventId={}, memberId={}, severity={}", 
                     event.getId(), memberId, severity);

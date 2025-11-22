@@ -14,9 +14,8 @@ import java.util.List;
 @Schema(description = "알림 정책 생성 요청")
 public class AlertPolicyCreateRequest {
 
-    @NotNull
-    @Schema(description = "정책 생성자(멤버) ID", example = "3", requiredMode = Schema.RequiredMode.REQUIRED)
-    private Long memberId;
+    // memberId 필드 제거 - UserIdInterceptor.getCurrentUserId()로 자동 추출
+    // 사용자 ID는 X-User-ID 헤더에서 자동으로 추출되며, 헤더가 없으면 기본값 1을 사용합니다.
 
     @NotNull
     @Schema(description = "대상 인스턴스 ID", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)

@@ -19,7 +19,10 @@ public record GraphDataResponse(
         Integer type,
 
         @Schema(description = "그래프 데이터 리스트 (최대 10개)")
-        List<GraphDataPoint> data
+        List<GraphDataPoint> data,
+
+        @Schema(description = "알림 심각도 (null=정상, 1=주의, 2=위험, 3=치명)")
+        Integer alertSeverity
 ) {
 }
 

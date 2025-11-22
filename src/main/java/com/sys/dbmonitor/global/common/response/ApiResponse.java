@@ -43,6 +43,8 @@ public class ApiResponse<T> {
     public static ApiResponse<String> okWithoutData() {
         return new ApiResponse<>(OK_CODE, DEFAULT_MESSAGE, EMPTY);
     }
+
+    // 리팩토링 고민: @ResponseStatus 를 통해 HTTP code를 설정할 수 있기 때문에 응답에서는 code 값이 불필요 (프론트엔드와의 컨벤션 문제)
     public static <T> ApiResponse<String> created() {
         return new ApiResponse<>(CREATED_CODE, DEFAULT_MESSAGE, null);
     }

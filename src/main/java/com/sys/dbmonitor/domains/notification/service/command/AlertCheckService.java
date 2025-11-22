@@ -119,7 +119,7 @@ public class AlertCheckService {
         if (Boolean.TRUE.equals(alertEvent.getIsReverse())) {
             // 퍼센트 포맷인 경우에만 100 - value 변환 (히트율 등)
             if (alertEvent.getThresholdFormat() == ThresholdFormat.PERCENT) {
-                metricValue = 100.0 - metricValue;
+            metricValue = 100.0 - metricValue;
             }
         }
 
@@ -143,7 +143,7 @@ public class AlertCheckService {
             state.setLastSeverity(null);
             state.setLastCheckedAt(java.time.LocalDateTime.now());
             alertStateRepository.save(state);
-            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}",
+            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}", 
                 alertEvent.getId(), metricValue, alertEvent.getWarning());
             return;
         }
@@ -157,7 +157,7 @@ public class AlertCheckService {
         int requiredCount = alertEvent.getDelayTime().getMinutes();
         if (currentCount < requiredCount) {
             alertStateRepository.save(state);
-            log.debug("[AlertCheck] 누적 시간 조건 미달: alertEventId={}, consecutiveCount={}, requiredCount={}",
+            log.debug("[AlertCheck] 누적 시간 조건 미달: alertEventId={}, consecutiveCount={}, requiredCount={}", 
                 alertEvent.getId(), currentCount, requiredCount);
             return;
         }
@@ -317,23 +317,23 @@ public class AlertCheckService {
             return null;
         } else {
             // 기본: 높을수록 심각
-            if (metricValue >= alertEvent.getCritical()) {
-                return AlertLevel.CRITICAL;
-            }
-            if (metricValue >= alertEvent.getDanger()) {
-                return AlertLevel.DANGER;
-            }
-            if (metricValue >= alertEvent.getWarning()) {
-                return AlertLevel.WARNING;
-            }
-            return null;
+        if (metricValue >= alertEvent.getCritical()) {
+            return AlertLevel.CRITICAL;
+        }
+        if (metricValue >= alertEvent.getDanger()) {
+            return AlertLevel.DANGER;
+        }
+        if (metricValue >= alertEvent.getWarning()) {
+            return AlertLevel.WARNING;
+        }
+        return null;
         }
     }
 
     /**
      * Event 생성 및 저장
      */
-    private void createAndSaveEvent(AlertEvent alertEvent, Instance instance,
+    private void createAndSaveEvent(AlertEvent alertEvent, Instance instance, 
                                     AlertLevel severity, Double currentValue) {
         // 임계값 결정 (초과한 임계값)
         Double thresholdValue = determineThresholdValue(currentValue, alertEvent);
@@ -395,16 +395,16 @@ public class AlertCheckService {
             return (double) alertEvent.getWarning();
         } else {
             // 높을수록 심각
-            if (currentValue >= alertEvent.getCritical()) {
-                return (double) alertEvent.getCritical();
-            }
-            if (currentValue >= alertEvent.getDanger()) {
-                return (double) alertEvent.getDanger();
-            }
-            if (currentValue >= alertEvent.getWarning()) {
-                return (double) alertEvent.getWarning();
-            }
+        if (currentValue >= alertEvent.getCritical()) {
+            return (double) alertEvent.getCritical();
+        }
+        if (currentValue >= alertEvent.getDanger()) {
+            return (double) alertEvent.getDanger();
+        }
+        if (currentValue >= alertEvent.getWarning()) {
             return (double) alertEvent.getWarning();
+        }
+        return (double) alertEvent.getWarning();
         }
     }
 }

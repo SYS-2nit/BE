@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Schema(description = "Slack 테스트 요청")
 public class SlackTestRequest {
 
-    @Schema(description = "Slack Webhook URL", example = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL", required = true)
+    @Schema(description = "Slack Webhook URL", example = "Slack Webhook URL 삽입", required = true)
     private String webhookUrl;
 
     @Schema(description = "심각도 (1=WARNING, 2=DANGER, 3=CRITICAL)", example = "3", defaultValue = "3")

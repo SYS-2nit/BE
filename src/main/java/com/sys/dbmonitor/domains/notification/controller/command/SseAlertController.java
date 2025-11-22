@@ -1,6 +1,7 @@
 package com.sys.dbmonitor.domains.notification.controller.command;
 
 import com.sys.dbmonitor.domains.notification.service.realtime.SseAlertService;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -18,11 +19,12 @@ public class SseAlertController {
 
     /**
      * SSE 연결 생성
-     * 브라우저에서 접속: http://localhost:8080/api/alerts/sse/stream?userId=1
+     * 사용자 ID는 X-User-ID 헤더에서 자동으로 추출됩니다.
      */
-    @Operation(summary = "SSE 연결 생성", description = "실시간 알림을 받기 위한 SSE 연결을 생성합니다.")
+    @Operation(summary = "SSE 연결 생성", description = "실시간 알림을 받기 위한 SSE 연결을 생성합니다. 사용자 ID는 X-User-ID 헤더에서 자동으로 추출됩니다.")
     @GetMapping(value = "/stream", produces = "text/event-stream;charset=UTF-8")
-    public SseEmitter createConnection(@RequestParam Long userId, HttpServletResponse response) {
+    public SseEmitter createConnection(HttpServletResponse response) {
+        Long userId = UserIdInterceptor.getCurrentUserId();
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/event-stream;charset=UTF-8");
         return sseAlertService.createConnection(userId);
@@ -31,9 +33,10 @@ public class SseAlertController {
     /**
      * 연결 종료
      */
-    @Operation(summary = "SSE 연결 종료", description = "SSE 연결을 종료합니다.")
+    @Operation(summary = "SSE 연결 종료", description = "SSE 연결을 종료합니다. 사용자 ID는 X-User-ID 헤더에서 자동으로 추출됩니다.")
     @DeleteMapping("/stream")
-    public void closeConnection(@RequestParam Long userId) {
+    public void closeConnection() {
+        Long userId = UserIdInterceptor.getCurrentUserId();
         sseAlertService.closeConnection(userId);
     }
 
