@@ -52,12 +52,28 @@ public class AlertEventQueryService {
 
     /**
      * 단일 알림 규칙 상세 조회
+     * 히스토리에서 사용 - 삭제된 AlertEvent도 조회 가능
      */
     @Transactional(readOnly = true)
     public AlertEventResponse getEvent(Long id) {
-        AlertEvent event = alertEventRepository.findByIdAndNotDeleted(id)
+        // 삭제된 것도 포함하여 조회 (히스토리에서 사용)
+        AlertEvent event = alertEventRepository.findByIdIncludingDeleted(id)
                 .orElseThrow(() -> new IllegalArgumentException("AlertEvent not found: " + id));
-        return AlertEventResponse.from(event);
+        
+        // 디버깅 로그 추가
+//        log.info("[AlertEventQueryService] AlertEvent 조회: id={}, graphId={}, graphName={}, graph={}, isDeleted={}",
+//                id,
+//                event.getGraph() != null ? event.getGraph().getId() : null,
+//                event.getGraph() != null ? event.getGraph().getName() : null,
+//                event.getGraph(),
+//                event.getIsDeleted());
+        
+        AlertEventResponse response = AlertEventResponse.from(event);
+        
+//        log.info("[AlertEventQueryService] AlertEventResponse 생성: id={}, graphId={}, graphName={}",
+//                response.getId(), response.getGraphId(), response.getGraphName());
+        
+        return response;
     }
 }
 

@@ -79,9 +79,22 @@ public interface AlertEventRepository extends JpaRepository<AlertEvent, Long> {
 
     /**
      * ID로 조회 (삭제되지 않은 것만)
+     * Graph를 함께 로드 (JOIN FETCH)
      */
-    @Query("SELECT ae FROM AlertEvent ae WHERE ae.id = :id AND ae.isDeleted = false")
+    @Query("SELECT ae FROM AlertEvent ae " +
+           "LEFT JOIN FETCH ae.graph " +
+           "WHERE ae.id = :id AND ae.isDeleted = false")
     Optional<AlertEvent> findByIdAndNotDeleted(@Param("id") Long id);
+
+    /**
+     * ID로 조회 (삭제된 것도 포함)
+     * 히스토리에서 사용 - 이미 발생한 알림 이벤트의 AlertEvent는 삭제되어도 조회 가능해야 함
+     * Graph를 함께 로드 (JOIN FETCH)
+     */
+    @Query("SELECT ae FROM AlertEvent ae " +
+           "LEFT JOIN FETCH ae.graph " +
+           "WHERE ae.id = :id")
+    Optional<AlertEvent> findByIdIncludingDeleted(@Param("id") Long id);
 
     /**
      * 특정 그래프와 인스턴스에 대한 활성화된 알림 규칙 목록 조회

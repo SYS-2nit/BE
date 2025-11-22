@@ -31,45 +31,59 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /**
      * 특정 인스턴스에서 발생한 알림 이벤트 목록 조회 (삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
+     */
+    @Query("SELECT e FROM Event e WHERE e.instance.id = :instanceId AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    List<Event> findByInstanceId(@Param("instanceId") Long instanceId, @Param("memberId") Long memberId);
+
+    /**
+     * 특정 인스턴스에서 발생한 알림 이벤트 목록 조회 (모든 사용자, 테스트용)
+     * 삭제되지 않은 것만
      */
     @Query("SELECT e FROM Event e WHERE e.instance.id = :instanceId AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    List<Event> findByInstanceId(@Param("instanceId") Long instanceId);
+    List<Event> findByInstanceIdForTest(@Param("instanceId") Long instanceId);
 
     /**
      * 특정 인스턴스에서 발생한 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
      */
-    @Query("SELECT e FROM Event e WHERE e.instance.id = :instanceId AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    Page<Event> findByInstanceId(@Param("instanceId") Long instanceId, Pageable pageable);
+    @Query("SELECT e FROM Event e WHERE e.instance.id = :instanceId AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    Page<Event> findByInstanceId(@Param("instanceId") Long instanceId, @Param("memberId") Long memberId, Pageable pageable);
 
     /**
      * 특정 상태의 알림 이벤트 목록 조회 (삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
      */
-    @Query("SELECT e FROM Event e WHERE e.status = :status AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    List<Event> findByStatus(@Param("status") AlertStatus status);
+    @Query("SELECT e FROM Event e WHERE e.status = :status AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    List<Event> findByStatus(@Param("status") AlertStatus status, @Param("memberId") Long memberId);
 
     /**
      * 특정 상태의 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
      */
-    @Query("SELECT e FROM Event e WHERE e.status = :status AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    Page<Event> findByStatus(@Param("status") AlertStatus status, Pageable pageable);
+    @Query("SELECT e FROM Event e WHERE e.status = :status AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    Page<Event> findByStatus(@Param("status") AlertStatus status, @Param("memberId") Long memberId, Pageable pageable);
 
     /**
      * 특정 심각도의 알림 이벤트 목록 조회 (삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
      */
-    @Query("SELECT e FROM Event e WHERE e.severity = :severity AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    List<Event> findBySeverity(@Param("severity") Integer severity);
+    @Query("SELECT e FROM Event e WHERE e.severity = :severity AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    List<Event> findBySeverity(@Param("severity") Integer severity, @Param("memberId") Long memberId);
 
     /**
      * 특정 심각도의 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
+     * 특정 사용자(memberId)의 이벤트만 조회
      */
-    @Query("SELECT e FROM Event e WHERE e.severity = :severity AND e.isDeleted = false ORDER BY e.createdAt DESC")
-    Page<Event> findBySeverity(@Param("severity") Integer severity, Pageable pageable);
+    @Query("SELECT e FROM Event e WHERE e.severity = :severity AND e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    Page<Event> findBySeverity(@Param("severity") Integer severity, @Param("memberId") Long memberId, Pageable pageable);
 
     /**
      * 복합 조건으로 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
+     * memberId는 필수 (현재 사용자의 이벤트만 조회)
      */
     @Query("SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE " +
-           "(:memberId IS NULL OR e.member.id = :memberId) AND " +
+           "e.member.id = :memberId AND " +
            "(:instanceId IS NULL OR e.instance.id = :instanceId) AND " +
            "(:status IS NULL OR e.status = :status) AND " +
            "(:severity IS NULL OR e.severity = :severity) AND " +
@@ -95,13 +109,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     /**
      * 특정 인스턴스의 PENDING 상태 알림 중 최고 심각도 조회
+     * 특정 사용자(memberId)의 이벤트만 조회
      * @return 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
      */
     @Query("SELECT MAX(e.severity) FROM Event e " +
            "WHERE e.instance.id = :instanceId " +
+           "AND e.member.id = :memberId " +
            "AND e.status = 'PENDING' " +
            "AND e.isDeleted = false")
-    Integer findMaxSeverityByInstanceId(@Param("instanceId") Long instanceId);
+    Integer findMaxSeverityByInstanceId(@Param("instanceId") Long instanceId, @Param("memberId") Long memberId);
 
     /**
      * PDF 다운로드를 위한 필터링된 이벤트 목록 조회 (전체, 페이징 없음)
