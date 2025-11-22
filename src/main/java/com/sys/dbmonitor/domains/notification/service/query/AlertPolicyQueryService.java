@@ -47,6 +47,17 @@ public class AlertPolicyQueryService {
     }
 
     /**
+     * 특정 사용자가 생성한 특정 인스턴스의 알림 정책 목록 조회
+     */
+    @Transactional(readOnly = true)
+    public List<AlertPolicyResponse> getPoliciesByMemberAndInstance(Long memberId, Long instanceId) {
+        List<AlertPolicy> policies = alertPolicyRepository.findByMemberIdAndInstanceId(memberId, instanceId);
+        return policies.stream()
+                .map(AlertPolicyResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 단일 알림 정책 상세 조회
      */
     @Transactional(readOnly = true)

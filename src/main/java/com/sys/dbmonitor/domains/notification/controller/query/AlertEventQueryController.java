@@ -17,6 +17,7 @@ import java.util.List;
  * - GET /api/alerts/rules/{id}: 단일 규칙 상세 조회
  */
 @RestController
+@RequestMapping("/api/alerts")
 @RequiredArgsConstructor
 @Tag(name = "Alert Event Query API", description = "알림 규칙 조회 API")
 public class AlertEventQueryController {
@@ -24,21 +25,21 @@ public class AlertEventQueryController {
     private final AlertEventQueryService alertEventQueryService;
 
     @Operation(summary = "정책별 알림 규칙 목록 조회", description = "특정 정책에 속한 알림 규칙 목록을 조회합니다.")
-    @GetMapping("/api/alerts/policies/{policyId}/rules")
+    @GetMapping("/policies/{policyId}/rules")
     public ApiResponse<List<AlertEventResponse>> eventsByPolicy(@PathVariable Long policyId) {
         return ApiResponse.ok(200, alertEventQueryService.getEventsByPolicy(policyId), 
             "정책별 알림 규칙 목록 조회 성공");
     }
 
     @Operation(summary = "인스턴스별 활성 알림 규칙 목록 조회", description = "특정 인스턴스에 대한 활성화된 알림 규칙 목록을 조회합니다.")
-    @GetMapping("/api/alerts/instances/{instanceId}/rules")
+    @GetMapping("/instances/{instanceId}/rules")
     public ApiResponse<List<AlertEventResponse>> activeEventsByInstance(@PathVariable Long instanceId) {
         return ApiResponse.ok(200, alertEventQueryService.getActiveEventsByInstance(instanceId), 
             "인스턴스별 활성 알림 규칙 목록 조회 성공");
     }
 
     @Operation(summary = "알림 규칙 상세 조회", description = "특정 알림 규칙의 상세 정보를 조회합니다.")
-    @GetMapping("/api/alerts/rules/{id}")
+    @GetMapping("/rules/{id}")
     public ApiResponse<AlertEventResponse> detail(@PathVariable Long id) {
         return ApiResponse.ok(200, alertEventQueryService.getEvent(id), "알림 규칙 조회 성공");
     }

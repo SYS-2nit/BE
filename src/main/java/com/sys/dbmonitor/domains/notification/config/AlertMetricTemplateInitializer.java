@@ -48,7 +48,7 @@ public class AlertMetricTemplateInitializer {
             new MetricTemplateData(AlertCategory.CPU, 16L, "OTHER_PROCESSES_PCT",
                 "기타 프로세스 CPU 비율", ThresholdFormat.PERCENT, 30.0, 50.0, 70.0, "기타 프로세스 CPU 비율 (Graph 16과 공유)"),
             new MetricTemplateData(AlertCategory.CPU, 14L, "AAS_ONCPU_SESSIONS",
-                "On-CPU 세션 수", ThresholdFormat.PERCENT, 70.0, 85.0, 95.0, "AAS_ONCPU_SESSIONS / CORE_BASELINE_SESSIONS * 100 (Graph 14와 공유)"),
+                "On-CPU 세션 수", ThresholdFormat.COUNT, 10.0, 20.0, 30.0, "On-CPU 세션 개수 (AAS_ONCPU_SESSIONS)"),
 
             // ===== CPU 추가 (5개) =====
             new MetricTemplateData(AlertCategory.CPU, 17L, "RunQ_per_Core_LOAD_PROXY",
@@ -74,13 +74,7 @@ public class AlertMetricTemplateInitializer {
             new MetricTemplateData(AlertCategory.MEMORY, 26L, "LIBRARY_CACHE_RELOADS_PER_SEC",
                 "라이브러리 캐시 재적재율", ThresholdFormat.COUNT, 5.0, 10.0, 20.0, "Library Cache Reloads per Second"),
 
-            // ===== Memory 추가 (5개) =====
-            new MetricTemplateData(AlertCategory.MEMORY, 22L, "LIBRARY_CACHE_HIT_PCT",
-                "Library Cache Hit 비율 (역방향)", ThresholdFormat.PERCENT, 10.0, 15.0, 20.0, "100 - value로 역방향 처리"),
-            new MetricTemplateData(AlertCategory.MEMORY, 22L, "DICTIONARY_CACHE_HIT_PCT",
-                "Dictionary Cache Hit 비율 (역방향)", ThresholdFormat.PERCENT, 10.0, 15.0, 20.0, "100 - value로 역방향 처리"),
-            new MetricTemplateData(AlertCategory.MEMORY, 22L, "LATCH_HIT_PCT",
-                "Latch Hit 비율 (역방향)", ThresholdFormat.PERCENT, 5.0, 10.0, 15.0, "100 - value로 역방향 처리"),
+            // ===== Memory 추가 (2개) =====
             new MetricTemplateData(AlertCategory.MEMORY, 21L, "MEMORY_SORT_PCT",
                 "메모리 정렬 비율", ThresholdFormat.PERCENT, 60.0, 75.0, 90.0, "메모리 정렬 비율"),
             new MetricTemplateData(AlertCategory.MEMORY, 22L, "REDO_BUFFER_WAIT_PCT",
@@ -108,31 +102,23 @@ public class AlertMetricTemplateInitializer {
             new MetricTemplateData(AlertCategory.SESSION, 31L, "lock_wait_total",
                 "총 락 대기 세션 수", ThresholdFormat.COUNT, 1.0, 3.0, 5.0, "락 대기 세션 수 합계"),
 
-            // ===== I/O (카테고리 5) - 5개 메트릭 =====
+            // ===== I/O (카테고리 5) - 4개 메트릭 =====
             new MetricTemplateData(AlertCategory.IO, 38L, "direct_io_ratio_pct",
                 "Direct I/O 비율", ThresholdFormat.PERCENT, 20.0, 30.0, 40.0, "Direct Path I/O Ratio (%)"),
             new MetricTemplateData(AlertCategory.IO, 37L, "parse_execute_ratio",
                 "Parse/Execute 비율", ThresholdFormat.PERCENT, 50.0, 70.0, 90.0, "Parse/Execute Ratio (0~1 범위이므로 * 100으로 변환하여 0~100%로 처리)"),
-            new MetricTemplateData(AlertCategory.IO, 37L, "cache_hit_ratio_pct",
-                "캐시 히트 비율 (역방향)", ThresholdFormat.PERCENT, 10.0, 15.0, 20.0, "Cache Hit Ratio (%) - 역방향 (100 - cache_hit_ratio_pct로 변환하여 높을수록 문제로 처리)"),
             new MetricTemplateData(AlertCategory.IO, 37L, "avg_io_wait_time_ms",
                 "평균 I/O 대기 시간", ThresholdFormat.MS, 20.0, 35.0, 50.0, "Average I/O Wait Time (ms)"),
             new MetricTemplateData(AlertCategory.IO, 42L, "redo_generation_mbps",
                 "Redo 생성량", ThresholdFormat.MBPS, 80.0, 120.0, 160.0, "Redo Generation Rate (MB/s)"),
 
-            // ===== I/O 추가 (6개) =====
-            new MetricTemplateData(AlertCategory.IO, 41L, "avg_wait_time_ms",
-                "평균 I/O 대기 시간 (상세)", ThresholdFormat.MS, 20.0, 35.0, 50.0, "Average I/O Wait Time (ms) 상세"),
-            new MetricTemplateData(AlertCategory.IO, 41L, "p95_wait_time_ms",
-                "95퍼센타일 I/O 대기 시간", ThresholdFormat.MS, 40.0, 60.0, 80.0, "95th percentile I/O wait time (ms)"),
+            // ===== I/O 추가 (3개) =====
             new MetricTemplateData(AlertCategory.IO, 41L, "io_waits_per_sec",
                 "초당 I/O 대기 횟수", ThresholdFormat.COUNT, 200.0, 400.0, 800.0, "I/O waits per second"),
             new MetricTemplateData(AlertCategory.IO, 38L, "physical_reads_direct_per_sec",
                 "초당 Direct Read 횟수", ThresholdFormat.COUNT, 50.0, 100.0, 200.0, "Direct Reads per second"),
             new MetricTemplateData(AlertCategory.IO, 40L, "total_reads_per_sec",
                 "초당 총 읽기 횟수", ThresholdFormat.COUNT, 500.0, 1000.0, 2000.0, "Total reads per second"),
-            new MetricTemplateData(AlertCategory.IO, 40L, "cache_hit_ratio_diff_pct",
-                "캐시 히트 비율 차이 (역방향)", ThresholdFormat.PERCENT, 10.0, 15.0, 20.0, "100 - value로 역방향 처리"),
 
             // ===== Storage (카테고리 6) - 5개 메트릭 =====
             new MetricTemplateData(AlertCategory.STORAGE, 51L, "total_db_usage_percent",
@@ -146,29 +132,19 @@ public class AlertMetricTemplateInitializer {
             new MetricTemplateData(AlertCategory.STORAGE, 45L, "MAX_TS_USAGE_PCT",
                 "최대 테이블스페이스 사용률", ThresholdFormat.PERCENT, 80.0, 90.0, 95.0, "Maximum Tablespace Usage (%)"),
 
-            // ===== Storage 추가 (3개) =====
+            // ===== Storage 추가 (2개) =====
             new MetricTemplateData(AlertCategory.STORAGE, 46L, "temp_usage_pct_of_max",
                 "Temp 사용률 (최대 대비)", ThresholdFormat.PERCENT, 70.0, 85.0, 95.0, "Temp 사용률(최대 대비)"),
             new MetricTemplateData(AlertCategory.STORAGE, 49L, "hourly_growth_pct",
-                "FRA 시간당 증가율", ThresholdFormat.PERCENT, 2.0, 5.0, 10.0, "FRA Usage 증가율 (시간당)"),
-            new MetricTemplateData(AlertCategory.STORAGE, 49L, "fra_free_gb",
-                "FRA 여유 용량 (역방향)", ThresholdFormat.COUNT, 50.0, 30.0, 20.0, "여유 용량이 낮을수록 문제 (GB)")
+                "FRA 시간당 증가율", ThresholdFormat.PERCENT, 2.0, 5.0, 10.0, "FRA Usage 증가율 (시간당)")
         );
 
         int insertedCount = 0;
-        int skippedCount = 0;
+        int updatedCount = 0;
         int errorCount = 0;
 
         for (MetricTemplateData data : templates) {
             try {
-                // 중복 체크 (Metric Key 기준)
-                Optional<AlertMetricTemplate> existing = templateRepository.findByMetricKey(data.metricKey);
-                if (existing.isPresent()) {
-                    log.debug("[AlertMetricTemplateInitializer] 메트릭 템플릿이 이미 존재합니다. 스킵: metricKey={}", data.metricKey);
-                    skippedCount++;
-                    continue;
-                }
-
                 // Graph 엔티티 조회
                 Graph graph = graphRepository.findById(data.graphId)
                     .orElse(null);
@@ -179,34 +155,57 @@ public class AlertMetricTemplateInitializer {
                     continue;
                 }
 
-                // AlertMetricTemplate 생성 및 저장
-                AlertMetricTemplate template = AlertMetricTemplate.builder()
-                    .category(data.category)
-                    .graph(graph)
-                    .metricKey(data.metricKey)
-                    .metricName(data.metricName)
-                    .thresholdFormat(data.thresholdFormat)
-                    .defaultWarning(data.defaultWarning)
-                    .defaultDanger(data.defaultDanger)
-                    .defaultCritical(data.defaultCritical)
-                    .description(data.description)
-                    .isActive(true)
-                    .build();
+                // 중복 체크 (Metric Key 기준)
+                Optional<AlertMetricTemplate> existingOpt = templateRepository.findByMetricKey(data.metricKey);
+                if (existingOpt.isPresent()) {
+                    // 기존 템플릿이 있으면 업데이트
+                    AlertMetricTemplate existing = existingOpt.get();
+                    existing.updateTemplate(
+                        graph,
+                        data.category,
+                        data.metricKey,
+                        data.metricName,
+                        data.thresholdFormat,
+                        data.defaultWarning,
+                        data.defaultDanger,
+                        data.defaultCritical,
+                        data.description,
+                        true // isActive = true
+                    );
+                    templateRepository.save(existing);
+                    updatedCount++;
+                    log.debug("[AlertMetricTemplateInitializer] 메트릭 템플릿 업데이트 완료: category={}, metricKey={}, metricName={}", 
+                        data.category, data.metricKey, data.metricName);
+                } else {
+                    // 기존 템플릿이 없으면 새로 생성
+                    AlertMetricTemplate template = AlertMetricTemplate.builder()
+                        .category(data.category)
+                        .graph(graph)
+                        .metricKey(data.metricKey)
+                        .metricName(data.metricName)
+                        .thresholdFormat(data.thresholdFormat)
+                        .defaultWarning(data.defaultWarning)
+                        .defaultDanger(data.defaultDanger)
+                        .defaultCritical(data.defaultCritical)
+                        .description(data.description)
+                        .isActive(true)
+                        .build();
 
-                templateRepository.save(template);
-                insertedCount++;
-                log.debug("[AlertMetricTemplateInitializer] 메트릭 템플릿 삽입 완료: category={}, metricKey={}, metricName={}", 
-                    data.category, data.metricKey, data.metricName);
+                    templateRepository.save(template);
+                    insertedCount++;
+                    log.debug("[AlertMetricTemplateInitializer] 메트릭 템플릿 삽입 완료: category={}, metricKey={}, metricName={}", 
+                        data.category, data.metricKey, data.metricName);
+                }
 
             } catch (Exception e) {
-                log.error("[AlertMetricTemplateInitializer] 메트릭 템플릿 삽입 실패: metricKey={}, error={}", 
+                log.error("[AlertMetricTemplateInitializer] 메트릭 템플릿 처리 실패: metricKey={}, error={}", 
                     data.metricKey, e.getMessage(), e);
                 errorCount++;
             }
         }
 
-        log.info("[AlertMetricTemplateInitializer] 메트릭 템플릿 초기 데이터 삽입 완료: 삽입={}, 스킵={}, 실패={}", 
-            insertedCount, skippedCount, errorCount);
+        log.info("[AlertMetricTemplateInitializer] 메트릭 템플릿 초기 데이터 처리 완료: 삽입={}, 업데이트={}, 실패={}", 
+            insertedCount, updatedCount, errorCount);
     }
 
     /**

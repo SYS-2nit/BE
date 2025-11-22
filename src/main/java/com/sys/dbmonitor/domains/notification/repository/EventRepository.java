@@ -1,5 +1,6 @@
 package com.sys.dbmonitor.domains.notification.repository;
 
+import com.sys.dbmonitor.domains.notification.domain.AlertCategory;
 import com.sys.dbmonitor.domains.notification.domain.AlertStatus;
 import com.sys.dbmonitor.domains.notification.domain.Event;
 import org.springframework.data.domain.Page;
@@ -9,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,13 +20,13 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * 특정 사용자에게 발생한 알림 이벤트 목록 조회 (삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
     List<Event> findByMemberId(@Param("memberId") Long memberId);
 
     /**
      * 특정 사용자에게 발생한 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.member.id = :memberId AND e.isDeleted = false ORDER BY e.createdAt DESC")
     Page<Event> findByMemberId(@Param("memberId") Long memberId, Pageable pageable);
 
     /**
@@ -66,7 +68,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * 복합 조건으로 알림 이벤트 목록 조회 (페이징, 삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE " +
+    @Query("SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE " +
            "(:memberId IS NULL OR e.member.id = :memberId) AND " +
            "(:instanceId IS NULL OR e.instance.id = :instanceId) AND " +
            "(:status IS NULL OR e.status = :status) AND " +
@@ -88,7 +90,48 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     /**
      * ID로 조회 (삭제되지 않은 것만)
      */
-    @Query("SELECT e FROM Event e WHERE e.id = :id AND e.isDeleted = false")
+    @Query("SELECT e FROM Event e LEFT JOIN FETCH e.alertEvent WHERE e.id = :id AND e.isDeleted = false")
     Optional<Event> findByIdAndNotDeleted(@Param("id") Long id);
+
+    /**
+     * 특정 인스턴스의 PENDING 상태 알림 중 최고 심각도 조회
+     * @return 최고 심각도 (null=알림 없음, 1=주의, 2=위험, 3=치명)
+     */
+    @Query("SELECT MAX(e.severity) FROM Event e " +
+           "WHERE e.instance.id = :instanceId " +
+           "AND e.status = 'PENDING' " +
+           "AND e.isDeleted = false")
+    Integer findMaxSeverityByInstanceId(@Param("instanceId") Long instanceId);
+
+    /**
+     * PDF 다운로드를 위한 필터링된 이벤트 목록 조회 (전체, 페이징 없음)
+     * 카테고리, 날짜 범위, 심각도, 상태, 읽음 상태 필터링 지원
+     * AlertEvent의 Graph도 함께 로드
+     */
+    @Query("SELECT DISTINCT e FROM Event e " +
+           "LEFT JOIN FETCH e.alertEvent ae " +
+           "LEFT JOIN FETCH ae.graph " +
+           "LEFT JOIN FETCH e.instance " +
+           "LEFT JOIN FETCH e.member " +
+           "WHERE e.member.id = :memberId AND " +
+           "e.isDeleted = false AND " +
+           "(:category IS NULL OR ae.category = :category) AND " +
+           "(:startDate IS NULL OR e.createdAt >= :startDate) AND " +
+           "(:endDate IS NULL OR e.createdAt <= :endDate) AND " +
+           "(:severity IS NULL OR e.severity = :severity) AND " +
+           "(:status IS NULL OR e.status = :status) AND " +
+           "(:readStatus IS NULL OR " +
+           "  (:readStatus = 'read' AND e.acknowledgedAt IS NOT NULL) OR " +
+           "  (:readStatus = 'unread' AND e.acknowledgedAt IS NULL)) " +
+           "ORDER BY e.createdAt DESC")
+    List<Event> findFilteredEventsForPDF(
+            @Param("memberId") Long memberId,
+            @Param("category") AlertCategory category,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("severity") Integer severity,
+            @Param("status") AlertStatus status,
+            @Param("readStatus") String readStatus
+    );
 }
 
