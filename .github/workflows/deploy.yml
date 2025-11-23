@@ -78,6 +78,7 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
           IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+
         run: |
           # PR 이벤트인 경우 PR의 head SHA 사용, 그 외에는 현재 SHA 사용
           if [ "${{ github.event_name }}" = "pull_request" ]; then

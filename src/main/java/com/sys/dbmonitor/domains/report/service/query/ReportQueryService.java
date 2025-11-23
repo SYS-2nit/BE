@@ -133,9 +133,6 @@ public class ReportQueryService {
                 }
                 break;
             case WEEKLY:
-                if (daysBetween > 7) {
-                    throw new IllegalArgumentException("주간 보고서는 최대 7일까지만 선택 가능합니다.");
-                }
                 break;
             case MONTHLY:
                 // 월간 보고서는 제한 없음

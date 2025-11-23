@@ -10,7 +10,9 @@ import com.sys.dbmonitor.domains.dashboard.repository.MetricDataRepository;
 import com.sys.dbmonitor.domains.graph.domain.Graph;
 import com.sys.dbmonitor.domains.graph.domain.GraphCategory;
 import com.sys.dbmonitor.domains.graph.repository.GraphRepository;
+import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.service.query.InstanceQueryService;
 import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
@@ -35,21 +37,25 @@ public class DashboardQueryService {
     private final MemberWidgetQueryService memberWidgetQueryService;
     private final AlertEventRepository alertEventRepository;
     private final AlertSeverityCalculator alertSeverityCalculator;
+    private final InstanceQueryService instanceQueryService;
 
     /**
      * 대시보드 데이터 조회
      */
     public DashboardDataResponse getDashboardData(Long instanceId, String timeUnit, GraphCategory category) {
         // 인스턴스 존재 확인
-        instanceRepository.findById(instanceId)
+        Instance instance = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
+
+        // SERVICE_NAME 인스턴스인 경우 SID 인스턴스 ID로 변환
+        Long actualInstanceId = instanceQueryService.getActualInstanceIdForDataRetrieval(instance);
 
         // 카테고리별 그래프 목록 조회
         List<Graph> graphs = getGraphsByCategory(category);
 
         // 각 그래프별 데이터 조회 (DB에서 조회)
         List<GraphDataResponse> graphDataList = graphs.stream()
-                .map(graph -> getGraphData(graph, instanceId, timeUnit))
+                .map(graph -> getGraphData(graph, actualInstanceId != null ? actualInstanceId : instanceId, timeUnit))
                 .collect(Collectors.toList());
 
         return new DashboardDataResponse(graphDataList);
@@ -59,8 +65,18 @@ public class DashboardQueryService {
      * 그래프별 데이터 조회 (DB에서 조회)
      */
     private GraphDataResponse getGraphData(Graph graph, Long instanceId, String timeUnit) {
-        // DB에서 데이터 조회 (최신 10개)
+        // DB에서 데이터 조회
         List<GraphDataPoint> dataPoints = fetchGraphDataFromDb(graph, instanceId, timeUnit);
+
+        // Tile 타입 그래프(타입 7)인 경우 최신 데이터 하나만 반환
+        if (graph.getType() != null && graph.getType() == 7) {
+            if (!dataPoints.isEmpty()) {
+                // 최신 데이터 하나만 사용
+                dataPoints = List.of(dataPoints.get(0));
+                log.debug("Tile 그래프: 최신 데이터 하나만 반환. graphId={}, graphName={}", 
+                        graph.getId(), graph.getName());
+            }
+        }
 
         // 알림 심각도 계산
         Integer alertSeverity = calculateAlertSeverity(graph, instanceId, dataPoints);
@@ -73,11 +89,17 @@ public class DashboardQueryService {
                 dataPoints,
                 alertSeverity
         );
-//
-//        log.debug("GraphDataResponse 생성: id={}, name={}, type={}, dataSize={}",
-//                response.id(), response.name(), response.type(),
-//                response.data() != null ? response.data().size() : 0);
-//        log.debug(response.toString());
+
+        // 디버깅: 값이 비어있는 데이터 포인트 확인
+        if (!dataPoints.isEmpty()) {
+            for (GraphDataPoint point : dataPoints) {
+                if (point.values() == null || point.values().isEmpty()) {
+                    log.warn("그래프 데이터 포인트의 values가 비어있음: graphId={}, graphName={}, timestamp={}", 
+                            graph.getId(), graph.getName(), point.timestamp());
+                }
+            }
+        }
+
         return response;
     }
 
