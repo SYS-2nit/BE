@@ -15,6 +15,7 @@ import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.domains.instance.service.query.InstanceQueryService;
 import com.sys.dbmonitor.domains.notification.domain.AlertEvent;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -108,9 +109,12 @@ public class DashboardQueryService {
      */
     private Integer calculateAlertSeverity(Graph graph, Long instanceId, List<GraphDataPoint> dataPoints) {
         try {
-            // 해당 그래프와 인스턴스에 대한 활성화된 알림 규칙 조회
+            // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+            Long memberId = UserIdInterceptor.getCurrentUserId();
+            
+            // 해당 그래프와 인스턴스에 대한 활성화된 알림 규칙 조회 (현재 사용자의 정책만)
             List<AlertEvent> activeAlerts = alertEventRepository.findActiveByGraphIdAndInstanceId(
-                    graph.getId(), instanceId);
+                    graph.getId(), instanceId, memberId);
 
             // 알림 심각도 계산
             return alertSeverityCalculator.calculateSeverity(activeAlerts, dataPoints);

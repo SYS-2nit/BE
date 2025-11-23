@@ -37,10 +37,10 @@ public class AlertLogicTestController {
         return ApiResponse.ok(200, data, "checkAlerts executed");
     }
 
-    @Operation(summary = "인스턴스 최신 이벤트 조회", description = "인스턴스 기준 최근 이벤트를 조회합니다.")
+    @Operation(summary = "인스턴스 최신 이벤트 조회", description = "인스턴스 기준 최근 이벤트를 조회합니다. (테스트용 - 모든 사용자의 이벤트 조회)")
     @GetMapping("/events")
     public ApiResponse<Object> getRecentEvents(@RequestParam Long instanceId) {
-        return ApiResponse.ok(200, eventRepository.findByInstanceId(instanceId), "recent events");
+        return ApiResponse.ok(200, eventRepository.findByInstanceIdForTest(instanceId), "recent events");
     }
 
     @Operation(summary = "ALERT_STATE 조회", description = "instanceId와 alertEventId로 현재 상태를 조회합니다.")

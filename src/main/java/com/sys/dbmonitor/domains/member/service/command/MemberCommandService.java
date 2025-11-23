@@ -195,14 +195,21 @@ public class MemberCommandService {
      */
     @Transactional(readOnly = true)
     public String testNotification(Long userId, NotificationTestRequest request) {
+        log.info("[Member] 알림 테스트 시작: userId={}, channels={}", userId, request.channels());
+        
         Member member = memberRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "회원을 찾을 수 없습니다."));
+
+        log.info("[Member] 회원 정보 조회 완료: userId={}, email={}, slackAddress={}", 
+                userId, member.getEmail(), member.getSlackAddress() != null ? "설정됨" : "미설정");
 
         // 테스트용 Event 생성 (간단한 방식으로 직접 필드 설정)
         // 실제 Event는 @ManyToOne 관계가 필요하므로, 테스트용으로는 간단한 객체 생성
         // EmailAlertService와 SlackAlertService는 Event의 일부 필드만 사용하므로
         // 필요한 필드만 있는 간단한 테스트 이벤트 객체 생성
         Event testEvent = createTestEvent();
+        log.debug("[Member] 테스트용 Event 생성 완료: severity={}, message={}", 
+                testEvent.getSeverity(), testEvent.getMessage());
 
         StringBuilder result = new StringBuilder();
         java.util.List<String> channels = request.channels() != null ? request.channels() : java.util.Collections.emptyList();
@@ -210,11 +217,13 @@ public class MemberCommandService {
         if (channels.isEmpty()) {
             // 채널이 지정되지 않으면 email과 slack 모두 테스트
             channels = java.util.Arrays.asList("email", "slack");
+            log.info("[Member] 채널 미지정, 기본값 사용: email, slack");
         }
 
         for (String channel : channels) {
             try {
                 String channelLower = channel != null ? channel.toLowerCase().trim() : "";
+                log.info("[Member] 채널 테스트 시작: userId={}, channel={}", userId, channel);
                 
                 if ("all".equals(channelLower) || "both".equals(channelLower)) {
                     // 전체 선택 시: 이메일과 Slack 둘 다 테스트 (각각 주소가 있는 경우에만)
@@ -224,28 +233,44 @@ public class MemberCommandService {
                     // 이메일 테스트
                     if (member.getEmail() != null && !member.getEmail().trim().isEmpty()) {
                         try {
+                            log.info("[Member] 이메일 테스트 전송 시도: userId={}, email={}", userId, member.getEmail());
                             emailAlertService.sendEmail(member.getEmail(), testEvent);
                             emailSent = true;
                             result.append("이메일 테스트 전송 완료: ").append(member.getEmail()).append(". ");
+                            log.info("[Member] 이메일 테스트 전송 성공: userId={}, email={}", userId, member.getEmail());
                         } catch (Exception e) {
-                            log.error("[Member] 이메일 테스트 전송 실패: userId={}, error={}", userId, e.getMessage(), e);
-                            result.append("이메일 테스트 전송 실패: ").append(e.getMessage()).append(". ");
+                            String errorMessage = e.getMessage() != null ? e.getMessage() : "알 수 없는 오류";
+                            String causeMessage = e.getCause() != null && e.getCause().getMessage() != null 
+                                    ? " (원인: " + e.getCause().getMessage() + ")" : "";
+                            log.error("[Member] 이메일 테스트 전송 실패: userId={}, email={}, error={}, cause={}", 
+                                    userId, member.getEmail(), errorMessage, 
+                                    e.getCause() != null ? e.getCause().getMessage() : "none", e);
+                            result.append("이메일 테스트 전송 실패: ").append(errorMessage).append(causeMessage).append(". ");
                         }
                     } else {
+                        log.warn("[Member] 이메일 주소 미설정: userId={}", userId);
                         result.append("이메일 주소가 설정되지 않아 이메일 테스트를 건너뜁니다. ");
                     }
                     
                     // Slack 테스트
                     if (member.getSlackAddress() != null && !member.getSlackAddress().trim().isEmpty()) {
                         try {
+                            log.info("[Member] Slack 테스트 전송 시도: userId={}, slackAddress={}", userId, member.getSlackAddress());
                             slackAlertService.sendSlack(member.getSlackAddress(), testEvent);
                             slackSent = true;
                             result.append("Slack 테스트 전송 완료: ").append(member.getSlackAddress()).append(". ");
+                            log.info("[Member] Slack 테스트 전송 성공: userId={}", userId);
                         } catch (Exception e) {
-                            log.error("[Member] Slack 테스트 전송 실패: userId={}, error={}", userId, e.getMessage(), e);
-                            result.append("Slack 테스트 전송 실패: ").append(e.getMessage()).append(". ");
+                            String errorMessage = e.getMessage() != null ? e.getMessage() : "알 수 없는 오류";
+                            String causeMessage = e.getCause() != null && e.getCause().getMessage() != null 
+                                    ? " (원인: " + e.getCause().getMessage() + ")" : "";
+                            log.error("[Member] Slack 테스트 전송 실패: userId={}, error={}, cause={}", 
+                                    userId, errorMessage, 
+                                    e.getCause() != null ? e.getCause().getMessage() : "none", e);
+                            result.append("Slack 테스트 전송 실패: ").append(errorMessage).append(causeMessage).append(". ");
                         }
                     } else {
+                        log.warn("[Member] Slack 웹훅 URL 미설정: userId={}", userId);
                         result.append("Slack 웹훅 URL이 설정되지 않아 Slack 테스트를 건너뜁니다. ");
                     }
                     
@@ -254,24 +279,57 @@ public class MemberCommandService {
                     }
                 } else if ("email".equalsIgnoreCase(channelLower)) {
                     if (member.getEmail() == null || member.getEmail().trim().isEmpty()) {
+                        log.warn("[Member] 이메일 주소 미설정: userId={}", userId);
                         result.append("이메일 주소가 설정되지 않았습니다. ");
                         continue;
                     }
-                    emailAlertService.sendEmail(member.getEmail(), testEvent);
-                    result.append("이메일 테스트 전송 완료: ").append(member.getEmail()).append(". ");
+                    try {
+                        log.info("[Member] 이메일 테스트 전송 시도: userId={}, email={}", userId, member.getEmail());
+                        emailAlertService.sendEmail(member.getEmail(), testEvent);
+                        result.append("이메일 테스트 전송 완료: ").append(member.getEmail()).append(". ");
+                        log.info("[Member] 이메일 테스트 전송 성공: userId={}, email={}", userId, member.getEmail());
+                    } catch (Exception e) {
+                        String errorMessage = e.getMessage() != null ? e.getMessage() : "알 수 없는 오류";
+                        String causeMessage = e.getCause() != null && e.getCause().getMessage() != null 
+                                ? " (원인: " + e.getCause().getMessage() + ")" : "";
+                        log.error("[Member] 이메일 테스트 전송 실패: userId={}, email={}, error={}, cause={}", 
+                                userId, member.getEmail(), errorMessage, 
+                                e.getCause() != null ? e.getCause().getMessage() : "none", e);
+                        result.append("이메일 테스트 전송 실패: ").append(errorMessage).append(causeMessage).append(". ");
+                    }
                 } else if ("slack".equalsIgnoreCase(channelLower)) {
                     if (member.getSlackAddress() == null || member.getSlackAddress().trim().isEmpty()) {
+                        log.warn("[Member] Slack 웹훅 URL 미설정: userId={}", userId);
                         result.append("Slack 웹훅 URL이 설정되지 않았습니다. ");
                         continue;
                     }
-                    slackAlertService.sendSlack(member.getSlackAddress(), testEvent);
-                    result.append("Slack 테스트 전송 완료: ").append(member.getSlackAddress()).append(". ");
+                    try {
+                        log.info("[Member] Slack 테스트 전송 시도: userId={}, slackAddress={}", userId, member.getSlackAddress());
+                        slackAlertService.sendSlack(member.getSlackAddress(), testEvent);
+                        result.append("Slack 테스트 전송 완료: ").append(member.getSlackAddress()).append(". ");
+                        log.info("[Member] Slack 테스트 전송 성공: userId={}", userId);
+                    } catch (Exception e) {
+                        String errorMessage = e.getMessage() != null ? e.getMessage() : "알 수 없는 오류";
+                        String causeMessage = e.getCause() != null && e.getCause().getMessage() != null 
+                                ? " (원인: " + e.getCause().getMessage() + ")" : "";
+                        log.error("[Member] Slack 테스트 전송 실패: userId={}, error={}, cause={}", 
+                                userId, errorMessage, 
+                                e.getCause() != null ? e.getCause().getMessage() : "none", e);
+                        result.append("Slack 테스트 전송 실패: ").append(errorMessage).append(causeMessage).append(". ");
+                    }
                 } else {
+                    log.warn("[Member] 알 수 없는 채널: userId={}, channel={}", userId, channel);
                     result.append("알 수 없는 채널: ").append(channel).append(". ");
                 }
             } catch (Exception e) {
-                log.error("[Member] 알림 테스트 전송 실패: userId={}, channel={}, error={}", userId, channel, e.getMessage(), e);
-                result.append(channel).append(" 테스트 전송 실패: ").append(e.getMessage()).append(". ");
+                String errorMessage = e.getMessage() != null ? e.getMessage() : "알 수 없는 오류";
+                String causeMessage = e.getCause() != null && e.getCause().getMessage() != null 
+                        ? " (원인: " + e.getCause().getMessage() + ")" : "";
+                log.error("[Member] 알림 테스트 전송 실패: userId={}, channel={}, error={}, cause={}", 
+                        userId, channel, errorMessage, 
+                        e.getCause() != null ? e.getCause().getMessage() : "none", e);
+                result.append(channel != null ? channel : "알 수 없음").append(" 테스트 전송 실패: ")
+                        .append(errorMessage).append(causeMessage).append(". ");
             }
         }
 

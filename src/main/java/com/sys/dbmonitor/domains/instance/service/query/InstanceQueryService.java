@@ -16,6 +16,7 @@ import com.sys.dbmonitor.domains.notification.domain.ThresholdFormat;
 import com.sys.dbmonitor.domains.notification.repository.AlertEventRepository;
 import com.sys.dbmonitor.domains.notification.repository.EventRepository;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -226,8 +227,11 @@ public class InstanceQueryService {
      */
     private Integer calculateCurrentSeverity(Long instanceId) {
         try {
-            // 1. 활성화된 알림 이벤트 목록 조회
-            List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceId(instanceId);
+            // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+            Long memberId = UserIdInterceptor.getCurrentUserId();
+            
+            // 1. 활성화된 알림 이벤트 목록 조회 (현재 사용자의 정책만)
+            List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceId(instanceId, memberId);
             
             if (activeEvents.isEmpty()) {
                 return null; // 알림이 없으면 정상
