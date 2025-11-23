@@ -13,6 +13,7 @@ import com.sys.dbmonitor.domains.instance.dto.response.InstanceResponse;
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceTestResponse;
 import com.sys.dbmonitor.domains.instance.service.command.InstanceCommandService;
 import com.sys.dbmonitor.global.common.response.ApiResponse;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
 import com.sys.dbmonitor.global.exception.BadRequestException;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,7 +52,7 @@ public class InstanceCommandController {
             @Valid @RequestBody DatabaseCreateRequest request) {
 
         // TODO :: MemberID 변경
-        Long memberId = 1L;
+        Long memberId = UserIdInterceptor.getCurrentUserId();
 
         // Service에서 Exception이 발생하지 않으면 성공
         Instance created = targetDatabaseCommandService.createDatabase(request, memberId);

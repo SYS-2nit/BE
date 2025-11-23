@@ -28,5 +28,10 @@ public interface InstanceRepository extends JpaRepository<Instance, Long> {
 
     @org.springframework.data.jpa.repository.Query("SELECT i FROM Instance i WHERE i.dbInfo.name = :name AND i.isDeleted = false")
     List<Instance> findByDbInfoName(String name);
+
+    /**
+     * DBInfo ID와 SID로 삭제된 Instance를 포함하여 검색
+     */
+    Optional<Instance> findByDbInfoIdAndSid(Long dbInfoId, String sid);
 }
 
