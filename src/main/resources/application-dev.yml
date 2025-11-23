@@ -21,22 +21,7 @@ spring:
       host: localhost
       port: 6379
 
-  # 이메일 설정 (개발 환경용 - 테스트용)
-  mail:
-    host: ${MAIL_HOST:smtp.naver.com}  # 환경 변수 또는 기본값 (네이버: smtp.naver.com)
-    port: ${MAIL_PORT:587}             # 환경 변수 또는 기본값 (네이버: 587 또는 465)
-    username: ${MAIL_USERNAME:}        # 환경 변수 (필수, 네이버 이메일 주소)
-    password: ${MAIL_PASSWORD:}         # 환경 변수 (필수, 네이버 비밀번호)
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
+
 
 logging:
   level:
