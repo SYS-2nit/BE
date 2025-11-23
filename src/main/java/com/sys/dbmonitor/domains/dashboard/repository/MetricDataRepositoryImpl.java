@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -249,13 +250,40 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
 
         LocalDateTime nowSeoul = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
-        // 실시간 모드: 현재 시간 기준 최근 10분의 데이터 조회
-        LocalDateTime tenMinutesAgo = nowSeoul.minusMinutes(9); // 최근 10개 데이터 (현재 포함)
+        // timeUnit에 따라 조회 기간 계산
+        LocalDateTime fromTime;
+        int limitCount;
+        
+        switch (intervalType) {
+            case "1m":
+                fromTime = nowSeoul.minusMinutes(9); // 최근 10분
+                limitCount = 10;
+                break;
+            case "10m":
+                // 10분 간격으로 10개 데이터를 얻기 위해 최소 90분 전부터 조회 (10분 * 9 = 90분)
+                // 여유를 두어 100분 전부터 조회하고, limit도 충분히 크게 설정
+                fromTime = nowSeoul.minusMinutes(100); // 최근 100분 (10분 간격으로 10개 데이터)
+                limitCount = 20; // 중복 제거를 고려하여 충분히 많이 조회
+                break;
+            case "1h":
+                fromTime = nowSeoul.minusDays(1).plusHours(1); // 최근 1일 (24개 데이터)
+                limitCount = 30; // 중복 제거를 고려하여 충분히 많이 조회
+                break;
+            case "1d":
+                fromTime = nowSeoul.minusDays(30).plusDays(1); // 최근 30일 (30개 데이터)
+                limitCount = 35; // 중복 제거를 고려하여 충분히 많이 조회
+                break;
+            default:
+                // 기본값: 최근 10분
+                fromTime = nowSeoul.minusMinutes(9);
+                limitCount = 10;
+                log.warn("알 수 없는 intervalType: {}. 최근 10분 데이터를 조회합니다.", intervalType);
+        }
 
-//        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}",
-//                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, tenMinutesAgo);
+//        log.debug("데이터 조회 쿼리 실행: instanceId={}, graphId={}, intervalType={}, columns={}, currentTime={}, fromTime={}, limit={}",
+//                instanceId, graphId, intervalType, columnMap.keySet(), nowSeoul, fromTime, limitCount);
 
-        // 쿼리 실행 - 실시간 모드: 현재 시간 기준 최근 10분의 데이터만 조회
+        // 쿼리 실행 - timeUnit에 따라 동적으로 기간 조회
         // 파티션 프루닝을 위해 인덱스를 활용하여 최신 데이터 조회
         List<Tuple> results = queryFactory
                 .select(selectFields.toArray(new Expression[0]))
@@ -264,10 +292,10 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                         instanceIdEq(instanceId),
                         graphIdEq(graphId),
                         intervalTypeEq(intervalType),
-                        collectedAtBetween(tenMinutesAgo, nowSeoul)
+                        collectedAtBetween(fromTime, nowSeoul)
                 )
                 .orderBy(metricData.collectedAt.desc())
-                .limit(10)
+                .limit(limitCount)
                 .fetch();
 
 //        log.debug("쿼리 결과: instanceId={}, graphId={}, intervalType={}, 결과 개수={}",
@@ -292,13 +320,23 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
         }
 
         // GraphDataPoint로 변환 (역순으로 정렬하여 오래된 순서로)
-        List<GraphDataPoint> dataPoints = new ArrayList<>();
-        for (int i = results.size() - 1; i >= 0; i--) {
-            Tuple tuple = results.get(i);
-            
+        // 같은 시간의 중복 데이터 제거를 위한 Map (시간별로 최신 데이터만 유지)
+        Map<LocalDateTime, GraphDataPoint> timePointMap = new LinkedHashMap<>();
+        
+        // results는 desc로 정렬되어 있으므로, 최신 데이터부터 처리
+        // 같은 반올림 시간에 대해서는 먼저 들어온 최신 데이터를 유지하고 나중 것은 스킵
+        for (Tuple tuple : results) {
             LocalDateTime collectedAt = tuple.get(metricData.collectedAt);
             if (collectedAt == null) {
                 collectedAt = LocalDateTime.now();
+            }
+
+            // timeUnit에 따라 시간을 반올림 (중복 제거)
+            LocalDateTime roundedTime = roundTimeByInterval(collectedAt, intervalType);
+
+            // 같은 반올림된 시간이 이미 있으면 스킵 (results가 desc이므로, 먼저 처리된 것이 최신)
+            if (timePointMap.containsKey(roundedTime)) {
+                continue;
             }
 
             Map<String, Object> values = new HashMap<>();
@@ -311,10 +349,70 @@ public class MetricDataRepositoryImpl implements MetricDataRepositoryCustom {
                 }
             }
 
-            dataPoints.add(new GraphDataPoint(collectedAt, values));
+            // 값이 비어있지 않으면 추가
+            if (!values.isEmpty()) {
+                timePointMap.put(roundedTime, new GraphDataPoint(collectedAt, values));
+            }
+        }
+
+        // 시간순으로 정렬하여 반환 (오래된 순서로)
+        List<GraphDataPoint> dataPoints = new ArrayList<>(timePointMap.values());
+        dataPoints.sort((a, b) -> a.timestamp().compareTo(b.timestamp()));
+
+        // timeUnit에 따라 최대 개수 제한 (최신 데이터 유지)
+        int maxDataPoints;
+        switch (intervalType) {
+            case "1m":
+                maxDataPoints = 10;
+                break;
+            case "10m":
+                maxDataPoints = 10;
+                break;
+            case "1h":
+                maxDataPoints = 24;
+                break;
+            case "1d":
+                maxDataPoints = 30;
+                break;
+            default:
+                maxDataPoints = 10;
+        }
+
+        // 데이터가 요구 개수보다 많으면 최신 데이터만 유지 (오래된 것 제거)
+        if (dataPoints.size() > maxDataPoints) {
+            // 이미 오래된 순서로 정렬되어 있으므로, 뒤에서부터 제거
+            dataPoints = dataPoints.subList(dataPoints.size() - maxDataPoints, dataPoints.size());
         }
 
         return dataPoints;
+    }
+
+    /**
+     * intervalType에 따라 시간을 반올림 (중복 시간 제거용)
+     */
+    private LocalDateTime roundTimeByInterval(LocalDateTime time, String intervalType) {
+        if (time == null) {
+            return LocalDateTime.now();
+        }
+        
+        switch (intervalType) {
+            case "1m":
+                // 1분 단위로 반올림
+                return time.withSecond(0).withNano(0);
+            case "10m":
+                // 10분 단위로 반올림
+                int minute = time.getMinute();
+                int roundedMinute = (minute / 10) * 10;
+                return time.withMinute(roundedMinute).withSecond(0).withNano(0);
+            case "1h":
+                // 1시간 단위로 반올림
+                return time.withMinute(0).withSecond(0).withNano(0);
+            case "1d":
+                // 1일 단위로 반올림 (자정)
+                return time.withHour(0).withMinute(0).withSecond(0).withNano(0);
+            default:
+                return time.withSecond(0).withNano(0);
+        }
     }
 
     /**

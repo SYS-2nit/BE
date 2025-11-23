@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.sql.DataSource;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.lang.System.out;
@@ -45,6 +46,34 @@ public class InstanceQueryService {
     private final MetricDataRepository metricDataRepository;
     private final AlertEventRepository alertEventRepository;
     private final CollectorService collectorService;
+
+
+
+    public Long getActualInstanceIdForDataRetrieval(Instance instance) {
+
+        // SERVICE_NAME 인스턴스인 경우 같은 DBInfo의 SID 인스턴스 찾기
+        if ("SERVICE_NAME".equalsIgnoreCase(instance.getConnectionType())) {
+            log.info("========== DBInfoId : "+ instance.getDbInfo().getId());
+            Optional<Instance> sidInstanceOpt = instanceRepository.findSidInstancesByDbInfoId(
+                    instance.getDbInfo().getId()
+            );
+
+            if (sidInstanceOpt.isPresent()) {
+                Long sidInstanceId = sidInstanceOpt.get().getId();
+//                log.debug("[InstanceQueryService] SERVICE_NAME 인스턴스에서 SID 인스턴스로 변환: originalInstanceId={}, sidInstanceId={}",
+//                        instanceId, sidInstanceId);
+                return sidInstanceId;
+            } else {
+//                log.warn("[InstanceQueryService] SERVICE_NAME 인스턴스에 해당하는 SID 인스턴스를 찾을 수 없습니다: instanceId={}, dbInfoId={}",
+//                        instanceId, instance.getDbInfo().getId());
+                return instance.getId(); // SID 인스턴스를 찾을 수 없으면 원본 반환
+            }
+        }
+
+        // SID 인스턴스이거나 다른 타입인 경우 원본 반환
+        return instance.getId();
+    }
+
 
     /**
      * 타겟 DB 목록 조회 (전체)
@@ -150,7 +179,10 @@ public class InstanceQueryService {
                         || Boolean.FALSE.equals(instance.getDbInfo().getIsDeleted()))
                 .map(instance -> {
                     // 인스턴스별 최신 데이터 조회
-                    List<InstanceDataDTO> dataList = metricDataRepository.findInstanceDataByInstance(instance.getId());
+                    // SERVICE_NAME 인스턴스인 경우 SID 인스턴스 ID로 변환
+                    Long actualInstanceId = getActualInstanceIdForDataRetrieval(instance);
+
+                    List<InstanceDataDTO> dataList = metricDataRepository.findInstanceDataByInstance(actualInstanceId);
                     InstanceDataDTO instanceData = dataList.isEmpty() ? null : dataList.get(0);
 
                     // 계산이 필요한 값들 처리
