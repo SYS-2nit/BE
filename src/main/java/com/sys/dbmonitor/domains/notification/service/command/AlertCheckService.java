@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -53,7 +54,8 @@ public class AlertCheckService {
         }
 
         // 활성화된 알림 규칙 조회 (정책 활성화 확인 포함)
-        List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceId(instanceId);
+        // 배치 작업이므로 모든 사용자의 알림을 체크
+        List<AlertEvent> activeEvents = alertEventRepository.findActiveEventsByInstanceIdForBatch(instanceId);
         
         if (activeEvents.isEmpty()) {
             log.debug("[AlertCheck] 활성화된 알림 규칙이 없습니다: instanceId={}", instanceId);
@@ -65,9 +67,10 @@ public class AlertCheckService {
         Instance instance = instanceRepository.findById(instanceId)
             .orElseThrow(() -> new IllegalArgumentException("Instance not found: " + instanceId));
 
-        // 현재 시간 정보
-        DayOfWeek currentDayOfWeek = java.time.LocalDate.now().getDayOfWeek();
-        LocalTime currentTime = LocalTime.now();
+        // 현재 시간 정보 (한국 시간 기준)
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        DayOfWeek currentDayOfWeek = java.time.LocalDate.now(koreaZone).getDayOfWeek();
+        LocalTime currentTime = LocalTime.now(koreaZone);
 
         for (AlertEvent alertEvent : activeEvents) {
             try {
@@ -141,7 +144,7 @@ public class AlertCheckService {
         if (severity == null) {
             state.setConsecutiveCount(0);
             state.setLastSeverity(null);
-            state.setLastCheckedAt(java.time.LocalDateTime.now());
+            state.setLastCheckedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
             alertStateRepository.save(state);
             log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}", 
                 alertEvent.getId(), metricValue, alertEvent.getWarning());
@@ -152,7 +155,7 @@ public class AlertCheckService {
         int currentCount = state.getConsecutiveCount() != null ? state.getConsecutiveCount() : 0;
         currentCount += 1;
         state.setConsecutiveCount(currentCount);
-        state.setLastCheckedAt(java.time.LocalDateTime.now());
+        state.setLastCheckedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
 
         int requiredCount = alertEvent.getDelayTime().getMinutes();
         if (currentCount < requiredCount) {
@@ -179,7 +182,7 @@ public class AlertCheckService {
         if (shouldNotify) {
             createAndSaveEvent(alertEvent, instance, severity, metricValue);
             state.setLastNotifiedSeverity(cur);
-            state.setLastNotifiedAt(java.time.LocalDateTime.now());
+            state.setLastNotifiedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
             // 누적 카운트는 유지(지속 상태에서도 필요 시 정책 변경 여지), 필요하면 0으로 리셋 가능
         }
 

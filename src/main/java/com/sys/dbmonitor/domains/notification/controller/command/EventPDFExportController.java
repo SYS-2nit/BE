@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 /**
@@ -40,8 +41,8 @@ public class EventPDFExportController {
             
             byte[] pdfBytes = eventPDFExportService.generatePDF(request, memberId);
             
-            // 파일명 생성
-            String fileName = "event_report_" + LocalDateTime.now().format(FILE_NAME_FORMATTER) + ".pdf";
+            // 파일명 생성 (한국 시간 기준)
+            String fileName = "event_report_" + LocalDateTime.now(ZoneId.of("Asia/Seoul")).format(FILE_NAME_FORMATTER) + ".pdf";
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_PDF);

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,10 +100,10 @@ public class SseAlertService {
         }
 
         try {
-            // 알림 데이터 전송
+            // 알림 데이터 전송 (한국 시간 기준)
             String createdAtStr = event.getCreatedAt() != null
                 ? event.getCreatedAt().toString()
-                : java.time.LocalDateTime.now().toString();
+                : java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")).toString();
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("eventId", event.getId());

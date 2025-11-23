@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -160,10 +161,10 @@ public class SlackAlertService {
         
         Map<String, String> field2 = new HashMap<>();
         field2.put("type", "mrkdwn");
-        // createdAt이 null인 경우(테스트용 Event) 현재 시간 사용
+        // createdAt이 null인 경우(테스트용 Event) 현재 시간 사용 (한국 시간 기준)
         String createdAtStr = event.getCreatedAt() != null 
             ? event.getCreatedAt().toString() 
-            : LocalDateTime.now().toString();
+            : LocalDateTime.now(ZoneId.of("Asia/Seoul")).toString();
         field2.put("text", "*발생 시간:*\n" + createdAtStr);
         detailFields.add(field2);
         

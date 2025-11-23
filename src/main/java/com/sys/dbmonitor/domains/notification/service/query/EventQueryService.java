@@ -7,6 +7,9 @@ import com.sys.dbmonitor.domains.notification.dto.response.EventResponse;
 import com.sys.dbmonitor.domains.notification.dto.response.ProgressHistoryResponse;
 import com.sys.dbmonitor.domains.notification.repository.EventRepository;
 import com.sys.dbmonitor.domains.notification.repository.ProgressHistoryRepository;
+import com.sys.dbmonitor.global.config.UserIdInterceptor;
+import com.sys.dbmonitor.global.exception.NotFoundException;
+import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -45,7 +48,10 @@ public class EventQueryService {
      */
     @Transactional(readOnly = true)
     public Page<EventResponse> getEventsByInstance(Long instanceId, Pageable pageable) {
-        Page<Event> events = eventRepository.findByInstanceId(instanceId, pageable);
+        // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
+        
+        Page<Event> events = eventRepository.findByInstanceId(instanceId, memberId, pageable);
         return events.map(EventResponse::from);
     }
 
@@ -54,7 +60,10 @@ public class EventQueryService {
      */
     @Transactional(readOnly = true)
     public Page<EventResponse> getEventsByStatus(AlertStatus status, Pageable pageable) {
-        Page<Event> events = eventRepository.findByStatus(status, pageable);
+        // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
+        
+        Page<Event> events = eventRepository.findByStatus(status, memberId, pageable);
         return events.map(EventResponse::from);
     }
 
@@ -63,7 +72,10 @@ public class EventQueryService {
      */
     @Transactional(readOnly = true)
     public Page<EventResponse> getEventsBySeverity(Integer severity, Pageable pageable) {
-        Page<Event> events = eventRepository.findBySeverity(severity, pageable);
+        // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
+        
+        Page<Event> events = eventRepository.findBySeverity(severity, memberId, pageable);
         return events.map(EventResponse::from);
     }
 
@@ -78,11 +90,21 @@ public class EventQueryService {
 
     /**
      * 단일 알림 이벤트 상세 조회
+     * 현재 사용자의 이벤트만 조회 가능
      */
     @Transactional(readOnly = true)
     public EventResponse getEvent(Long id) {
+        // 현재 사용자 ID 조회 (UserIdInterceptor에서 자동 설정)
+        Long memberId = UserIdInterceptor.getCurrentUserId();
+        
         Event event = eventRepository.findByIdAndNotDeleted(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
+                .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "이벤트를 찾을 수 없습니다: " + id));
+        
+        // 현재 사용자의 이벤트인지 확인
+        if (!event.getMember().getId().equals(memberId)) {
+            throw new NotFoundException(ExceptionMessage.NOT_FOUND, "이벤트를 찾을 수 없습니다: " + id);
+        }
+        
         return EventResponse.from(event);
     }
 
