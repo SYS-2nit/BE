@@ -526,6 +526,7 @@ jobs:
               -e MAIL_PORT="${{ secrets.MAIL_PORT }}" \
               -e MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
               -e MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
+              -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
               --network ${USE_NETWORK} \
