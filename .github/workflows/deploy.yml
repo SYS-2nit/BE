@@ -521,6 +521,10 @@ jobs:
               -e SSL_PASSWORD="${{ secrets.SSL_PASSWORD }}" \
               -e REDIS_HOST="redis" \
               -e REDIS_PORT="6379" \
+              -e MAIL_HOST="${{ secrets.MAIL_HOST }}" \
+              -e MAIL_PORT="${{ secrets.MAIL_PORT }}" \
+              -e MAIL_USERNAME="${{ secrets.MAIL_USERNAME }}" \
+              -e MAIL_PASSWORD="${{ secrets.MAIL_PASSWORD }}" \
               -v /home/qowhx12/ssl:/app/ssl:ro \
               --restart unless-stopped \
               --network ${USE_NETWORK} \

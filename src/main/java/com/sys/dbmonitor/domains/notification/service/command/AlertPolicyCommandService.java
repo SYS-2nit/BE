@@ -79,8 +79,16 @@ public class AlertPolicyCommandService {
         AlertPolicy policy = alertPolicyRepository.findByIdAndNotDeleted(id)
             .orElseThrow(() -> new IllegalArgumentException("AlertPolicy not found: " + id));
 
+        // 이전 활성화 상태 저장
+        Boolean previousIsActive = policy.getIsActive();
+
         // 전달된 필드만 덮어쓰기
         policy.update(request.getName(), request.getDescription(), request.getIsActive());
+
+        // isActive가 변경된 경우 하위 이벤트들도 함께 변경
+        if (request.getIsActive() != null && !request.getIsActive().equals(previousIsActive)) {
+            updateAlertEventsState(policy, request.getIsActive());
+        }
 
         // 변경 사항이 반영된 엔터티를 DTO로 반환
         return AlertPolicyResponse.from(policy);
@@ -110,9 +118,26 @@ public class AlertPolicyCommandService {
         AlertPolicy policy = alertPolicyRepository.findByIdAndNotDeleted(id)
             .orElseThrow(() -> new IllegalArgumentException("AlertPolicy not found: " + id));
 
-        // isActive 값을 반전시키고 결과 반환
+        // isActive 값을 반전
         policy.toggleActive();
+
+        // 하위 이벤트들도 함께 토글
+        updateAlertEventsState(policy, policy.getIsActive());
+
         return AlertPolicyResponse.from(policy);
+    }
+
+    /**
+     * 정책의 하위 알림 이벤트들의 활성화 상태를 정책과 동일하게 변경
+     */
+    private void updateAlertEventsState(AlertPolicy policy, Boolean isActive) {
+        if (policy.getAlertEvents() != null && !policy.getAlertEvents().isEmpty()) {
+            policy.getAlertEvents().forEach(event -> {
+                if (event != null && Boolean.FALSE.equals(event.getIsDeleted())) {
+                    event.setState(isActive);
+                }
+            });
+        }
     }
 }
 

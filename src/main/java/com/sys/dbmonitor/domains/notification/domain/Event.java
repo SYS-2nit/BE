@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -123,6 +124,43 @@ public class Event extends BaseEntity {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProgressHistory> progressHistories = new ArrayList<>();
 
+    /**
+     * 생성 일시 (BaseEntity의 createdAt을 오버라이드하여 직접 관리)
+     * @PrePersist에서 한국 시간으로 설정
+     */
+    @Column(name = "CREATED_AT", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    /**
+     * 수정 일시 (BaseEntity의 updatedAt을 오버라이드하여 직접 관리)
+     * @PreUpdate에서 한국 시간으로 설정
+     */
+    @Column(name = "UPDATED_AT")
+    private LocalDateTime updatedAt;
+
+    /**
+     * JPA 저장 전 실행: createdAt을 한국 시간으로 직접 설정
+     * BaseEntity의 @CreatedDate를 무시하고 직접 설정
+     */
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        }
+        if (this.updatedAt == null) {
+            this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+        }
+    }
+
+    /**
+     * JPA 수정 전 실행: updatedAt을 한국 시간으로 직접 설정
+     * BaseEntity의 @LastModifiedDate를 무시하고 직접 설정
+     */
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+    }
+
     @Builder
     public Event(AlertEvent alertEvent, Instance instance, Member member,
                  AlertStatus status, Integer severity, Double currentValue, Double thresholdValue,
@@ -143,7 +181,7 @@ public class Event extends BaseEntity {
      * 알림 아이콘 클릭 시 사용 - acknowledgedAt만 설정
      */
     public void markAsRead(Member acknowledgedBy) {
-        this.acknowledgedAt = LocalDateTime.now();
+        this.acknowledgedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.acknowledgedBy = acknowledgedBy;
         // status는 변경하지 않음 (PENDING 유지)
     }
@@ -164,7 +202,7 @@ public class Event extends BaseEntity {
      */
     public void acknowledge(Member acknowledgedBy) {
         this.status = AlertStatus.CLOSED;
-        this.acknowledgedAt = LocalDateTime.now();
+        this.acknowledgedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.acknowledgedBy = acknowledgedBy;
     }
 
@@ -174,7 +212,7 @@ public class Event extends BaseEntity {
      */
     public void resolve(Member resolvedBy) {
         this.status = AlertStatus.CLOSED;
-        this.resolvedAt = LocalDateTime.now();
+        this.resolvedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         this.resolvedBy = resolvedBy;
     }
 }
