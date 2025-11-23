@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -38,8 +39,9 @@ public class AlertStatisticsService {
             Long instanceId,
             AlertCategory category
     ) {
-        // 오늘 날짜 범위 계산
-        LocalDateTime todayStart = LocalDate.now().atStartOfDay();
+        // 오늘 날짜 범위 계산 (한국 시간 기준)
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+        LocalDateTime todayStart = LocalDate.now(koreaZone).atStartOfDay();
         LocalDateTime todayEnd = todayStart.plusDays(1);
 
         // 어제 날짜 범위 계산

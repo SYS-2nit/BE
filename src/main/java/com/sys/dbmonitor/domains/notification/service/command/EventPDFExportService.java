@@ -34,6 +34,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -78,14 +79,15 @@ public class EventPDFExportService {
         LocalDate startDate = parseDate(request.filters() != null ? request.filters().startDate() : null);
         LocalDate endDate = parseDate(request.filters() != null ? request.filters().endDate() : null);
         if (startDate == null || endDate == null) {
+            ZoneId koreaZone = ZoneId.of("Asia/Seoul");
             LocalDateTime minDate = events.stream()
                     .map(Event::getCreatedAt)
                     .min(LocalDateTime::compareTo)
-                    .orElse(LocalDateTime.now());
+                    .orElse(LocalDateTime.now(koreaZone));
             LocalDateTime maxDate = events.stream()
                     .map(Event::getCreatedAt)
                     .max(LocalDateTime::compareTo)
-                    .orElse(LocalDateTime.now());
+                    .orElse(LocalDateTime.now(koreaZone));
             if (startDate == null) startDate = minDate.toLocalDate();
             if (endDate == null) endDate = maxDate.toLocalDate();
         }
@@ -189,11 +191,11 @@ public class EventPDFExportService {
             float leftX = MARGIN;
             float leftWidth = (PAGE_WIDTH - MARGIN * 3) / 2; // 좌우 여백과 중앙 여백 고려
 
-            // 생성 일시
+            // 생성 일시 (한국 시간 기준)
             contentStream.beginText();
             contentStream.setFont(font, 12);
             contentStream.newLineAtOffset(leftX, y);
-            String createTime = "생성일시: " + LocalDateTime.now().format(DATETIME_FORMATTER);
+            String createTime = "생성일시: " + LocalDateTime.now(ZoneId.of("Asia/Seoul")).format(DATETIME_FORMATTER);
             contentStream.showText(createTime);
             contentStream.endText();
             y -= 30;
