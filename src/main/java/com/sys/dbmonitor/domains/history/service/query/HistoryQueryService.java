@@ -11,7 +11,9 @@ import com.sys.dbmonitor.domains.history.dto.response.HistoryDataResponse;
 import com.sys.dbmonitor.domains.history.dto.response.HistoryGraphDataResponse;
 import com.sys.dbmonitor.domains.history.dto.response.HistoryGraphListResponse;
 import com.sys.dbmonitor.domains.history.repository.HistoryDataRepositoryCustom;
+import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.service.query.InstanceQueryService;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ public class HistoryQueryService {
     private final InstanceRepository instanceRepository;
     private final HistoryDataRepositoryCustom historyDataRepository;
     private final DashboardQueryService dashboardQueryService;
+    private final InstanceQueryService instanceQueryService;
     /**
      * 히스토리 데이터 조회
      */
@@ -47,13 +50,15 @@ public class HistoryQueryService {
             String keyword,
             String timeUnit
     ) {
-        // 인스턴스 존재 확인
-        instanceRepository.findById(instanceId)
+        Instance instance = instanceRepository.findById(instanceId)
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
+
+        // 인스턴스 존재 확인
+        Long resultInstanceId = instanceQueryService.getActualInstanceIdForDataRetrieval(instance);
 
         // 시작일/종료일 검증
         if (startDateTime == null && endDateTime == null) {
-            log.warn("히스토리 조회: 시작일과 종료일이 모두 없습니다. 빈 결과를 반환합니다. instanceId={}", instanceId);
+            log.warn("히스토리 조회: 시작일과 종료일이 모두 없습니다. 빈 결과를 반환합니다. instanceId={}", resultInstanceId);
             return new HistoryDataResponse(new ArrayList<>());
         }
 
@@ -68,7 +73,7 @@ public class HistoryQueryService {
 
         // 각 그래프별 데이터 조회
         List<HistoryGraphDataResponse> graphDataList = graphs.stream()
-                .map(graph -> getHistoryGraphData(graph, instanceId, timeUnit, startDateTime, endDateTime))
+                .map(graph -> getHistoryGraphData(graph, resultInstanceId, timeUnit, startDateTime, endDateTime))
                 .collect(Collectors.toList());
 
         return new HistoryDataResponse(graphDataList);

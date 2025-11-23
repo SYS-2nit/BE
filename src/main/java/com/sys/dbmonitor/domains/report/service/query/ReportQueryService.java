@@ -6,7 +6,9 @@ import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRegistry;
 import com.sys.dbmonitor.domains.dashboard.service.mapping.GraphRule;
 import com.sys.dbmonitor.domains.graph.domain.Graph;
 import com.sys.dbmonitor.domains.graph.repository.GraphRepository;
+import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
+import com.sys.dbmonitor.domains.instance.service.query.InstanceQueryService;
 import com.sys.dbmonitor.domains.report.dto.request.ReportGenerateRequest;
 import com.sys.dbmonitor.domains.report.dto.response.ReportDataResponse;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
@@ -33,13 +35,16 @@ public class ReportQueryService {
     private final MetricDataRepository metricDataRepository;
     private final GraphRepository graphRepository;
     private final InstanceRepository instanceRepository;
-
+    private final InstanceQueryService instanceQueryService;
 
     @Transactional(readOnly = true, timeout = 120)
     public List<ReportDataResponse> getReportData(ReportGenerateRequest request) {
         // 인스턴스 존재 확인
-        instanceRepository.findById(request.instanceId())
+        Instance instance = instanceRepository.findById(request.instanceId())
                 .orElseThrow(() -> new NotFoundException(ExceptionMessage.NOT_FOUND, "인스턴스를 찾을 수 없습니다."));
+
+
+        Long instanceId = instanceQueryService.getActualInstanceIdForDataRetrieval(instance);
 
         // 기간 검증 및 날짜 설정
         LocalDate endDate = request.endDate() != null ? request.endDate() : request.startDate();
@@ -77,7 +82,7 @@ public class ReportQueryService {
             
             // 기간별 데이터 조회
             List<GraphDataPoint> dataPoints = metricDataRepository.findGraphDataPointsByPeriod(
-                    request.instanceId(),
+                    instanceId,
                     (long) rule.graphId(),
                     intervalType,
                     columns,
