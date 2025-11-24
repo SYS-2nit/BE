@@ -406,7 +406,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("CORE_BASELINE_SESSIONS", cpuCntSum);    // 005
 
         // 006 CPU_SATURATION_PCT
-        out.put("CPU_SATURATION_PCT", MetricsEngine.pct(aasOnCpuSum, cpuCntSum)); // 006
+        out.put("CPU_SATURATION_PCT", MetricsEngine.pct(aasOnCpuSum + aasBgSum, cpuCntSum)); // 006
 
         // 007 DB_OF_HOST_SHARE_PCT
         out.put("DB_OF_HOST_SHARE_PCT", (hostBusyCores == 0) ? 0 : (100.0 * (aasOnCpuSum / hostBusyCores))); // 007
