@@ -406,7 +406,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("CORE_BASELINE_SESSIONS", cpuCntSum);    // 005
 
         // 006 CPU_SATURATION_PCT
-        out.put("CPU_SATURATION_PCT", MetricsEngine.pct(aasOnCpuSum, cpuCntSum)); // 006
+        out.put("CPU_SATURATION_PCT", MetricsEngine.pct(aasOnCpuSum + aasBgSum, cpuCntSum)); // 006
 
         // 007 DB_OF_HOST_SHARE_PCT
         out.put("DB_OF_HOST_SHARE_PCT", (hostBusyCores == 0) ? 0 : (100.0 * (aasOnCpuSum / hostBusyCores))); // 007
@@ -474,7 +474,7 @@ public class CollectorServiceImpl implements CollectorService {
         out.put("AAS_WAIT_SESSIONS",   aasWaitSum);
 
         /* ========= Top Blocker Sessions (089~098) ========= */
-        double[] sidArr = new double[] {0,0,0,0,0};
+        String[] sidArr = new String[] {"","","","",""};
         double[] vicArr = new double[] {0,0,0,0,0};
         List<Map<String, Object>> blkRows = raw.getTables().get("top_blocker_sessions");
         if (blkRows != null && !blkRows.isEmpty()) {
@@ -486,9 +486,9 @@ public class CollectorServiceImpl implements CollectorService {
             int limit = Math.min(5, blkRows.size());
             for (int i = 0; i < limit; i++) {
                 Map<String, Object> r = blkRows.get(i);
-                double sid     = num(anyObj(r, "BLOCKER_SID", "SID", "BLOCKER_SESSION", "BLOCKER_SID#"));
+                double sidNum  = num(anyObj(r, "BLOCKER_SID", "SID", "BLOCKER_SESSION", "BLOCKER_SID#"));
                 double victims = num(anyObj(r, "VICTIMS", "victims", "COUNT", "victim_cnt"));
-                sidArr[i] = Double.isNaN(sid) ? 0d : sid;
+                sidArr[i] = Double.isNaN(sidNum) ? "" : String.valueOf((int)sidNum);
                 vicArr[i] = Double.isNaN(victims) ? 0d : victims;
             }
         }
@@ -1028,9 +1028,9 @@ public class CollectorServiceImpl implements CollectorService {
         double tempSumCurrentBytes = MetricsEngine.sumInst(bundle, "TEMP_SUM_CURRENT_BYTES", "temp_sum_current_bytes");
         double tempSumMaxBytes = MetricsEngine.sumInst(bundle, "TEMP_SUM_MAX_BYTES", "temp_sum_max_bytes");
         
-        out.put("temp_active_usage_gb", round1OrNull(tempSumBytesUsed / 1_073_741_824.0)); // 202
-        out.put("temp_current_size_gb", round1OrNull(tempSumCurrentBytes / 1_073_741_824.0)); // 203
-        out.put("temp_max_size_gb", round1OrNull(tempSumMaxBytes / 1_073_741_824.0)); // 204
+        out.put("temp_active_usage_gb", round2OrNull(tempSumBytesUsed / 1_073_741_824.0)); // 202
+        out.put("temp_current_size_gb", round2OrNull(tempSumCurrentBytes / 1_073_741_824.0)); // 203
+        out.put("temp_max_size_gb", round2OrNull(tempSumMaxBytes / 1_073_741_824.0)); // 204
         out.put("temp_usage_percent", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumCurrentBytes))); // 205
         out.put("temp_usage_pct_of_max", round1OrNull(pctOrNull(tempSumBytesUsed, tempSumMaxBytes))); // 206
         out.put("temp_peak_usage_24h_gb", 0); // 207 (null 고정)
@@ -1284,6 +1284,12 @@ public class CollectorServiceImpl implements CollectorService {
         if (v == null) return null;
         if (Double.isNaN(v) || Double.isInfinite(v)) return null;
         return Math.round(v * 10.0) / 10.0;
+    }
+
+    private static Double round2OrNull(Double v) {
+        if (v == null) return null;
+        if (Double.isNaN(v) || Double.isInfinite(v)) return null;
+        return Math.round(v * 100.0) / 100.0;  // 소수점 둘째 자리까지 반올림
     }
 
     /** Δ/초 레이트: 이전 없음 또는 리셋(음수Δ) 시 0 반환 — 상태는 store에 저장 (Instance별 격리) */
