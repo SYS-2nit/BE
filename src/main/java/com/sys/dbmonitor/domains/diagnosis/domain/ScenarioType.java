@@ -9,6 +9,14 @@ import java.util.function.Function;
 @Getter
 @RequiredArgsConstructor
 public enum ScenarioType {
+    DB_CPU_METRICS_JAVA(
+            12L,
+            "DB CPU 비율/포화도 증가 (Java 기반)",
+            "Java 기반 SQL 실행으로 DB CPU 점유율 및 포화도 동시 증가",
+            List.of("CPU"),
+            "Java 기반: CPU 집약적인 SQL을 다중 스레드로 실행하여 지속적인 부하 생성",
+            durationSec -> List.of("java:load:DB_CPU", String.valueOf(durationSec))
+    ),
     CPU_SATURATION(
             1L,
             "CPU 포화(OLTP 과부하)",

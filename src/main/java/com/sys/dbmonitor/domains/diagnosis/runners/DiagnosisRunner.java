@@ -1,9 +1,12 @@
 package com.sys.dbmonitor.domains.diagnosis.runners;
 
 import com.sys.dbmonitor.domains.diagnosis.domain.ScenarioType;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +35,8 @@ public class DiagnosisRunner implements Runnable {
 
     // 현재 실행 프로세스 전역 참조
     private volatile Process currentProcess;
+    // Java 기반 부하 생성기 참조
+    private volatile JavaCpuLoadGenerator javaLoadGenerator;
 
     public DiagnosisRunner(List<ScenarioType> scenarios, int durationSec, String dbUrl, String dbUsername, String dbPassword) {
         this.scenarios = scenarios;
@@ -55,7 +60,12 @@ public class DiagnosisRunner implements Runnable {
 
             List<String> cmd = currentScenario.getCommand(durationSec);
             try {
-                runScenarioCmd(cmd, durationSec);
+                // Java 기반 시나리오인지 확인
+                if (cmd != null && !cmd.isEmpty() && cmd.get(0).startsWith("java:load:")) {
+                    runJavaBasedScenario(cmd, durationSec);
+                } else {
+                    runScenarioCmd(cmd, durationSec);
+                }
             } catch (Exception ex) {
                 log.error("[Diagnosis] 시나리오 {} 실행 중 오류: {}", currentScenario.getTitle(), ex.getMessage(), ex);
             }
@@ -144,8 +154,85 @@ public class DiagnosisRunner implements Runnable {
         }
     }
 
+    /**
+     * Java 기반 시나리오 실행
+     */
+    private void runJavaBasedScenario(List<String> cmd, int durationSec) {
+        log.info("[Diagnosis] Java 기반 시나리오 실행: {}", currentScenario.getTitle());
+        
+        // DataSource 생성
+        DataSource dataSource = createDataSource();
+        
+        // Java 부하 생성기 생성 및 실행
+        javaLoadGenerator = new JavaCpuLoadGenerator(dataSource, durationSec);
+        
+        // 남은 시간을 실시간으로 업데이트하는 스레드
+        Thread countdownThread = new Thread(() -> {
+            for (int i = durationSec; i > 0 && running.get(); i--) {
+                remainSec.set(i);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "countdown-thread");
+        countdownThread.setDaemon(true);
+        countdownThread.start();
+        
+        try {
+            // 부하 생성 시작
+            javaLoadGenerator.start();
+            
+            // 카운트다운 스레드 대기
+            countdownThread.join(durationSec * 1000L);
+            
+        } catch (InterruptedException e) {
+            if (javaLoadGenerator != null) {
+                javaLoadGenerator.stop();
+            }
+            countdownThread.interrupt();
+            Thread.currentThread().interrupt();
+        } finally {
+            // DataSource 정리
+            if (dataSource instanceof HikariDataSource) {
+                ((HikariDataSource) dataSource).close();
+            }
+            javaLoadGenerator = null;
+        }
+    }
+    
+    /**
+     * 타겟 DB용 DataSource 생성
+     */
+    private DataSource createDataSource() {
+        HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(dbUrl);
+        config.setUsername(dbUsername);
+        config.setPassword(dbPassword);
+        config.setDriverClassName("oracle.jdbc.OracleDriver");
+        config.setPoolName("DiagnosisLoadPool");
+        // 동시 스레드 수에 맞춰 풀 크기 대폭 증가 (최소 200개)
+        config.setMaximumPoolSize(200);
+        config.setMinimumIdle(50);
+        config.setConnectionTimeout(30000);
+        config.setIdleTimeout(600000);
+        config.setMaxLifetime(1800000);
+        config.setLeakDetectionThreshold(60000);
+        config.setValidationTimeout(5000);
+        config.setConnectionTestQuery("SELECT 1 FROM DUAL");
+        
+        return new HikariDataSource(config);
+    }
+
     public void stop() {
         running.set(false);
-        if (currentProcess != null) currentProcess.destroyForcibly();
+        if (currentProcess != null) {
+            currentProcess.destroyForcibly();
+        }
+        if (javaLoadGenerator != null) {
+            javaLoadGenerator.stop();
+        }
     }
 }
