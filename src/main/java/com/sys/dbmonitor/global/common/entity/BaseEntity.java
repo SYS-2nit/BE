@@ -29,4 +29,11 @@ public class BaseEntity {
     public void markAsDeleted() {
         this.isDeleted = true;
     }
+
+    /**
+     * 삭제 상태 복원 (soft delete 되돌리기)
+     */
+    public void restoreFromDeleted() {
+        this.isDeleted = false;
+    }
 }

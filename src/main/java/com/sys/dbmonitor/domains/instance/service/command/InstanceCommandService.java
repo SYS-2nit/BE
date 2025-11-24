@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -172,89 +173,200 @@ public class InstanceCommandService {
 
     /**
      * 데이터베이스 생성 (DBInfo와 Instance 함께 저장)
+     * 기존 DB가 존재하고 is_active = 0인 경우 복원, 없으면 새로 생성
      */
     @Transactional
     public Instance createDatabase(DatabaseCreateRequest request, Long memberId) {
-        // 이름 중복 확인
-        if (dbInfoRepository.existsByName(request.name())) {
-            throw new BadRequestException(ExceptionMessage.DB_NAME_ALREADY_EXISTS,
-                    "이미 존재하는 데이터베이스 이름입니다: " + request.name());
-        }
+        // 3개 필드로 기존 DBInfo 검색 (삭제된 것 포함)
+        Optional<DBInfo> existingDbInfoOpt = dbInfoRepository.findByIpAndUserNameAndInstanceSid(
+                request.ip(),
+                request.account(),
+                request.identifier()
+        );
 
-        // Member 엔티티 조회
-        Member member = memberQueryService.getMemberById(memberId);
-
-        // 비밀번호 암호화
-        String encryptedPassword;
-        try {
-            encryptedPassword = PasswordEncryptionUtil.encrypt(request.password(), encryptionKey);
-        } catch (Exception e) {
-            log.error("[Database] 비밀번호 암호화 실패: error={}", e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
-                    "비밀번호 암호화 중 오류가 발생했습니다.");
-        }
-
-        // DBInfo 엔티티 생성
-        DBInfo dbInfo = DBInfo.builder()
-                .member(member)
-                .name(request.name())
-                .ip(request.ip())
-                .port(request.port())
-                .userName(request.account())
-                .password(encryptedPassword)
-                .isActive(true)
-                .finalAt(null)
-                .build();
-
-        // DBInfo 저장
         DBInfo savedDbInfo;
-        try {
-            savedDbInfo = dbInfoRepository.save(dbInfo);
-            log.info("[Database] DBInfo 저장 완료: id={}, name={}", savedDbInfo.getId(), savedDbInfo.getName());
-        } catch (Exception e) {
-            log.error("[Database] DBInfo 저장 실패: name={}, error={}", request.name(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
-                    "데이터베이스 정보 저장 중 오류가 발생했습니다: " + e.getMessage());
-        }
-
-        // connectionType 기본값 설정
-        String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
-        
-        // JDBC URL 생성 (connectionType에 따라 자동 선택)
-        String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
-
-        // Instance 엔티티 생성
-        Instance instance = Instance.builder()
-                .dbInfo(savedDbInfo)
-                .sid(request.identifier()) // identifier를 sid 필드에 저장 (하위 호환성)
-                .url(jdbcUrl)
-                .connectionType(connectionType)
-                .build();
-
-        // Instance 저장
         Instance savedInstance;
-        try {
-            savedInstance = targetDatabaseRepository.save(instance);
-            log.info("[Database] Instance 저장 완료: id={}, identifier={}, connectionType={}, url={}",
-                    savedInstance.getId(), savedInstance.getSid(), savedInstance.getConnectionType(), savedInstance.getUrl());
-        } catch (Exception e) {
-            log.error("[Database] Instance 저장 실패: dbInfoId={}, identifier={}, connectionType={}, error={}",
-                    savedDbInfo.getId(), request.identifier(), request.connectionType(), e.getMessage());
-            throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
-                    "데이터베이스 인스턴스 저장 중 오류가 발생했습니다: " + e.getMessage());
+
+        if (existingDbInfoOpt.isPresent()) {
+            // 기존 DBInfo가 있는 경우
+            savedDbInfo = existingDbInfoOpt.get();
+
+            log.info("[Database] 기존 DBInfo 발견: id={}, name={}, isDeleted={}, isActive={}", 
+                    savedDbInfo.getId(), savedDbInfo.getName(), 
+                    savedDbInfo.getIsDeleted(), savedDbInfo.getIsActive());
+
+            // 삭제된 경우 복원
+            if (savedDbInfo.getIsDeleted() != null && savedDbInfo.getIsDeleted()) {
+                log.info("[Database] 삭제된 DBInfo 복원: id={}, name={}", 
+                        savedDbInfo.getId(), savedDbInfo.getName());
+                savedDbInfo.restoreFromDeleted();
+                savedDbInfo.activate();
+                savedDbInfo = dbInfoRepository.save(savedDbInfo);
+                log.info("[Database] DBInfo 복원 완료: id={}, name={}", 
+                        savedDbInfo.getId(), savedDbInfo.getName());
+            } else if (!savedDbInfo.getIsActive()) {
+                // 삭제되지 않았지만 비활성화된 경우 활성화
+                savedDbInfo.activate();
+                savedDbInfo = dbInfoRepository.save(savedDbInfo);
+                log.info("[Database] 기존 DBInfo 활성화 완료: id={}, name={}", 
+                        savedDbInfo.getId(), savedDbInfo.getName());
+            }
+
+            // 해당 DBInfo에 연결된 Instance 중 sid가 같은 것을 찾기 (삭제된 것 포함)
+            Optional<Instance> existingInstanceOpt = targetDatabaseRepository.findByDbInfoIdAndSid(
+                    savedDbInfo.getId(), 
+                    request.identifier()
+            );
+
+            if (existingInstanceOpt.isPresent()) {
+                // Instance가 있는 경우
+                savedInstance = existingInstanceOpt.get();
+                
+                // 삭제된 경우 복원
+                if (savedInstance.getIsDeleted() != null && savedInstance.getIsDeleted()) {
+                    log.info("[Database] 삭제된 Instance 복원: instanceId={}, sid={}", 
+                            savedInstance.getId(), savedInstance.getSid());
+                    
+                    // BaseEntity의 restoreFromDeleted 메서드 사용
+                    savedInstance.restoreFromDeleted();
+                    
+                    // connectionType이 변경되었을 수 있으므로 업데이트
+                    String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+                    if (savedInstance.getConnectionType() == null || 
+                        !connectionType.equals(savedInstance.getConnectionType())) {
+                        String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
+                        savedInstance.update(request.identifier(), jdbcUrl, connectionType);
+                    }
+                    
+                    savedInstance = targetDatabaseRepository.save(savedInstance);
+                    log.info("[Database] Instance 복원 완료: id={}, identifier={}, connectionType={}",
+                            savedInstance.getId(), savedInstance.getSid(), savedInstance.getConnectionType());
+                } else {
+                    // 삭제되지 않은 경우 그대로 사용
+                    log.info("[Database] 기존 Instance 사용: id={}, identifier={}",
+                            savedInstance.getId(), savedInstance.getSid());
+                    
+                    // connectionType이 변경되었을 수 있으므로 업데이트
+                    String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+                    if (savedInstance.getConnectionType() == null || 
+                        !connectionType.equals(savedInstance.getConnectionType())) {
+                        String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
+                        savedInstance.update(request.identifier(), jdbcUrl, connectionType);
+                        savedInstance = targetDatabaseRepository.save(savedInstance);
+                    }
+                }
+            } else {
+                // Instance가 없는 경우 새로 생성
+                String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+                String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
+                
+                Instance newInstance = Instance.builder()
+                        .dbInfo(savedDbInfo)
+                        .sid(request.identifier())
+                        .url(jdbcUrl)
+                        .connectionType(connectionType)
+                        .build();
+                savedInstance = targetDatabaseRepository.save(newInstance);
+                log.info("[Database] Instance 생성 완료: id={}, identifier={}, connectionType={}",
+                        savedInstance.getId(), savedInstance.getSid(), savedInstance.getConnectionType());
+            }
+        } else {
+            // 기존 DBInfo가 없는 경우 새로 생성
+            // Member 엔티티 조회
+            Member member = memberQueryService.getMemberById(memberId);
+
+            // 비밀번호 암호화
+            String encryptedPassword;
+            try {
+                encryptedPassword = PasswordEncryptionUtil.encrypt(request.password(), encryptionKey);
+            } catch (Exception e) {
+                log.error("[Database] 비밀번호 암호화 실패: error={}", e.getMessage());
+                throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
+                        "비밀번호 암호화 중 오류가 발생했습니다.");
+            }
+
+            // DBInfo 엔티티 생성
+            DBInfo dbInfo = DBInfo.builder()
+                    .member(member)
+                    .name(request.name())
+                    .ip(request.ip())
+                    .port(request.port())
+                    .userName(request.account())
+                    .password(encryptedPassword)
+                    .isActive(true)
+                    .finalAt(null)
+                    .build();
+
+            // DBInfo 저장
+            try {
+                savedDbInfo = dbInfoRepository.save(dbInfo);
+                log.info("[Database] DBInfo 저장 완료: id={}, name={}", savedDbInfo.getId(), savedDbInfo.getName());
+            } catch (Exception e) {
+                log.error("[Database] DBInfo 저장 실패: name={}, error={}", request.name(), e.getMessage());
+                throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
+                        "데이터베이스 정보 저장 중 오류가 발생했습니다: " + e.getMessage());
+            }
+
+            // connectionType 기본값 설정
+            String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+            
+            // JDBC URL 생성 (connectionType에 따라 자동 선택)
+            String jdbcUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
+
+            // Instance 엔티티 생성
+            Instance instance = Instance.builder()
+                    .dbInfo(savedDbInfo)
+                    .sid(request.identifier()) // identifier를 sid 필드에 저장 (하위 호환성)
+                    .url(jdbcUrl)
+                    .connectionType(connectionType)
+                    .build();
+
+            // Instance 저장
+            try {
+                savedInstance = targetDatabaseRepository.save(instance);
+                log.info("[Database] Instance 저장 완료: id={}, identifier={}, connectionType={}, url={}",
+                        savedInstance.getId(), savedInstance.getSid(), savedInstance.getConnectionType(), savedInstance.getUrl());
+            } catch (Exception e) {
+                log.error("[Database] Instance 저장 실패: dbInfoId={}, identifier={}, connectionType={}, error={}",
+                        savedDbInfo.getId(), request.identifier(), request.connectionType(), e.getMessage());
+                throw new BadRequestException(ExceptionMessage.INVALID_REQUEST,
+                        "데이터베이스 인스턴스 저장 중 오류가 발생했습니다: " + e.getMessage());
+            }
         }
 
         // 활성화된 경우 동적 데이터소스 생성
         if (savedDbInfo.getIsActive()) {
             try {
+                // 기존 데이터소스가 있으면 제거
+                dynamicDataSourceFactory.removeDataSource(savedInstance.getId());
+                
                 // 동적 데이터소스 생성 시에는 connectionType에 따라 URL 생성
+                String connectionType = request.connectionType() != null ? request.connectionType() : "SID";
+                if (savedInstance.getConnectionType() != null) {
+                    connectionType = savedInstance.getConnectionType();
+                }
+                
                 String dataSourceUrl = savedDbInfo.generateJdbcUrl(request.identifier(), connectionType);
+                
+                // 비밀번호 가져오기 (기존 DBInfo인 경우 암호화된 비밀번호 복호화)
+                String password;
+                if (existingDbInfoOpt.isPresent()) {
+                    try {
+                        password = PasswordEncryptionUtil.decrypt(savedDbInfo.getPassword(), encryptionKey);
+                    } catch (Exception e) {
+                        // 복호화 실패 시 요청된 비밀번호 사용
+                        password = request.password();
+                    }
+                } else {
+                    password = request.password();
+                }
+                
                 dynamicDataSourceFactory.createDataSource(
                         savedInstance.getId(),
                         savedDbInfo.getName(),
                         dataSourceUrl,
                         savedDbInfo.getUserName(),
-                        request.password()  // 원본 비밀번호 사용
+                        password
                 );
                 log.info("[Database] 동적 데이터소스 생성 완료: instanceId={}, dbInfoId={}, name={}",
                         savedInstance.getId(), savedDbInfo.getId(), savedDbInfo.getName());
@@ -389,7 +501,6 @@ public class InstanceCommandService {
 
         // DBInfo 논리적 삭제
         dbInfo.markAsDeleted();
-        dbInfoRepository.save(dbInfo);
 
         log.info("[DBInfo] DBInfo 논리적 삭제 완료: dbInfoId={}, name={}, 연결된 Instance 수={}",
                 dbInfoId, dbInfo.getName(), instances.size());
