@@ -3,13 +3,17 @@ package com.sys.dbmonitor.global.exception.handler;
 
 import com.sys.dbmonitor.global.exception.*;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.catalina.connector.ClientAbortException;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.io.IOException;
 
 @RestControllerAdvice
 @Slf4j
@@ -101,10 +105,47 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 클라이언트 연결 끊김 예외 처리 (Broken pipe)
+     * - 클라이언트가 요청을 취소하거나 연결을 끊었을 때 발생
+     * - 정상적인 상황이므로 조용히 무시
+     */
+    @ExceptionHandler({ClientAbortException.class, AsyncRequestNotUsableException.class})
+    @ResponseStatus(HttpStatus.OK)
+    public void handleClientAbortException(Exception e) {
+        // Broken pipe는 클라이언트가 연결을 끊은 정상적인 상황
+        // DEBUG 레벨로만 로깅하여 로그 노이즈 최소화
+        log.debug("클라이언트 연결 끊김 (정상): {}", e.getClass().getSimpleName());
+    }
+
+    /**
+     * IOException 처리 (Broken pipe 포함)
+     * - Broken pipe는 클라이언트 연결 끊김으로 정상적인 상황
+     */
+    @ExceptionHandler(IOException.class)
+    @ResponseStatus(HttpStatus.OK)
+    public void handleIOException(IOException e) {
+        // Broken pipe는 조용히 무시
+        if (e.getMessage() != null && e.getMessage().contains("Broken pipe")) {
+            log.debug("클라이언트 연결 끊김 (Broken pipe): {}", e.getMessage());
+            return;
+        }
+        // 다른 IOException은 로깅
+        log.warn("IO 오류 발생: {}", e.getMessage());
+    }
+
+    /**
      * Internal Server Error 5xx :
      */
     @ExceptionHandler(Exception.class)
     ProblemDetail handleInternalError(final Exception e) {
+        // Broken pipe 관련 예외는 이미 위에서 처리했으므로 여기서는 무시
+        if (e instanceof ClientAbortException || 
+            e instanceof AsyncRequestNotUsableException ||
+            (e instanceof IOException && e.getMessage() != null && e.getMessage().contains("Broken pipe"))) {
+            log.debug("클라이언트 연결 끊김 (정상): {}", e.getClass().getSimpleName());
+            return null; // 응답 없음
+        }
+        
         log.error("Uncaught {} - {}", e.getClass().getSimpleName(), e.getMessage());
         e.printStackTrace();
         ProblemDetail problemDetail = ProblemDetail

@@ -26,8 +26,8 @@ public class JavaCpuLoadGenerator {
     
     // CPU 코어 수 확인 (시스템에서 가져오거나 기본값 사용)
     private static final int CPU_CORES = Runtime.getRuntime().availableProcessors();
-    // 동시 실행 스레드 수: 코어 수의 50배 (부하 강도 극대화)
-    private static final int CONCURRENT_THREADS = Math.max(CPU_CORES * 50, 100);
+    // 동시 실행 스레드 수: 코어 수의 5배 (Spring Batch 우선 실행을 위해 감소)
+    private static final int CONCURRENT_THREADS = Math.max(CPU_CORES * 5, 10);
     
     public JavaCpuLoadGenerator(DataSource dataSource, int durationSec) {
         this.dataSource = dataSource;
@@ -90,29 +90,39 @@ public class JavaCpuLoadGenerator {
         String threadName = "CpuLoad-" + threadId;
         Thread.currentThread().setName(threadName);
         
-        log.debug("[JavaCpuLoad] 스레드 {} 시작", threadId);
+        // 부하 생성 스레드는 낮은 우선순위로 설정하여 배치 작업이 우선 실행되도록
+        Thread.currentThread().setPriority(Thread.MIN_PRIORITY + 1);
+        
+        log.debug("[JavaCpuLoad] 스레드 {} 시작 (우선순위: 낮음)", threadId);
         
         int iteration = 0;
         while (running.get() && System.currentTimeMillis() < endTime) {
             iteration++;
             
-            try (Connection conn = dataSource.getConnection()) {
-                // CPU 집약적인 SQL 쿼리 실행
-                // 1. 복잡한 계산 쿼리 (여러 번 반복)
-                for (int j = 0; j < 3 && System.currentTimeMillis() < endTime; j++) {
-                    executeCpuIntensiveQuery(conn, iteration * 100 + j);
+            try {
+                // CPU 집약적인 SQL 쿼리 실행 (Spring Batch 우선 실행을 위해 빈도 감소)
+                // 1. 복잡한 계산 쿼리 (반복 횟수 감소) - 각 쿼리마다 Connection 열고 닫기
+                for (int j = 0; j < 2 && System.currentTimeMillis() < endTime; j++) {
+                    try (Connection conn = dataSource.getConnection()) {
+                        executeCpuIntensiveQuery(conn, iteration * 100 + j);
+                    }
                 }
                 
-                // 2. 추가 부하를 위한 반복 쿼리 (반복 횟수 증가)
-                for (int i = 0; i < 30 && System.currentTimeMillis() < endTime; i++) {
-                    executeCpuIntensiveQuery(conn, iteration * 1000 + i);
+                // 2. 추가 부하를 위한 반복 쿼리 (반복 횟수 감소) - 각 쿼리마다 Connection 열고 닫기
+                for (int i = 0; i < 8 && System.currentTimeMillis() < endTime; i++) {
+                    try (Connection conn = dataSource.getConnection()) {
+                        executeCpuIntensiveQuery(conn, iteration * 1000 + i);
+                    }
                 }
+                
+                // 쿼리 실행 간 대기 시간 추가 (배치 작업이 연결을 얻을 수 있는 여유 공간 확보)
+                Thread.sleep(100);  // 50ms → 100ms로 증가
                 
             } catch (Exception e) {
                 log.warn("[JavaCpuLoad] 스레드 {} 쿼리 실행 중 오류 (무시하고 계속): {}", threadId, e.getMessage());
                 // 오류가 발생해도 계속 실행하여 부하 유지
                 try {
-                    Thread.sleep(100); // 짧은 대기 후 재시도
+                    Thread.sleep(300); // 오류 시 더 긴 대기 후 재시도
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     break;
@@ -128,13 +138,13 @@ public class JavaCpuLoadGenerator {
      * Oracle에서 CPU를 많이 사용하는 복잡한 계산 쿼리
      */
     private void executeCpuIntensiveQuery(Connection conn, int iteration) throws Exception {
-        // 방법 1: 복잡한 수학 계산 (ROWNUM을 이용한 반복 계산) - 범위 증가
+        // 방법 1: 복잡한 수학 계산 (ROWNUM을 이용한 반복 계산) - 범위 감소
         String sql1 = """
             SELECT SUM(ROWNUM * ROWNUM * ROWNUM * ROWNUM) 
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 20000
+                CONNECT BY ROWNUM <= 10000
             )
             """;
         
@@ -145,13 +155,13 @@ public class JavaCpuLoadGenerator {
             }
         }
         
-        // 방법 2: 복잡한 CONNECT BY 계산 (Oracle 전용) - 범위 증가
+        // 방법 2: 복잡한 CONNECT BY 계산 (Oracle 전용) - 범위 감소
         String sql2 = """
             SELECT SUM(ROWNUM * POWER(ROWNUM, 3) * MOD(ROWNUM, 50) * SIN(ROWNUM))
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 15000
+                CONNECT BY ROWNUM <= 8000
             )
             """;
         
@@ -167,7 +177,7 @@ public class JavaCpuLoadGenerator {
                 FROM (
                     SELECT ROWNUM 
                     FROM DUAL 
-                    CONNECT BY ROWNUM <= 15000
+                    CONNECT BY ROWNUM <= 8000
                 )
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(sql2Alt);
@@ -178,14 +188,14 @@ public class JavaCpuLoadGenerator {
             }
         }
         
-        // 방법 3: 복잡한 계산 - 범위 증가
+        // 방법 3: 복잡한 계산 - 범위 감소
         String sql3 = """
             SELECT 
                 SUM(ROWNUM * MOD(ROWNUM, 100) * POWER(ROWNUM, 3) * SQRT(ROWNUM))
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 12000
+                CONNECT BY ROWNUM <= 6000
             )
             """;
         
@@ -202,7 +212,7 @@ public class JavaCpuLoadGenerator {
                 FROM (
                     SELECT ROWNUM 
                     FROM DUAL 
-                    CONNECT BY ROWNUM <= 12000
+                    CONNECT BY ROWNUM <= 6000
                 )
                 """;
             try (PreparedStatement stmt = conn.prepareStatement(sql3Alt);
@@ -213,15 +223,15 @@ public class JavaCpuLoadGenerator {
             }
         }
         
-        // 방법 4: 중첩된 복잡한 계산 추가
+        // 방법 4: 중첩된 복잡한 계산 (범위 감소)
         String sql4 = """
             SELECT 
                 SUM(ROWNUM * POWER(ROWNUM, 2) * MOD(ROWNUM, 200) * 
-                    (SELECT COUNT(*) FROM DUAL CONNECT BY ROWNUM <= 100))
+                    (SELECT COUNT(*) FROM DUAL CONNECT BY ROWNUM <= 50))
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 10000
+                CONNECT BY ROWNUM <= 5000
             )
             """;
         
