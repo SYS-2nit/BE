@@ -10,8 +10,10 @@ import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 
 
@@ -24,27 +26,23 @@ public class MetricAggregationScheduler {
     private final Job metricAggregation10MinutesJob;
     private final Job metricAggregation1HourJob;
     private final Job metricAggregation1DayJob;
+    
+    @Qualifier("batchExecutor")
+    private final ThreadPoolTaskExecutor batchExecutor;
 
     /**
      * 10분 데이터 집계 스케줄러
      */
     @Scheduled(cron = "0 */10 * * * *")
     public void launch10MinutesAggregationJob() {
-        JobParameters jobParameters = new JobParametersBuilder()
-                .addLong("requestedAt", System.currentTimeMillis())
-                .addString("aggregationType", "10m")
-                .toJobParameters();
-        try {
-            jobLauncher.run(metricAggregation10MinutesJob, jobParameters);
-            log.debug("[Aggregation] 10분 집계 배치 실행 완료");
-        } catch (JobExecutionAlreadyRunningException |
-                 JobRestartException |
-                 JobInstanceAlreadyCompleteException |
-                 JobParametersInvalidException ex) {
-            log.warn("[Aggregation] 10분 집계 배치 실행이 진행 중이거나 잘못된 파라미터: {}", ex.getMessage());
-        } catch (Exception ex) {
-            log.error("[Aggregation] 10분 집계 배치 실행 중 알 수 없는 오류가 발생.", ex);
-        }
+        // 배치 작업을 전용 스레드 풀에서 실행 (최고 우선순위)
+        batchExecutor.execute(() -> {
+            JobParameters jobParameters = new JobParametersBuilder()
+                    .addLong("requestedAt", System.currentTimeMillis())
+                    .addString("aggregationType", "10m")
+                    .toJobParameters();
+            runJobWithRetry(metricAggregation10MinutesJob, jobParameters, "10분 집계");
+        });
     }
 
     /**
@@ -52,21 +50,14 @@ public class MetricAggregationScheduler {
      */
     @Scheduled(cron = "0 0 * * * *")
     public void launch1HourAggregationJob() {
-        JobParameters jobParameters = new JobParametersBuilder()
-                .addLong("requestedAt", System.currentTimeMillis())
-                .addString("aggregationType", "1h")
-                .toJobParameters();
-        try {
-            jobLauncher.run(metricAggregation1HourJob, jobParameters);
-            log.debug("[Aggregation] 1시간 집계 배치 실행 요청 완료.");
-        } catch (JobExecutionAlreadyRunningException |
-                 JobRestartException |
-                 JobInstanceAlreadyCompleteException |
-                 JobParametersInvalidException ex) {
-            log.warn("[Aggregation] 1시간 집계 배치 실행이 진행 중이거나 잘못된 파라미터: {}", ex.getMessage());
-        } catch (Exception ex) {
-            log.error("[Aggregation] 1시간 집계 배치 실행 중 알 수 없는 오류가 발생.", ex);
-        }
+        // 배치 작업을 전용 스레드 풀에서 실행 (최고 우선순위)
+        batchExecutor.execute(() -> {
+            JobParameters jobParameters = new JobParametersBuilder()
+                    .addLong("requestedAt", System.currentTimeMillis())
+                    .addString("aggregationType", "1h")
+                    .toJobParameters();
+            runJobWithRetry(metricAggregation1HourJob, jobParameters, "1시간 집계");
+        });
     }
 
     /**
@@ -74,20 +65,51 @@ public class MetricAggregationScheduler {
      */
     @Scheduled(cron = "0 0 0 * * *")
     public void launch1DayAggregationJob() {
-        JobParameters jobParameters = new JobParametersBuilder()
-                .addLong("requestedAt", System.currentTimeMillis())
-                .addString("aggregationType", "1d")
-                .toJobParameters();
-        try {
-            jobLauncher.run(metricAggregation1DayJob, jobParameters);
-            log.debug("[Aggregation] 1일 집계 배치 실행 요청 완료.");
-        } catch (JobExecutionAlreadyRunningException |
-                 JobRestartException |
-                 JobInstanceAlreadyCompleteException |
-                 JobParametersInvalidException ex) {
-            log.warn("[Aggregation] 1일 집계 배치 실행이 진행 중이거나 잘못된 파라미터: {}", ex.getMessage());
-        } catch (Exception ex) {
-            log.error("[Aggregation] 1일 집계 배치 실행 중 알 수 없는 오류가 발생.", ex);
+        // 배치 작업을 전용 스레드 풀에서 실행 (최고 우선순위)
+        batchExecutor.execute(() -> {
+            JobParameters jobParameters = new JobParametersBuilder()
+                    .addLong("requestedAt", System.currentTimeMillis())
+                    .addString("aggregationType", "1d")
+                    .toJobParameters();
+            runJobWithRetry(metricAggregation1DayJob, jobParameters, "1일 집계");
+        });
+    }
+    
+    /**
+     * Spring Batch 우선 실행을 위한 재시도 로직이 포함된 Job 실행
+     */
+    private void runJobWithRetry(Job job, JobParameters jobParameters, String jobName) {
+        int maxRetries = 3;
+        int retryDelayMs = 2000; // 2초 대기
+        boolean success = false;
+        
+        for (int attempt = 1; attempt <= maxRetries && !success; attempt++) {
+            try {
+                jobLauncher.run(job, jobParameters);
+                log.info("[Aggregation] {} 배치 실행 완료 (시도: {}/{})", jobName, attempt, maxRetries);
+                success = true;
+            } catch (JobExecutionAlreadyRunningException |
+                     JobRestartException |
+                     JobInstanceAlreadyCompleteException |
+                     JobParametersInvalidException ex) {
+                log.warn("[Aggregation] {} 배치 실행이 진행 중이거나 잘못된 파라미터: {}", jobName, ex.getMessage());
+                success = true; // 재시도 불필요
+            } catch (Exception ex) {
+                if (attempt < maxRetries) {
+                    log.warn("[Aggregation] {} 배치 실행 실패 (시도: {}/{}), {}ms 후 재시도: {}", 
+                            jobName, attempt, maxRetries, retryDelayMs, ex.getMessage());
+                    try {
+                        Thread.sleep(retryDelayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        log.error("[Aggregation] {} 재시도 대기 중 인터럽트 발생", jobName);
+                        break;
+                    }
+                } else {
+                    log.error("[Aggregation] {} 배치 실행 최종 실패 (시도: {}/{}): {}", 
+                            jobName, attempt, maxRetries, ex.getMessage(), ex);
+                }
+            }
         }
     }
 }

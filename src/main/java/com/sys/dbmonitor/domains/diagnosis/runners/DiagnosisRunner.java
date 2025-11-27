@@ -31,6 +31,10 @@ public class DiagnosisRunner implements Runnable {
 
     // 현재 실행 프로세스 전역 참조
     private volatile Process currentProcess;
+    
+    // SwingBench 출력 수집용
+    @Getter
+    private final StringBuilder outputCollector = new StringBuilder();
 
     public DiagnosisRunner(List<ScenarioType> scenarios, int durationSec, String dbUrl, String dbUsername, String dbPassword) {
         this.scenarios = scenarios;
@@ -79,12 +83,18 @@ public class DiagnosisRunner implements Runnable {
         env.put("WHA_DB_PASSWORD", dbPassword);
         currentProcess = pb.start();
 
-        // 로그 리더(비동기)
+        // 로그 리더(비동기) - 출력 수집 포함
         Thread logT = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(currentProcess.getInputStream()))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     log.info("[진단 로그] {}", line);
+                    // SwingBench 출력 수집 (최대 50KB)
+                    synchronized (outputCollector) {
+                        if (outputCollector.length() < 50000) {
+                            outputCollector.append(line).append("\n");
+                        }
+                    }
                 }
             } catch (Exception ignore) {}
         }, "scenario-log-reader");
@@ -155,5 +165,16 @@ public class DiagnosisRunner implements Runnable {
      */
     public boolean isStopped() {
         return !running.get();
+    }
+    
+    /**
+     * 수집된 출력 반환 및 초기화
+     */
+    public String getAndClearOutput() {
+        synchronized (outputCollector) {
+            String output = outputCollector.toString();
+            outputCollector.setLength(0);
+            return output;
+        }
     }
 }

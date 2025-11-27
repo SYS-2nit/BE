@@ -11,7 +11,7 @@ import java.util.function.Function;
 public enum ScenarioType {
     DB_CPU_METRICS_JAVA(
             12L,
-            "DB CPU 비율/포화도 증가 - 시연",
+            "DB CPU 비율/포화도 증가",
             "Java 기반 SQL 실행으로 DB CPU 점유율 및 포화도 동시 증가",
             List.of("CPU"),
             "Java 기반: CPU 집약적인 SQL을 다중 스레드로 실행하여 지속적인 부하 생성 (별도 프로세스)",
@@ -57,46 +57,47 @@ public enum ScenarioType {
             "대용량 UPDATE/DELETE, 커밋 지연",
             durationSec -> List.of("bash", "swingbench/scenarios/undo_pressure.sh", String.valueOf(durationSec))
     ),
-    TEMP_SPILL(
-            6L,
-            "Temp 스필 급증(PGA 부족)",
-            "Sort/Hash 스필 발생",
-            List.of("Memory", "I/O"),
-            "대형 Sort/Hash Join 반복 + 낮은 PGA",
-            durationSec -> List.of("bash", "swingbench/scenarios/temp_spill.sh", String.valueOf(durationSec))
-    ),
-    CHECKPOINT_DBWR_SPIKE(
-            7L,
-            "체크포인트/DBWR 스파이크",
-            "Dirty Buffer 대량 기록",
-            List.of("I/O", "Redo"),
-            "단시간 대량 DML 후 유휴, 작은 로그 파일",
-            durationSec -> List.of("bash", "swingbench/scenarios/checkpoint_dbwr.sh", String.valueOf(durationSec))
-    ),
-    LOCK_CONTENTION(
-            8L,
-            "잠금 경합(TX/TM Lock)",
-            "동시 UPDATE/DDL로 대기 증가",
-            List.of("Session"),
-            "동일 로우 범위 동시 UPDATE 및 동시 DDL",
-            durationSec -> List.of("bash", "swingbench/scenarios/lock_contention.sh", String.valueOf(durationSec))
-    ),
-    LOGON_STORM(
-            9L,
-            "연결 폭주(Logons/s↑)",
-            "로그인 급증으로 세션 생성/종료 반복",
-            List.of("Session", "CPU"),
-            "클라이언트에서 초당 신규 세션 생성/종료",
-            durationSec -> List.of("bash", "swingbench/scenarios/logon_storm.sh", String.valueOf(durationSec))
-    ),
-    TABLESPACE_THRESHOLD(
-            10L,
-            "스토리지 용량 임계",
-            "테이블스페이스 사용률 상승",
-            List.of("Storage"),
-            "대량 INSERT로 USER TS 사용률 상승",
-            durationSec -> List.of("bash", "swingbench/scenarios/tablespace_threshold.sh", String.valueOf(durationSec))
-    );
+//    TEMP_SPILL(
+//            6L,
+//            "Temp 스필 급증(PGA 부족)",
+//            "Sort/Hash 스필 발생",
+//            List.of("Memory", "I/O"),
+//            "대형 Sort/Hash Join 반복 + 낮은 PGA",
+//            durationSec -> List.of("bash", "swingbench/scenarios/temp_spill.sh", String.valueOf(durationSec))
+//    ),
+//    CHECKPOINT_DBWR_SPIKE(
+//            7L,
+//            "체크포인트/DBWR 스파이크",
+//            "Dirty Buffer 대량 기록",
+//            List.of("I/O", "Redo"),
+//            "단시간 대량 DML 후 유휴, 작은 로그 파일",
+//            durationSec -> List.of("bash", "swingbench/scenarios/checkpoint_dbwr.sh", String.valueOf(durationSec))
+//    ),
+//    LOCK_CONTENTION(
+//            8L,
+//            "잠금 경합(TX/TM Lock)",
+//            "동시 UPDATE/DDL로 대기 증가",
+//            List.of("Session"),
+//            "동일 로우 범위 동시 UPDATE 및 동시 DDL",
+//            durationSec -> List.of("bash", "swingbench/scenarios/lock_contention.sh", String.valueOf(durationSec))
+//    ),
+//    LOGON_STORM(
+//            9L,
+//            "연결 폭주(Logons/s↑)",
+//            "로그인 급증으로 세션 생성/종료 반복",
+//            List.of("Session", "CPU"),
+//            "클라이언트에서 초당 신규 세션 생성/종료",
+//            durationSec -> List.of("bash", "swingbench/scenarios/logon_storm.sh", String.valueOf(durationSec))
+//    ),
+//    TABLESPACE_THRESHOLD(
+//            10L,
+//            "스토리지 용량 임계",
+//            "테이블스페이스 사용률 상승",
+//            List.of("Storage"),
+//            "대량 INSERT로 USER TS 사용률 상승",
+//            durationSec -> List.of("bash", "swingbench/scenarios/tablespace_threshold.sh", String.valueOf(durationSec))
+//    )
+    ;
 
     private final Long id;
     private final String title;
