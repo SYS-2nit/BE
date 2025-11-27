@@ -16,7 +16,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import javax.sql.DataSource;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -32,6 +31,7 @@ import java.util.stream.Stream;
 /**
  * SQL 스냅샷 수집 및 저장 서비스
  */
+
 @Slf4j
 @Service
 @RequiredArgsConstructor

@@ -2,8 +2,11 @@ package com.sys.dbmonitor.domains.sql.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.data.domain.Page;
-
 import java.util.List;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 @Schema(description = "SQL 통계 페이지 응답")
 public record SqlStatsPageResponse(

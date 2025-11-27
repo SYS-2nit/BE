@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -6,7 +10,6 @@ import com.sys.dbmonitor.domains.sql.domain.Sql;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
-
 import java.time.LocalDateTime;
 import java.util.List;
 

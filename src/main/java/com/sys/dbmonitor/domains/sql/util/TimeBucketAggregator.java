@@ -1,9 +1,11 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.util;
 
-import com.sys.dbmonitor.domains.sql.domain.Sql;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
 import com.sys.dbmonitor.domains.sql.dto.response.SqlGraphSeriesResponse;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;

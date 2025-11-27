@@ -1,3 +1,7 @@
+/**************************************************
+ 공동 작성자 : 오수경, 최온유
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.domain;
 
 import com.sys.dbmonitor.global.common.entity.BaseEntity;

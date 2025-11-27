@@ -3,6 +3,9 @@ package com.sys.dbmonitor.domains.sql.dto.response;
 import com.sys.dbmonitor.domains.sql.domain.Sql;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 @Schema(description = "SQL 데이터 응답")
 public record SqlResponse(

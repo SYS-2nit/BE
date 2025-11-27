@@ -1,11 +1,13 @@
 package com.sys.dbmonitor.domains.sql.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
-
 import java.time.LocalDate;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 @Schema(description = "SQL 통계 테이블 목록 조회 요청")
 public record SqlStatsQueryRequest(
