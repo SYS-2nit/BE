@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 // src/main/java/com/sys/dbmonitor/domains/dashboard/state/InMemoryDeltaStateStore.java
 package com.sys.dbmonitor.domains.dashboard.state;
 

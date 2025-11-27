@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 package com.sys.dbmonitor.domains.dashboard.dao;
 
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;

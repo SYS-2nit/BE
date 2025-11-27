@@ -1,3 +1,7 @@
+--------------------------------------------
+-- 작성자 최온유
+--------------------------------------------
+
 DECLARE
 /* ===== Local defaults from binds (client may bind these) ===== */
 v_lookback_min   NUMBER := NVL(1, 1);   -- minutes for candidate pools (e.g., Top SQL)
