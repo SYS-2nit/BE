@@ -73,7 +73,8 @@ public class DashboardQueryService {
         if (graph.getType() != null && graph.getType() == 7) {
             if (!dataPoints.isEmpty()) {
                 // 최신 데이터 하나만 사용
-                dataPoints = List.of(dataPoints.get(0));
+//                dataPoints = List.of(dataPoints.get(0));
+                dataPoints = List.of(dataPoints.get(dataPoints.size() - 1));
                 log.debug("Tile 그래프: 최신 데이터 하나만 반환. graphId={}, graphName={}", 
                         graph.getId(), graph.getName());
             }

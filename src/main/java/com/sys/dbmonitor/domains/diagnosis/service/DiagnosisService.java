@@ -13,7 +13,9 @@ import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,9 @@ public class DiagnosisService {
     private final InstanceRepository instanceRepository;
     private final Map<Long, ScenarioType> idToScenario = Arrays.stream(ScenarioType.values())
             .collect(Collectors.toMap(ScenarioType::getId, s -> s));
+    
+    @Qualifier("diagnosisExecutor")
+    private final ThreadPoolTaskExecutor diagnosisExecutor;
 
     private volatile DiagnosisRunner runner;
     private volatile Thread runnerThread;
@@ -50,7 +55,9 @@ public class DiagnosisService {
         if (req.instanceId() == null) {
             throw new BadRequestException(ExceptionMessage.INVALID_REQUEST, "인스턴스 ID는 필수입니다.");
         }
-        if (runnerThread != null && runnerThread.isAlive()) {
+        // 실행 중인 진단이 있는지 확인 (Java 기반 또는 외부 프로세스)
+        if ((runnerThread != null && runnerThread.isAlive()) || 
+            (runner != null && !runner.isStopped())) {
             throw new BadRequestException(ExceptionMessage.DIAGNOSIS_ALREADY_RUNNING);
         }
         List<ScenarioType> list = req.scenarioIds().stream()
@@ -96,10 +103,12 @@ public class DiagnosisService {
 
         // DB 연결 정보를 환경 변수로 전달
         runner = new DiagnosisRunner(list, req.durationSec(), dbUrl, dbUsername, dbPassword);
-        runnerThread = new Thread(runner, "diagnosis-runner");
         selectedScenarioIds = new ArrayList<>(req.scenarioIds());
+        
+        // 모든 시나리오를 별도 프로세스로 실행 (SwingBench와 Java 기반 모두)
+        runnerThread = new Thread(runner, "diagnosis-runner");
         runnerThread.start();
-        log.info("[Diagnosis] 시작 - instanceId: {}, scenarios: {}, durationSec: {}", 
+        log.info("[Diagnosis] 진단 시작 (별도 프로세스) - instanceId: {}, scenarios: {}, durationSec: {}", 
                 req.instanceId(), selectedScenarioIds, req.durationSec());
     }
 
@@ -121,7 +130,9 @@ public class DiagnosisService {
     }
 
     public DiagnosisStatusDto queryStatus() {
-        boolean running = runnerThread != null && runnerThread.isAlive();
+        // Java 기반 진단은 runnerThread가 null일 수 있으므로 runner 존재 여부로 확인
+        boolean running = (runnerThread != null && runnerThread.isAlive()) || 
+                         (runner != null && !runner.isStopped());
         Long currentId = null;
         int remainSec = 0;
         Integer remainingSec = 0;

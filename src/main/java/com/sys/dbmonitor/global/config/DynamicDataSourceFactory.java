@@ -37,14 +37,17 @@ public class DynamicDataSourceFactory {
         config.setPassword(password);
         config.setDriverClassName("oracle.jdbc.OracleDriver");
         config.setPoolName("OracleTargetPool-" + id);
-        config.setMaximumPoolSize(5);
-        config.setMinimumIdle(2);
-        config.setConnectionTimeout(30000);
+        // Spring Batch 우선 실행을 위해 배치 작업 연결 풀 크기 대폭 증가
+        config.setMaximumPoolSize(50);  // 30 → 50으로 증가 (부하 상황에서도 배치 작업이 연결 확보)
+        config.setMinimumIdle(20);      // 10 → 20으로 증가 (빠른 연결 확보)
+        config.setConnectionTimeout(120000);  // 60초 → 120초로 증가 (부하 상황에서 연결 대기 시간 증가)
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
         config.setLeakDetectionThreshold(60000);
         config.setValidationTimeout(5000);
         config.setConnectionTestQuery("SELECT 1 FROM DUAL");
+        // 배치 작업 우선 실행을 위한 설정
+        config.setRegisterMbeans(true);
 
         HikariDataSource dataSource = new HikariDataSource(config);
 

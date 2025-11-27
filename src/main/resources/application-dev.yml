@@ -37,6 +37,6 @@ server:
 
 app:
   metric:
-    persist: false
+    persist: true
   batch:
     enabled: false  # 배치 스케줄러 비활성화
