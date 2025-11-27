@@ -195,7 +195,7 @@ public class JavaCpuLoadGenerator {
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 6000
+                CONNECT BY ROWNUM <= 6000 
             )
             """;
         

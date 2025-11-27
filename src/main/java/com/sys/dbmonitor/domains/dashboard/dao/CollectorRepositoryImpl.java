@@ -5,12 +5,10 @@
 package com.sys.dbmonitor.domains.dashboard.dao;
 
 import com.sys.dbmonitor.domains.dashboard.dto.CollectorRawDTO;
-import com.sys.dbmonitor.domains.instance.domain.Instance;
 import com.sys.dbmonitor.domains.instance.repository.InstanceRepository;
 import com.sys.dbmonitor.global.config.DynamicDataSourceFactory;
 import com.sys.dbmonitor.global.exception.ExceptionMessage;
 import com.sys.dbmonitor.global.exception.NotFoundException;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Repository;
 
