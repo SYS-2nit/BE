@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 // src/main/java/com/sys/dbmonitor/domains/dashboard/service/mapping/GraphRegistry.java
 package com.sys.dbmonitor.domains.dashboard.service.mapping;
 

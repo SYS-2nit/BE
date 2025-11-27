@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.service.realtime;
 
 import com.sys.dbmonitor.domains.notification.domain.Event;
