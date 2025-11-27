@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.domain;
 
 import com.sys.dbmonitor.global.common.entity.BaseEntity;
@@ -13,7 +17,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
 /**

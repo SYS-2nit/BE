@@ -31,7 +31,7 @@ public class DiagnosisRunner implements Runnable {
 
     // 현재 실행 프로세스 전역 참조
     private volatile Process currentProcess;
-    
+
     // SwingBench 출력 수집용
     @Getter
     private final StringBuilder outputCollector = new StringBuilder();
@@ -159,14 +159,14 @@ public class DiagnosisRunner implements Runnable {
             currentProcess.destroyForcibly();
         }
     }
-    
+
     /**
      * 실행 중인지 확인
      */
     public boolean isStopped() {
         return !running.get();
     }
-    
+
     /**
      * 수집된 출력 반환 및 초기화
      */

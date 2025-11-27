@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.dashboard.service.aggregation;
 
 import com.sys.dbmonitor.domains.dashboard.domain.MetricData;

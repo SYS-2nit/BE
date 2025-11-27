@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.dashboard.service.query;
 
 import com.sys.dbmonitor.domains.dashboard.dto.response.GraphDataPoint;

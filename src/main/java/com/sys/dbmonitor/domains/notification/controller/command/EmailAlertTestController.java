@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.controller.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
@@ -111,6 +116,7 @@ public class EmailAlertTestController {
                                   Double criticalThreshold) {
         AlertLevel alertLevel = severity == null ? AlertLevel.WARNING :
             switch (severity) {
+                case 0 -> AlertLevel.RECOVERY;
                 case 1 -> AlertLevel.WARNING;
                 case 2 -> AlertLevel.DANGER;
                 case 3 -> AlertLevel.CRITICAL;
@@ -127,6 +133,7 @@ public class EmailAlertTestController {
 
         if (thresholdValue == null) {
             thresholdValue = switch (alertLevel) {
+                case RECOVERY -> 0.0; // 복구 알림은 임계값이 없으므로 0으로 설정
                 case WARNING -> warningThreshold;
                 case DANGER -> dangerThreshold;
                 case CRITICAL -> criticalThreshold;

@@ -2,6 +2,10 @@ package com.sys.dbmonitor.domains.sql.dto;
 
 import com.sys.dbmonitor.domains.sql.dto.response.SqlResponse;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 /**
  * SQL 집계 통계 DTO
  * Object[] 배열을 타입 안전한 DTO로 변환

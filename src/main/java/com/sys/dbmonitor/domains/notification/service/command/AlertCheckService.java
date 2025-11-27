@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
@@ -140,14 +145,23 @@ public class AlertCheckService {
                 .consecutiveCount(0)
                 .build());
 
-        // 4-2. 임계값 미만이면 연속 초과 횟수 리셋 후 상태 갱신만 하고 반환
+        // 4-2. 임계값 미만인 경우 복구 케이스 체크
         if (severity == null) {
+            // 복구 케이스 체크: 이전에 알림이 발송되었고 현재는 정상인 경우
+            Integer prevNotified = state.getLastNotifiedSeverity();
+            if (prevNotified != null) {
+                // 복구 알림 발송
+                createAndSaveEvent(alertEvent, instance, AlertLevel.RECOVERY, metricValue, true);
+                state.setLastNotifiedSeverity(null);
+                state.setLastNotifiedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
+            }
+            
             state.setConsecutiveCount(0);
             state.setLastSeverity(null);
             state.setLastCheckedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
             alertStateRepository.save(state);
-            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}", 
-                alertEvent.getId(), metricValue, alertEvent.getWarning());
+            log.debug("[AlertCheck] 임계값 미만: alertEventId={}, metricValue={}, warning={}, 복구알림발송={}", 
+                alertEvent.getId(), metricValue, alertEvent.getWarning(), prevNotified != null);
             return;
         }
 
@@ -180,7 +194,7 @@ public class AlertCheckService {
         }
 
         if (shouldNotify) {
-            createAndSaveEvent(alertEvent, instance, severity, metricValue);
+            createAndSaveEvent(alertEvent, instance, severity, metricValue, isRecovery);
             state.setLastNotifiedSeverity(cur);
             state.setLastNotifiedAt(java.time.LocalDateTime.now(ZoneId.of("Asia/Seoul")));
             // 누적 카운트는 유지(지속 상태에서도 필요 시 정책 변경 여지), 필요하면 0으로 리셋 가능
@@ -338,21 +352,42 @@ public class AlertCheckService {
      */
     private void createAndSaveEvent(AlertEvent alertEvent, Instance instance, 
                                     AlertLevel severity, Double currentValue) {
-        // 임계값 결정 (초과한 임계값)
-        Double thresholdValue = determineThresholdValue(currentValue, alertEvent);
-        
-        // 알림 메시지 생성
+        createAndSaveEvent(alertEvent, instance, severity, currentValue, false);
+    }
+
+    /**
+     * Event 생성 및 저장 (복구 알림 지원)
+     */
+    private void createAndSaveEvent(AlertEvent alertEvent, Instance instance, 
+                                    AlertLevel severity, Double currentValue, boolean isRecovery) {
         ThresholdFormat thresholdFormat = alertEvent.getThresholdFormat();
         String formattedCurrent = ThresholdFormatUtils.formatValue(currentValue, thresholdFormat);
-        String formattedThreshold = ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat);
-
-        String message = String.format("%s: %s이/가 %s로 %s 임계값(%s)을 초과했습니다.",
-            alertEvent.getMetricName(),
-            alertEvent.getMetricName(),
-            formattedCurrent,
-            severity.getDescription(),
-            formattedThreshold
-        );
+        
+        String message;
+        Double thresholdValue;
+        
+        if (isRecovery || severity == AlertLevel.RECOVERY) {
+            // 복구 알림: 임계값 미만으로 복구된 경우
+            // 이전에 알림이 발송되었던 임계값을 참고하기 위해 마지막 알림 심각도 사용
+            // 복구 알림은 thresholdValue를 0으로 설정하거나, 마지막 알림의 thresholdValue를 사용
+            thresholdValue = 0.0; // 복구 알림은 임계값이 없으므로 0으로 설정
+            message = String.format("%s: %s이/가 정상 상태로 복구되었습니다. (현재값: %s)",
+                alertEvent.getMetricName(),
+                alertEvent.getMetricName(),
+                formattedCurrent
+            );
+        } else {
+            // 일반 알림: 임계값 초과
+            thresholdValue = determineThresholdValue(currentValue, alertEvent);
+            String formattedThreshold = ThresholdFormatUtils.formatValue(thresholdValue, thresholdFormat);
+            message = String.format("%s: %s이/가 %s로 %s 임계값(%s)을 초과했습니다.",
+                alertEvent.getMetricName(),
+                alertEvent.getMetricName(),
+                formattedCurrent,
+                severity.getDescription(),
+                formattedThreshold
+            );
+        }
 
         // Event 엔티티 생성
         Event event = Event.builder()
@@ -370,8 +405,8 @@ public class AlertCheckService {
         // DB 저장
         eventRepository.save(event);
         
-        log.info("[AlertCheck] 알림 발생: eventId={}, alertEventId={}, instanceId={}, severity={}, metricValue={}, threshold={}", 
-            event.getId(), alertEvent.getId(), instance.getId(), severity, currentValue, thresholdValue);
+        log.info("[AlertCheck] 알림 발생: eventId={}, alertEventId={}, instanceId={}, severity={}, metricValue={}, threshold={}, isRecovery={}", 
+            event.getId(), alertEvent.getId(), instance.getId(), severity, currentValue, thresholdValue, isRecovery);
 
         // 알림 전송 (비동기)
         alertNotificationService.sendAlerts(event, alertEvent.getPolicy().getMember().getId());

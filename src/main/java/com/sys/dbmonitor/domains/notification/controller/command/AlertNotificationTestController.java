@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.controller.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
@@ -87,6 +92,7 @@ public class AlertNotificationTestController {
     private Event createTestEvent(Instance instance, Member member, NotificationTestRequest request) {
         int severityValue = request.getSeverity() != null ? request.getSeverity() : 1;
         AlertLevel alertLevel = switch (severityValue) {
+            case 0 -> AlertLevel.RECOVERY;
             case 1 -> AlertLevel.WARNING;
             case 2 -> AlertLevel.DANGER;
             case 3 -> AlertLevel.CRITICAL;
@@ -108,6 +114,7 @@ public class AlertNotificationTestController {
         Double thresholdValue = request.getThresholdValue();
         if (thresholdValue == null) {
             thresholdValue = switch (alertLevel) {
+                case RECOVERY -> 0.0; // 복구 알림은 임계값이 없으므로 0으로 설정
                 case WARNING -> warningThreshold;
                 case DANGER -> dangerThreshold;
                 case CRITICAL -> criticalThreshold;

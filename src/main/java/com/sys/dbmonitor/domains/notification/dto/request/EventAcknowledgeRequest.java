@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;

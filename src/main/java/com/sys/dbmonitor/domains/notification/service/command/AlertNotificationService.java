@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
@@ -69,7 +74,10 @@ public class AlertNotificationService {
             // 2. 사용자 설정에 따른 채널 선택
             String selectedChannel = null;
             
-            if (severity == 1) {
+            if (severity == 0) {
+                // RECOVERY(0) → 복구 알림은 기본적으로 이메일로 전송
+                selectedChannel = "email";
+            } else if (severity == 1) {
                 // WARNING(1) → 사용자 설정의 warningChannel 확인
                 selectedChannel = member.getWarningChannel();
                 // 설정이 없으면 기본값: email

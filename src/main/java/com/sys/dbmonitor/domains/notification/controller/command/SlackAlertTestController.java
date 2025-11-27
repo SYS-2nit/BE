@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.controller.command;
 
 import com.sys.dbmonitor.domains.instance.domain.Instance;
@@ -81,6 +86,7 @@ public class SlackAlertTestController {
     private Event createTestEvent(Instance instance, SlackTestRequest request) {
         int severityValue = request.getSeverity() != null ? request.getSeverity() : 3;
         AlertLevel alertLevel = switch (severityValue) {
+            case 0 -> AlertLevel.RECOVERY;
             case 1 -> AlertLevel.WARNING;
             case 2 -> AlertLevel.DANGER;
             case 3 -> AlertLevel.CRITICAL;
@@ -92,6 +98,7 @@ public class SlackAlertTestController {
         String metricName = request.getMetricName() != null ? request.getMetricName() : "Host CPU 사용률";
 
         double defaultThreshold = switch (alertLevel) {
+            case RECOVERY -> 0.0; // 복구 알림은 임계값이 없으므로 0으로 설정
             case WARNING -> defaultWarning(thresholdFormat);
             case DANGER -> defaultDanger(thresholdFormat);
             case CRITICAL -> defaultCritical(thresholdFormat);

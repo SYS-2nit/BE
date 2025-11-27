@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.service.command;
 
 import com.sys.dbmonitor.domains.member.domain.Member;
@@ -215,6 +220,7 @@ public class SlackAlertService {
             return "알 수 없음";
         }
         return switch (severity) {
+            case 0 -> "복구 (RECOVERY)";
             case 1 -> "경고 (WARNING)";
             case 2 -> "위험 (DANGER)";
             case 3 -> "치명 (CRITICAL)";
@@ -230,6 +236,7 @@ public class SlackAlertService {
             return "#666666";
         }
         return switch (severity) {
+            case 0 -> "#28a745"; // 초록색 (RECOVERY)
             case 1 -> "#FFA500"; // 주황색 (WARNING)
             case 2 -> "#FF4500"; // 주황빨강 (DANGER)
             case 3 -> "#DC143C"; // 빨강 (CRITICAL)
@@ -245,6 +252,7 @@ public class SlackAlertService {
             return "⚠️";
         }
         return switch (severity) {
+            case 0 -> "✅"; // 복구
             case 1 -> "⚠️";
             case 2 -> "🔴";
             case 3 -> "🚨";

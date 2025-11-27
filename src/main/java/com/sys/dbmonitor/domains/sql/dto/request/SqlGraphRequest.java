@@ -2,6 +2,10 @@ package com.sys.dbmonitor.domains.sql.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 @Schema(description = "SQL 통계 그래프 조회 요청")
 public record SqlGraphRequest(
 
