@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.domains.member.domain;
 
 import com.sys.dbmonitor.global.common.entity.BaseEntity;

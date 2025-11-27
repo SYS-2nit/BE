@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.domains.diagnosis.controller;
 
 import com.sys.dbmonitor.domains.diagnosis.dto.response.ScenarioDto;

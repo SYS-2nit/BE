@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.global.security;
 
 import org.springframework.security.core.userdetails.UserDetails;
