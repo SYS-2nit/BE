@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * 알림 심각도 레벨
+ * 0: RECOVERY (복구)
  * 1: WARNING (경고)
  * 2: DANGER (위험)
  * 3: CRITICAL (치명)
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum AlertLevel {
+    RECOVERY(0, "복구"),
     WARNING(1, "경고"),
     DANGER(2, "위험"),
     CRITICAL(3, "치명");

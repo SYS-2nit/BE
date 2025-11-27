@@ -308,6 +308,7 @@ public class EmailAlertService {
             return "알 수 없음";
         }
         return switch (severity) {
+            case 0 -> "복구 (RECOVERY)";
             case 1 -> "경고 (WARNING)";
             case 2 -> "위험 (DANGER)";
             case 3 -> "치명 (CRITICAL)";
@@ -323,6 +324,7 @@ public class EmailAlertService {
             return "#666666";
         }
         return switch (severity) {
+            case 0 -> "#28a745"; // 초록색 (RECOVERY)
             case 1 -> "#FFA500"; // 주황색 (WARNING)
             case 2 -> "#FF4500"; // 주황빨강 (DANGER)
             case 3 -> "#DC143C"; // 빨강 (CRITICAL)
