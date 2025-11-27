@@ -1,6 +1,3 @@
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 package com.sys.dbmonitor.domains.member.controller.query;
 
 import com.sys.dbmonitor.domains.member.domain.Member;

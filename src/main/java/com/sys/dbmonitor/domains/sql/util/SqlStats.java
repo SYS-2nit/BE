@@ -1,8 +1,8 @@
-package com.sys.dbmonitor.domains.sql.util;
-
 /**************************************************
  작성자 : 오수경
  *************************************************/
+
+package com.sys.dbmonitor.domains.sql.util;
 
 /**
  * SQL 통계 집계를 위한 클래스

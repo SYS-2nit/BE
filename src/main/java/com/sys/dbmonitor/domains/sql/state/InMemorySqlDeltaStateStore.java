@@ -12,10 +12,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-/**************************************************
- 작성자 : 오수경
- *************************************************/
-
 /**
  * 메모리 기반 SQL 델타 상태 저장소 구현
  * 추후 Redis 구현으로 대체 가능

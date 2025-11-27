@@ -1,6 +1,3 @@
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 package com.sys.dbmonitor.domains.instance.controller.query;
 
 import com.sys.dbmonitor.domains.instance.dto.response.InstanceListResponse;

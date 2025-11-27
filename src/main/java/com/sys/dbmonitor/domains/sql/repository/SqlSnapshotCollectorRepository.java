@@ -23,10 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**************************************************
- 작성자 : 오수경
- *************************************************/
-
 /**
  * 타겟 DB에서 SQL 스냅샷 수집 Repository
  */

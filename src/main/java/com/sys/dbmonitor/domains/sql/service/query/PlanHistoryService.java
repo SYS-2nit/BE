@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
@@ -9,10 +13,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 @Service
 @RequiredArgsConstructor

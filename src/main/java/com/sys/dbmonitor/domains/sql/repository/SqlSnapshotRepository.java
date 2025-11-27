@@ -10,10 +10,6 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**************************************************
- 작성자 : 오수경
- *************************************************/
-
 /**
  * SQL 스냅샷 JPA Repository
  */

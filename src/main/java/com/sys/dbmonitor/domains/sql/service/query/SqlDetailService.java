@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
@@ -16,10 +20,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import com.sys.dbmonitor.domains.sql.util.SqlStats;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 /**
  * SQL 상세 조회 서비스

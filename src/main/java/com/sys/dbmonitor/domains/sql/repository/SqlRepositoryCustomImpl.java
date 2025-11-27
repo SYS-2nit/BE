@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -8,10 +12,6 @@ import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 @RequiredArgsConstructor
 public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {

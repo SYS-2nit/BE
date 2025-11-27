@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.MetricType;
@@ -14,10 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 /**
  * SQL 통계 목록 조회 서비스

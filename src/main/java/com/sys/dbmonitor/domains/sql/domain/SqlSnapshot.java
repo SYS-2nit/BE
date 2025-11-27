@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.domain;
 
 import com.sys.dbmonitor.global.common.entity.BaseEntity;
@@ -14,10 +18,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 /**
  * SQL 스냅샷 엔티티

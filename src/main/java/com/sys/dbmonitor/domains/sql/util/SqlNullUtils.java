@@ -1,8 +1,8 @@
-package com.sys.dbmonitor.domains.sql.util;
-
 /**************************************************
  작성자 : 오수경
  *************************************************/
+
+package com.sys.dbmonitor.domains.sql.util;
 
 /**
  * SQL 도메인에서 사용하는 NULL 처리 유틸리티

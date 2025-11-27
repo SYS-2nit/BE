@@ -1,6 +1,3 @@
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 package com.sys.dbmonitor.domains.dashboard.controller.command;
 
 import com.sys.dbmonitor.domains.dashboard.dto.request.MemberWidgetSaveRequest;

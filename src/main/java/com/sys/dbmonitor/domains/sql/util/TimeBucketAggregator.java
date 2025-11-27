@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.util;
 
 import com.sys.dbmonitor.domains.sql.dto.response.SqlDetailResponse;
@@ -7,10 +11,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.function.Function;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 /**
  * 시간 버킷 집계 유틸리티

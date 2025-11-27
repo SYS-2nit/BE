@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.repository;
 
 import com.sys.dbmonitor.domains.sql.domain.Sql;
@@ -7,10 +11,6 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 // 인터페이스
 @Repository

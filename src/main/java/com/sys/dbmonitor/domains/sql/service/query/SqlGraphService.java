@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.service.query;
 
 import com.sys.dbmonitor.domains.sql.domain.MetricType;
@@ -21,10 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-/**************************************************
- 작성자 : 오수경
- *************************************************/
 
 /**
  * SQL 그래프 데이터 조회 서비스
