@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.global.config;
 
 import com.sys.dbmonitor.domains.instance.domain.DBInfo;

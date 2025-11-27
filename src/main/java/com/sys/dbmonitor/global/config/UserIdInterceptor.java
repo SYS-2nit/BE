@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.global.config;
 
 import jakarta.servlet.http.HttpServletRequest;

@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 배지원
+******************************************************************
+*/
 package com.sys.dbmonitor.domains.diagnosis.runners;
 
 import lombok.extern.slf4j.Slf4j;
@@ -195,7 +200,7 @@ public class JavaCpuLoadGenerator {
             FROM (
                 SELECT ROWNUM 
                 FROM DUAL 
-                CONNECT BY ROWNUM <= 6000
+                CONNECT BY ROWNUM <= 6000 
             )
             """;
         

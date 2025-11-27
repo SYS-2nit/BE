@@ -28,32 +28,4 @@ public interface CollectorRepository {
       *  @param instanceId 대상 Instance ID
       */
      CollectorRawDTO collectSnapshot(Long instanceId);
-
-     /**
-      * 바인드 옵션을 전달하는 수집 오버로드.
-      * 구현체에서 미지원일 경우 기본 수집으로 폴백된다.
-      */
-//     default CollectorRawDTO collectSnapshot(ExecOptions opts) {
-//          // 현재 구현은 기본 호출로 폴백
-//          return collectSnapshot();
-//     }
-//
-//     /** 수집 바인드 옵션 컨테이너 (필요 항목만 설정) */
-//     final class ExecOptions {
-//          /** 최근 후보 조회 분(min), 예: 1 */
-//          public Integer lookbackMin;
-//          /** Top-N, 예: 5 */
-//          public Integer topN;
-//          /** 후보 최대 건수, 예: 200 */
-//          public Integer maxCandidates;
-//          /** 인스턴스 필터: 'ALL' | '1,2' 등 */
-//          public String instFilter;
-//
-//          public ExecOptions() {}
-//
-//          public ExecOptions lookbackMin(Integer v) { this.lookbackMin = v; return this; }
-//          public ExecOptions topN(Integer v)        { this.topN = v; return this; }
-//          public ExecOptions maxCandidates(Integer v){ this.maxCandidates = v; return this; }
-//          public ExecOptions instFilter(String v)   { this.instFilter = v; return this; }
-//     }
 }

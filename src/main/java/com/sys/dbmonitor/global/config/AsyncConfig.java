@@ -1,3 +1,8 @@
+/*
+******************************************************************
+작성자: 최영준
+******************************************************************
+*/
 package com.sys.dbmonitor.global.config;
 
 import org.springframework.context.annotation.Configuration;
