@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 package com.sys.dbmonitor.domains.sql.service;
 
 import com.sys.dbmonitor.domains.sql.domain.SqlSnapshot;

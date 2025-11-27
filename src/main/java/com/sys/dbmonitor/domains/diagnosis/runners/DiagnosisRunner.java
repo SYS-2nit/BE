@@ -3,7 +3,6 @@ package com.sys.dbmonitor.domains.diagnosis.runners;
 import com.sys.dbmonitor.domains.diagnosis.domain.ScenarioType;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -48,13 +47,13 @@ public class DiagnosisRunner implements Runnable {
             return;
         }
         int idx = 0;
-        while (running.get()) {
             currentScenario = scenarios.get(idx);
             log.info("[Diagnosis] 시나리오 시작: {} ({}초)", currentScenario.getTitle(), durationSec);
             remainSec.set(durationSec);
 
             List<String> cmd = currentScenario.getCommand(durationSec);
             try {
+                // 모든 시나리오를 별도 프로세스로 실행 (SwingBench와 Java 기반 모두)
                 runScenarioCmd(cmd, durationSec);
             } catch (Exception ex) {
                 log.error("[Diagnosis] 시나리오 {} 실행 중 오류: {}", currentScenario.getTitle(), ex.getMessage(), ex);
@@ -64,7 +63,6 @@ public class DiagnosisRunner implements Runnable {
             // 라운드 로빈
             idx = (idx + 1) % scenarios.size();
             if (idx == 0) loopCount.incrementAndGet();
-        }
         log.info("[Diagnosis] 실행 스레드 종료");
     }
 
@@ -118,17 +116,17 @@ public class DiagnosisRunner implements Runnable {
                 int exitCode = currentProcess.exitValue();
                 if (exitCode == 0) {
                     // 정상 종료인 경우 INFO 레벨로 로그
-                    log.info("[Diagnosis] SwingBench가 정상 종료됨 (exit code: 0). 설정된 시간({}초)까지 대기합니다.", durationSec);
+                    log.info("[Diagnosis] 진단 프로세스가 정상 종료됨 (exit code: 0). 설정된 시간({}초)까지 대기합니다.", durationSec);
                 } else {
                     // 비정상 종료인 경우 WARN 레벨로 로그
-                    log.warn("[Diagnosis] SwingBench가 비정상 종료됨 (exit code: {}). 설정된 시간({}초)까지 대기합니다.", exitCode, durationSec);
+                    log.warn("[Diagnosis] 진단 프로세스가 비정상 종료됨 (exit code: {}). 설정된 시간({}초)까지 대기합니다.", exitCode, durationSec);
                 }
                 // countdownThread가 남은 시간을 처리하므로 추가 대기 불필요
             } else {
                 // 설정 시간 동안 실행 중이면 강제 종료
                 currentProcess.destroy();
                 remainSec.set(0);
-                log.info("[Diagnosis] SwingBench가 설정 시간({}초) 동안 실행되어 강제 종료합니다.", durationSec);
+                log.info("[Diagnosis] 진단 프로세스가 설정 시간({}초) 동안 실행되어 강제 종료합니다.", durationSec);
             }
             
             // countdownThread가 남은 시간을 카운트다운하도록 대기
@@ -144,8 +142,18 @@ public class DiagnosisRunner implements Runnable {
         }
     }
 
+
     public void stop() {
         running.set(false);
-        if (currentProcess != null) currentProcess.destroyForcibly();
+        if (currentProcess != null) {
+            currentProcess.destroyForcibly();
+        }
+    }
+    
+    /**
+     * 실행 중인지 확인
+     */
+    public boolean isStopped() {
+        return !running.get();
     }
 }

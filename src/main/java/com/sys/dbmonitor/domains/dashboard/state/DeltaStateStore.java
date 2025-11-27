@@ -1,3 +1,7 @@
+/**************************************************
+ 작성자 : 최온유
+ *************************************************/
+
 // src/main/java/com/sys/dbmonitor/domains/dashboard/state/DeltaStateStore.java
 package com.sys.dbmonitor.domains.dashboard.state;
 

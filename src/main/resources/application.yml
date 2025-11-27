@@ -131,3 +131,12 @@ app:
   metric:
     # 운영 환경 기본값: true → metric_data 저장 허용
     persist: true
+  thread-pool:
+    # 배치 작업용 스레드 풀 설정
+    batch:
+      core-size: 5    # 코어 스레드 수
+      max-size: 10    # 최대 스레드 수
+    # 진단 작업용 스레드 풀 설정 (Java 기반만)
+    diagnosis:
+      core-size: 2    # 코어 스레드 수
+      max-size: 5     # 최대 스레드 수
