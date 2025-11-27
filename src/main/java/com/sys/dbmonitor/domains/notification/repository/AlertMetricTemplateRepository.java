@@ -1,3 +1,8 @@
+/*
+ ******************************************************************
+ 작성자: 최영준
+ ******************************************************************
+ */
 package com.sys.dbmonitor.domains.notification.repository;
 
 import com.sys.dbmonitor.domains.notification.domain.AlertCategory;
