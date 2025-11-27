@@ -6,9 +6,12 @@ import com.sys.dbmonitor.domains.sql.domain.Sql;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
-
 import java.time.LocalDateTime;
 import java.util.List;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 @RequiredArgsConstructor
 public class SqlRepositoryCustomImpl implements SqlRepositoryCustom {

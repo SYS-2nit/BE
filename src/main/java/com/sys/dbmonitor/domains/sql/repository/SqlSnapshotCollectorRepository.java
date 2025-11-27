@@ -12,7 +12,6 @@ import com.sys.dbmonitor.global.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-
 import javax.sql.DataSource;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -23,6 +22,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * 타겟 DB에서 SQL 스냅샷 수집 Repository

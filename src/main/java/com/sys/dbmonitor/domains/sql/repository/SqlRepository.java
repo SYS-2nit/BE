@@ -8,6 +8,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 // 인터페이스
 @Repository
 public interface SqlRepository extends JpaRepository<Sql, Long>, SqlRepositoryCustom {

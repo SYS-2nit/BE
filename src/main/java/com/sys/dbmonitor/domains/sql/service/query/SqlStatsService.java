@@ -11,10 +11,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * SQL 통계 목록 조회 서비스

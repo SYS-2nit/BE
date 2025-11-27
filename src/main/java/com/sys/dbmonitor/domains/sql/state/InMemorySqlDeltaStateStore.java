@@ -6,12 +6,15 @@ package com.sys.dbmonitor.domains.sql.state;
 
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
-
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * 메모리 기반 SQL 델타 상태 저장소 구현

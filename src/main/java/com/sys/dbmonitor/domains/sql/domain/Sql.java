@@ -5,6 +5,10 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 @Entity
 @Table(name = "SQL_DATA")
 @Getter

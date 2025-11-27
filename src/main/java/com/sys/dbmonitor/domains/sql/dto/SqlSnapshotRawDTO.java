@@ -2,8 +2,11 @@ package com.sys.dbmonitor.domains.sql.dto;
 
 import lombok.Builder;
 import lombok.Getter;
-
 import java.time.LocalDateTime;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * 수집된 SQL 스냅샷 원시 데이터 DTO

@@ -16,7 +16,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import javax.sql.DataSource;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -28,6 +27,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * SQL 스냅샷 수집 및 저장 서비스

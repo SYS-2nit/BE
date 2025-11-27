@@ -7,9 +7,12 @@ package com.sys.dbmonitor.domains.sql.repository;
 import com.sys.dbmonitor.domains.sql.domain.SqlSnapshot;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
 import java.time.LocalDateTime;
 import java.util.List;
+
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
 
 /**
  * SQL 스냅샷 JPA Repository

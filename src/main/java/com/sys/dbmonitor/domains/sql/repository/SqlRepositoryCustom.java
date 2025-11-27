@@ -4,6 +4,10 @@ import com.sys.dbmonitor.domains.sql.domain.Sql;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**************************************************
+ 작성자 : 오수경
+ *************************************************/
+
 // QueryDSL 메서드 시그니처 정의
 public interface SqlRepositoryCustom {
     // 그래프 조회용 QueryDSL 메서드
